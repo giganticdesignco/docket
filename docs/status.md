@@ -50,6 +50,11 @@ Item 5 of `docs/phase-2.md`. Migration `client_logins`.
   (`signInWithOtp`, existing users only). `middleware/portal.global.ts`
   sends clients to `/portal` and keeps staff out of it; app.vue renders
   no staff chrome for clients; tours skip them.
+- `projects.client_visible` (migration `project_client_visible`, switch
+  on the project form, badge on the project page): on, every task on
+  the project shows on the portal read-only, grouped by project with
+  status and due date; off, only tasks shared for review. `task_visible`
+  covers both for clients.
 - `/portal`: waiting-on-you and balance strip, retainer burn (current
   period plus the two before, from `retainer_status()`, which now
   returns only the caller's client's rows when the caller is a client;
@@ -58,8 +63,15 @@ Item 5 of `docs/phase-2.md`. Migration `client_logins`.
   approving, accepting, and paying stay as built. Staff with the
   billing permission preview it from the client page (View as client,
   `/portal?as=<client id>`).
-- Supabase Auth must have the Email provider enabled (magic links) for
-  invites and sign-in links to work; Google stays for staff.
+- Review page (`/r/<token>`): a signed-in client contact needs no name
+  box ("Commenting as ..."), and `reviewer(event, typedName)` in
+  `server/utils/reviewDoc.ts` stores their profile id and name on
+  comments and decisions; the bare link still works with a typed name.
+- Supabase Auth: Email provider is enabled (checked 2026-09-02); Luke
+  to turn "Allow new users to sign up" off. Google stays for staff.
+- Live timings after the push (curl, time to first byte): /login,
+  /projects, /tasks all about 0.2 s on repeated tries; before, 2.1 s on
+  a cold start.
 
 
 ## Phase 2, wave 2b: roles and permissions (2026-09-02)

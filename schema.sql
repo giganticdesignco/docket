@@ -98,7 +98,8 @@ as $$
 $$;
 
 -- A task is visible when you may see all tasks, made it, or are on it.
--- A client sees what was shared for review on their own projects.
+-- A client sees what was shared for review on their own projects, or
+-- every task on a project marked visible to the client.
 -- Security definer so comment and file policies can ask without RLS
 -- recursing through work_items.
 create or replace function public.task_visible(p_item uuid)
@@ -108,7 +109,8 @@ set search_path = ''
 as $$
   select case when public.is_client() then
       exists (select 1 from public.work_items w join public.projects p on p.id = w.project_id
-              where w.id = p_item and w.shared_at is not null and p.client_id = public.my_client_id())
+              where w.id = p_item and p.client_id = public.my_client_id()
+                and (w.shared_at is not null or p.client_visible))
     else
       public.has_permission('see_all_tasks')
       or exists (select 1 from public.work_items w where w.id = p_item and w.created_by = auth.uid())
@@ -430,6 +432,7 @@ create table projects (
   hourly_rate    numeric(10,2),         -- project override
   harvest_id     bigint unique,         -- Harvest project id, set by the import
   server_path    text,                  -- folder on the office server (smb:// or a path)
+  client_visible boolean not null default false,  -- portal shows all its tasks, read-only
   search         tsvector generated always as (to_tsvector('simple', coalesce(name, '') || ' ' || coalesce(code, ''))) stored,
   is_active      boolean not null default true,
   created_at     timestamptz not null default now(),

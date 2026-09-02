@@ -131,6 +131,7 @@ async function copyFolder() {
         <NuxtLink :to="`/clients/${project.client_id}`" class="text-sm text-muted hover:underline">{{ project.clients?.name }}</NuxtLink>
       </div>
       <UBadge v-if="!project.is_active" color="neutral" variant="subtle">Inactive</UBadge>
+      <UBadge v-if="project.client_visible" color="info" variant="subtle" title="Every task on this project shows on the client portal">Visible to client</UBadge>
       <div v-if="isAdmin" class="ml-auto flex gap-2">
         <UButton variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
         <UButton :to="`/projects/${id}/settings`" variant="outline" icon="i-lucide-settings">Task types</UButton>

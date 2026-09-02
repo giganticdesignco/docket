@@ -23,6 +23,7 @@ const state = reactive({
   budget_hours: props.project?.budget_hours ?? undefined,
   budget_amount: props.project?.budget_amount ?? undefined,
   server_path: props.project?.server_path ?? '',
+  client_visible: props.project?.client_visible ?? false,
   is_active: props.project?.is_active ?? true,
 })
 const saving = ref(false)
@@ -99,6 +100,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     budget_hours: num(state.budget_hours),
     budget_amount: num(state.budget_amount),
     server_path: state.server_path.trim() || null,
+    client_visible: state.client_visible,
     is_active: state.is_active,
   }
   const query = props.project
@@ -148,6 +150,9 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <UInput v-model="state.server_path" class="w-full" placeholder="smb://server/Jobs/Client/1234 Project, or drop the folder here" @input="folderTouched = true" />
         <UButton variant="outline" color="neutral" icon="i-lucide-folder-open" title="Choose the folder. The browser only gives its name, so it goes under the template's path." @click="chooseFolder">Choose</UButton>
       </div>
+    </UFormField>
+    <UFormField name="client_visible" help="On the client portal, every task on this project is listed read-only. Off, only tasks shared for review appear.">
+      <USwitch v-model="state.client_visible" label="Visible to client" />
     </UFormField>
     <UFormField name="is_active">
       <USwitch v-model="state.is_active" label="Active" />

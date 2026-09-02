@@ -17,7 +17,7 @@ if (isPreview.value && !can('manage_billing')) throw createError({ statusCode: 4
 
 const { data } = await useAsyncData(`portal-${clientId.value}`, async () => {
   if (!clientId.value) return null
-  const [client, settings, quotes, invoices, harvest, reviews, retainers] = await Promise.all([
+  const [client, settings, quotes, invoices, harvest, reviews, retainers, tasks] = await Promise.all([
     supabase.from('clients').select('id, name').eq('id', clientId.value).single(),
     supabase.from('invoice_settings').select('company_name, company_email, company_phone, payment_instructions').eq('id', true).maybeSingle(),
     supabase.from('quotes').select('id, number, title, status, subtotal, valid_until, public_token, sent_at, accepted_at').eq('client_id', clientId.value).neq('status', 'draft').order('created_at', { ascending: false }),
@@ -25,11 +25,13 @@ const { data } = await useAsyncData(`portal-${clientId.value}`, async () => {
     supabase.from('harvest_invoices').select('id, number, subject, state, issue_date, due_date, amount, due_amount').eq('client_id', clientId.value).order('issue_date', { ascending: false }).limit(50),
     supabase.from('work_items').select('id, title, status, shared_at, client_decision, client_decision_at, public_token, projects!inner(name, client_id)').eq('projects.client_id', clientId.value).not('shared_at', 'is', null).order('shared_at', { ascending: false }),
     supabase.rpc('retainer_status'),
+    supabase.from('work_items').select('id, title, status, due_on, priority, projects!inner(id, name, client_id, client_visible)').eq('projects.client_id', clientId.value).eq('projects.client_visible', true).order('due_on', { ascending: true, nullsFirst: false }).limit(300),
   ])
-  for (const r of [client, quotes, invoices, harvest, reviews, retainers]) if (r.error) throw r.error
+  for (const r of [client, quotes, invoices, harvest, reviews, retainers, tasks]) if (r.error) throw r.error
   return {
     client: client.data, settings: settings.data, quotes: quotes.data, invoices: invoices.data, harvest: harvest.data, reviews: reviews.data,
     retainers: (retainers.data ?? []).filter(r => r.client_id === clientId.value).sort((a, b) => b.period_start.localeCompare(a.period_start)),
+    tasks: tasks.data ?? [],
   }
 }, fresh)
 
@@ -51,6 +53,20 @@ const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n)
 const pct = (r: RetainerRow) => (r.available > 0 ? Math.round(r.used / r.available * 100) : 0)
 const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
 const ws = await useWorkStatuses()
+const dotClass = (color?: string) => ({ primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }[color ?? ''] ?? 'bg-accented')
+// Tasks on projects marked visible, grouped by project. Open work is
+// listed; finished tasks are a count so a long-running project stays
+// readable.
+const taskGroups = computed(() => {
+  const groups = new Map<string, { name: string, items: NonNullable<typeof data.value>['tasks'], done: number }>()
+  for (const t of data.value?.tasks ?? []) {
+    const g = groups.get(t.projects.id) ?? { name: t.projects.name, items: [], done: 0 }
+    if (ws.isDone(t.status)) g.done += 1
+    else g.items.push(t)
+    groups.set(t.projects.id, g)
+  }
+  return [...groups.values()]
+})
 
 const quoteBadge = (q: { status: string, valid_until: string | null }) =>
   q.status === 'sent' && q.valid_until && q.valid_until < today ? { label: 'Expired', color: 'neutral' as const }
@@ -142,6 +158,22 @@ const invoiceBadge = (i: { status?: string, state?: string, due_date: string | n
               </li>
             </ul>
             <p v-else class="px-4 py-6 text-center text-sm text-muted">Nothing shared for review right now.</p>
+          </UCard>
+        </section>
+
+        <section v-if="taskGroups.length" class="space-y-2">
+          <h2 class="text-lg font-semibold">Tasks</h2>
+          <UCard v-for="g in taskGroups" :key="g.name" :ui="{ body: 'p-0 sm:p-0' }">
+            <div class="border-b border-default px-4 py-2 text-sm font-semibold">{{ g.name }} <span class="font-normal text-muted">{{ g.items.length }} open<template v-if="g.done">, {{ g.done }} done</template></span></div>
+            <ul v-if="g.items.length" class="divide-y divide-default text-sm">
+              <li v-for="t in g.items" :key="t.id" class="flex items-center gap-3 px-4 py-2">
+                <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" />
+                <span class="min-w-0 flex-1 truncate">{{ t.title }}</span>
+                <span v-if="t.due_on" class="text-xs tabular-nums text-muted">{{ shortDate(t.due_on) }}</span>
+                <UBadge :color="ws.color(t.status)" variant="subtle" size="sm">{{ ws.label(t.status) }}</UBadge>
+              </li>
+            </ul>
+            <p v-else class="px-4 py-3 text-sm text-muted">Everything on this project is done.</p>
           </UCard>
         </section>
 

@@ -16,11 +16,21 @@ useHead({ title: () => `Review: ${doc.value?.task.title ?? ''}` })
 const toast = useToast()
 const name = ref('')
 const body = ref('')
+// A signed-in client contact is known already: no name box, and their
+// comments carry their login.
+const supabase = useSupabaseClient()
+const sessionUser = useSupabaseUser()
+const { data: me } = await useAsyncData('review-me', async () => {
+  if (!sessionUser.value) return null
+  const { data } = await supabase.from('profiles').select('full_name, role').eq('id', sessionUser.value.sub).maybeSingle()
+  return data?.role === 'client' ? data : null
+}, fresh)
+watch(me, (m) => { if (m) name.value = m.full_name }, { immediate: true })
 const busy = ref<'comment' | 'approved' | 'changes_requested' | null>(null)
 
 onMounted(() => {
   try {
-    name.value = localStorage.getItem('docket-review-name') ?? ''
+    if (!me.value) name.value = localStorage.getItem('docket-review-name') ?? ''
   } catch {}
 })
 const remember = () => {
@@ -110,7 +120,8 @@ async function send(kind: 'comment' | 'approved' | 'changes_requested') {
 
         <div class="mt-6 space-y-3 border-t border-gray-100 pt-5">
           <div class="grid gap-3 sm:grid-cols-[1fr_2fr]">
-            <input v-model="name" type="text" placeholder="Your name" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none" @blur="remember">
+            <span v-if="me" class="px-1 py-2 text-sm text-gray-700">Commenting as <strong>{{ me.full_name }}</strong></span>
+            <input v-else v-model="name" type="text" placeholder="Your name" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none" @blur="remember">
             <textarea v-model="body" rows="3" placeholder="Leave a comment, or say what should change" class="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none" />
           </div>
           <div class="flex flex-wrap justify-end gap-2">

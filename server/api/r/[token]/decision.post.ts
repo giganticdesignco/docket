@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const token = getRouterParam(event, 'token') ?? ''
   type Body = { name?: unknown, decision?: unknown, body?: unknown }
   const body = await readBody<Body>(event).catch((): Body => ({}))
-  const name = cleanName(body.name)
+  const { name } = await reviewer(event, body.name)
   const decision = body.decision === 'approved' ? 'approved' : body.decision === 'changes_requested' ? 'changes_requested' : null
   if (!decision) throw createError({ statusCode: 400, statusMessage: 'decision must be approved or changes_requested' })
   const note = cleanBody(body.body, decision === 'changes_requested')

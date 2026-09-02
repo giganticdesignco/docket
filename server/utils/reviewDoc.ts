@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '~~/shared/types/database'
+import type { H3Event } from 'h3'
+import { serverSupabaseClient } from '#supabase/server'
 import type { ReviewDoc } from '~~/shared/types/review'
 
 export const REVIEW_TOKEN = /^[0-9a-f]{64}$/
@@ -74,4 +76,19 @@ export function cleanBody(body: unknown, required: boolean): string {
   if (required && !b) throw createError({ statusCode: 400, statusMessage: 'Write something first' })
   if (b.length > 4000) throw createError({ statusCode: 400, statusMessage: 'Keep it under 4000 characters' })
   return b
+}
+
+// Who is on the review page. A signed-in client contact is known by
+// their profile (and the comment carries their id); anyone else on the
+// bare link gives a name.
+export async function reviewer(event: H3Event, typedName: unknown): Promise<{ name: string, authorId: string | null }> {
+  try {
+    const supabase = await serverSupabaseClient<Database>(event)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('id, full_name, role').eq('id', user.id).maybeSingle()
+      if (profile?.role === 'client') return { name: profile.full_name, authorId: profile.id }
+    }
+  } catch { /* no session: fall through to the typed name */ }
+  return { name: cleanName(typedName), authorId: null }
 }

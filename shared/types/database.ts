@@ -1193,6 +1193,7 @@ export type Database = {
         Row: {
           billing_method: Database["public"]["Enums"]["billing_method"]
           budget_amount: number | null
+          client_visible: boolean
           budget_hours: number | null
           client_id: string
           code: string | null
@@ -1207,6 +1208,7 @@ export type Database = {
         Insert: {
           billing_method?: Database["public"]["Enums"]["billing_method"]
           budget_amount?: number | null
+          client_visible?: boolean
           budget_hours?: number | null
           client_id: string
           code?: string | null
@@ -1221,6 +1223,7 @@ export type Database = {
         Update: {
           billing_method?: Database["public"]["Enums"]["billing_method"]
           budget_amount?: number | null
+          client_visible?: boolean
           budget_hours?: number | null
           client_id?: string
           code?: string | null
