@@ -2,28 +2,38 @@ import { serverSupabaseClient } from '#supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '~~/shared/types/database'
 
-// Import one calendar month of Harvest time.
-//   archive: roll the month up into harvest_archive_monthly (replaces the month)
-//   live:    upsert the month's entries into time_entries keyed on harvest_id,
-//            creating clients, projects, tasks, and project_tasks as needed
+// Import from Harvest.
+//   archive:  roll one month up into harvest_archive_monthly (replaces the month)
+//   live:     upsert one month's entries into time_entries keyed on harvest_id,
+//             creating clients, projects, tasks, and project_tasks as needed
+//   projects: copy budget, rate, billing method, and active flag onto the
+//             Docket projects that came from Harvest
 // Runs as the signed-in admin through RLS. The only secret is the Harvest
 // token. Re-runnable: importing the same month again is safe.
 
-type Mode = 'archive' | 'live'
+type Mode = 'archive' | 'live' | 'projects'
 type Body = { month?: string, mode?: Mode, dryRun?: boolean }
 type Db = SupabaseClient<Database>
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event)
   const month = body?.month ?? ''
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw createError({ statusCode: 400, statusMessage: 'month must be YYYY-MM' })
-  if (body.mode !== 'archive' && body.mode !== 'live') throw createError({ statusCode: 400, statusMessage: 'mode must be archive or live' })
+  if (body.mode !== 'archive' && body.mode !== 'live' && body.mode !== 'projects') {
+    throw createError({ statusCode: 400, statusMessage: 'mode must be archive, live, or projects' })
+  }
+  if (body.mode !== 'projects' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw createError({ statusCode: 400, statusMessage: 'month must be YYYY-MM' })
+  }
   const dryRun = !!body.dryRun
 
   const supabase = await serverSupabaseClient<Database>(event)
   const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin')
   if (adminErr) throw createError({ statusCode: 500, statusMessage: adminErr.message })
   if (!isAdmin) throw createError({ statusCode: 403, statusMessage: 'Admins only' })
+
+  if (body.mode === 'projects') {
+    return { month, mode: body.mode, dryRun, fetched: 0, skippedRunning: 0, ...(await importProjects(supabase, dryRun)) }
+  }
 
   const from = `${month}-01`
   const to = lastDayOfMonth(month)
@@ -258,13 +268,20 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
     for (const chunk of chunks(rows, 500)) {
       const { data, error } = await supabase.from('time_entries').upsert(chunk, { onConflict: 'harvest_id' }).select('harvest_id, rate_snapshot')
       fail(error)
-      // The rate trigger overwrites rate_snapshot on insert. A second upsert is an
-      // update with the same project/task/user, which the trigger leaves alone.
+      // The rate trigger overwrites rate_snapshot on insert, and an upsert's
+      // EXCLUDED row carries that overwrite, so a second upsert cannot put
+      // Harvest's rate back. Plain updates can, and the trigger lets admins
+      // change a frozen rate. Group by rate so it is a few requests per chunk.
       const got = new Map(data!.map(d => [d.harvest_id, d.rate_snapshot]))
-      const redo = chunk.filter(r => (got.get(r.harvest_id!) ?? null) !== (r.rate_snapshot ?? null))
-      if (redo.length) {
-        fail((await supabase.from('time_entries').upsert(redo, { onConflict: 'harvest_id' })).error)
-        fixedRates += redo.length
+      const byRate = new Map<number | null, number[]>()
+      for (const r of chunk) {
+        const want = r.rate_snapshot ?? null
+        if ((got.get(r.harvest_id!) ?? null) === want) continue
+        byRate.set(want, [...(byRate.get(want) ?? []), r.harvest_id!])
+      }
+      for (const [rate, ids] of byRate) {
+        fail((await supabase.from('time_entries').update({ rate_snapshot: rate }).in('harvest_id', ids)).error)
+        fixedRates += ids.length
       }
     }
 
@@ -281,12 +298,52 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
   }
 
   // Archive rows were loaded before these clients and projects existed.
-  let relinked = 0
+  // The first pass touches tens of thousands of rows and can trip
+  // PostgREST's statement timeout; that must not fail the month, whose
+  // rows are already written. It catches up on the next run.
+  let relinked: number | null = null
+  let relinkError: string | null = null
   if (!dryRun) {
     const { data, error } = await supabase.rpc('relink_harvest_archive')
-    fail(error)
-    relinked = data ?? 0
+    if (error) relinkError = error.message
+    else relinked = data ?? 0
   }
 
-  return { imported: rows.length, deleted, fixedRates, relinked, skippedUsers: [...skippedUsers.values()], created }
+  return { imported: rows.length, deleted, fixedRates, relinked, relinkError, skippedUsers: [...skippedUsers.values()], created }
+}
+
+// ---------- projects ----------
+
+// Harvest is the source of truth for project settings until the cutover, so
+// budgets, rates, billing method, code, and active flag are copied over each
+// run for every Docket project that came from Harvest.
+async function importProjects(supabase: Db, dryRun: boolean) {
+  const [harvest, existing] = await Promise.all([
+    harvestProjects(),
+    selectAll(supabase.from('projects').select('id, client_id, name, harvest_id').not('harvest_id', 'is', null)),
+  ])
+  const byHarvestId = new Map(existing.map(p => [p.harvest_id!, p]))
+  type Row = Database['public']['Tables']['projects']['Insert']
+  const rows: Row[] = []
+  for (const hp of harvest) {
+    const p = byHarvestId.get(hp.id)
+    if (!p) continue
+    rows.push({
+      id: p.id,
+      client_id: p.client_id,
+      name: p.name,
+      code: hp.code || null,
+      is_active: hp.is_active,
+      billing_method: !hp.is_billable ? 'non_billable' : hp.is_fixed_fee ? 'fixed' : 'hourly',
+      hourly_rate: hp.bill_by === 'Project' ? hp.hourly_rate : null,
+      budget_hours: hp.budget_by === 'project' ? hp.budget : null,
+      budget_amount: hp.budget_by === 'project_cost' ? hp.cost_budget : hp.is_fixed_fee ? hp.fee : null,
+    })
+  }
+  if (!dryRun) {
+    for (const chunk of chunks(rows, 500)) {
+      fail((await supabase.from('projects').upsert(chunk, { onConflict: 'id' })).error)
+    }
+  }
+  return { projectsInHarvest: harvest.length, updatedProjects: rows.length }
 }

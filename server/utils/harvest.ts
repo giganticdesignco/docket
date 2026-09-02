@@ -20,6 +20,22 @@ export type HarvestTimeEntry = {
   task: HarvestRef
 }
 
+export type HarvestProject = {
+  id: number
+  name: string
+  code: string | null
+  is_active: boolean
+  is_billable: boolean
+  is_fixed_fee: boolean
+  bill_by: 'Project' | 'Tasks' | 'People' | 'none'
+  hourly_rate: number | null
+  budget: number | null
+  budget_by: 'project' | 'project_cost' | 'task' | 'task_fees' | 'person' | 'none'
+  cost_budget: number | null
+  fee: number | null
+  client: HarvestRef
+}
+
 export type HarvestUser = {
   id: number
   email: string
@@ -77,6 +93,9 @@ async function harvestAll<K extends string, T>(path: string, key: K, params: Rec
 
 export const harvestTimeEntries = (from: string, to: string) =>
   harvestAll<'time_entries', HarvestTimeEntry>('/time_entries', 'time_entries', { from, to })
+
+export const harvestProjects = () =>
+  harvestAll<'projects', HarvestProject>('/projects', 'projects', {})
 
 // Listing users needs Harvest admin rights; a manager token gets 403. In that
 // case return nothing and let the caller match people by name instead.

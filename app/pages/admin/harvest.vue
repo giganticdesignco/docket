@@ -35,9 +35,11 @@ const running = ref(false)
 const stopRequested = ref(false)
 const progress = ref({ done: 0, total: 0, current: '' })
 
+type Mode = 'archive' | 'live' | 'projects'
+type Step = { month: string, mode: Mode }
 type Result = {
   month: string
-  mode: 'archive' | 'live'
+  mode: Mode
   dryRun: boolean
   fetched: number
   skippedRunning: number
@@ -47,6 +49,10 @@ type Result = {
   imported?: number
   deleted?: number
   fixedRates?: number
+  updatedProjects?: number
+  projectsInHarvest?: number
+  relinkError?: string | null
+  error?: string
   skippedUsers?: string[]
   created?: { clients: number, projects: number, tasks: number, project_tasks: number }
 }
@@ -62,23 +68,28 @@ function months(fromYear: number, toYear: number, lastMonth = 12) {
   return out
 }
 
-async function run(mode: 'archive' | 'live', list: string[]) {
+async function run(steps: Step[]) {
   running.value = true
   stopRequested.value = false
   log.value = []
-  progress.value = { done: 0, total: list.length, current: '' }
+  progress.value = { done: 0, total: steps.length, current: '' }
+  let mode: Mode = steps[0]?.mode ?? 'live'
   try {
-    for (const month of list) {
+    for (const step of steps) {
       if (stopRequested.value) break
-      progress.value.current = month
-      const res = await $fetch<Result>('/api/harvest/import', { method: 'POST', body: { month, mode, dryRun: dryRun.value } })
+      mode = step.mode
+      progress.value.current = step.mode === 'projects' ? 'project details' : step.month
+      const res = await $fetch<Result>('/api/harvest/import', { method: 'POST', body: { month: step.month, mode: step.mode, dryRun: dryRun.value } })
       log.value.unshift(res)
       progress.value.done++
     }
     toast.add({ title: stopRequested.value ? 'Stopped' : dryRun.value ? 'Dry run finished' : 'Import finished', color: 'success' })
   } catch (e) {
     const err = e as { data?: { statusMessage?: string }, message?: string }
-    toast.add({ title: `Import stopped at ${progress.value.current}`, description: err.data?.statusMessage ?? err.message, color: 'error' })
+    const message = err.data?.statusMessage ?? err.message ?? 'Unknown error'
+    // Keep the failure in the log so it is still visible after the toast goes.
+    log.value.unshift({ month: progress.value.current, mode, dryRun: dryRun.value, fetched: 0, skippedRunning: 0, error: message })
+    toast.add({ title: `Import stopped at ${progress.value.current}`, description: message, color: 'error' })
   } finally {
     running.value = false
     refreshYearly()
@@ -86,8 +97,14 @@ async function run(mode: 'archive' | 'live', list: string[]) {
   }
 }
 
-const importArchive = () => run('archive', months(archiveFrom.value, archiveTo.value))
-const syncLive = () => run('live', months(thisYear, thisYear, thisMonth))
+const thisMonthKey = `${thisYear}-${pad(thisMonth)}`
+const importArchive = () => run(months(archiveFrom.value, archiveTo.value).map(month => ({ month, mode: 'archive' as const })))
+// Entries first, then budgets and rates for the projects those entries created.
+const syncLive = () => run([
+  ...months(thisYear, thisYear, thisMonth).map(month => ({ month, mode: 'live' as const })),
+  { month: thisMonthKey, mode: 'projects' as const },
+])
+const syncProjects = () => run([{ month: thisMonthKey, mode: 'projects' as const }])
 
 const skippedUsers = computed(() => [...new Set(log.value.flatMap(r => r.skippedUsers ?? []))])
 const num = (n: number | null | undefined) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
@@ -153,9 +170,13 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
           <p class="text-sm">
             <strong class="tabular-nums">{{ num(liveCount) }}</strong> entries this year came from Harvest.
           </p>
-          <UButton icon="i-lucide-refresh-cw" :disabled="running" @click="syncLive">Sync January to {{ pad(thisMonth) }}</UButton>
+          <div class="flex flex-wrap gap-2">
+            <UButton icon="i-lucide-refresh-cw" :disabled="running" @click="syncLive">Sync January to {{ pad(thisMonth) }}</UButton>
+            <UButton icon="i-lucide-briefcase" variant="outline" :disabled="running" @click="syncProjects">Sync project details</UButton>
+          </div>
           <p class="text-xs text-muted">
             Entries for people without a Docket profile are skipped and listed below. Add them in Supabase Auth, then sync again.
+            Project details (budget, rate, billing method, active) are copied from Harvest at the end of every sync.
           </p>
         </div>
       </UCard>
@@ -192,16 +213,18 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
         </thead>
         <tbody>
           <tr v-for="r in log" :key="r.month + r.mode" class="border-b border-default last:border-0">
-            <td class="px-2 py-1 tabular-nums">{{ r.month }}</td>
+            <td class="px-2 py-1 tabular-nums">{{ r.mode === 'projects' ? 'Projects' : r.month }}</td>
             <td class="px-2 py-1">{{ r.mode }}<span v-if="r.dryRun" class="text-muted"> (dry)</span></td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.fetched }}<span v-if="r.skippedRunning" class="text-muted"> ({{ r.skippedRunning }} running)</span></td>
-            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? r.rows : r.imported }}</td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? r.rows : r.mode === 'projects' ? r.updatedProjects : r.imported }}</td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? num(r.hours) : '' }}</td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'live' ? r.deleted : '' }}</td>
             <td class="px-2 py-1 text-muted">
-              <span v-if="r.created && (r.created.clients || r.created.projects || r.created.tasks || r.created.project_tasks)">
+              <span v-if="r.error" class="text-error">Failed: {{ r.error }}</span>
+              <span v-else-if="r.created && (r.created.clients || r.created.projects || r.created.tasks || r.created.project_tasks)">
                 {{ r.created.clients }} clients, {{ r.created.projects }} projects, {{ r.created.tasks }} tasks, {{ r.created.project_tasks }} assignments
               </span>
+              <span v-if="r.relinkError" class="text-warning"> Archive relink skipped: {{ r.relinkError }}</span>
             </td>
           </tr>
         </tbody>

@@ -1827,6 +1827,15 @@ export type Database = {
           hours_used: number
         }[]
       }
+      project_budgets: {
+        Args: never
+        Returns: {
+          amount_used: number
+          billable_hours: number
+          hours_used: number
+          project_id: string
+        }[]
+      }
       relink_harvest_archive: { Args: never; Returns: number }
       report_time_monthly: {
         Args: {

@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-02, local session, step 7 built and verified.
+Last updated: 2026-09-02, local session, step 7 done and the 2026 Harvest sync run.
 
 ## Where things stand
 
@@ -71,6 +71,41 @@ no rounding.
   no New client, New project, Edit, or Tasks buttons; no Tasks header link;
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
+
+## Data state after the 2026 Harvest sync (2026-09-02)
+
+- All 16 people now have auth users and profiles (14 created by SQL the
+  same way sean@ was, with full_name in raw_user_meta_data so the trigger
+  named them). They can sign in with Google; Google links by email.
+- The hand-made "Cinc" client and its "Website" project were deleted so
+  Harvest's "CINC/TresRE" would not duplicate them.
+- "Sync January to 09" imported 9,956 entries for Jan to Sep 2026, and
+  created the clients, projects, tasks, and project_tasks Harvest uses
+  this year. Harvest-invoiced entries are locked. See the counts in the
+  verification below.
+- First-run gotcha, now handled: the archive relink after a live month
+  updates tens of thousands of rows the first time and tripped
+  PostgREST's 8 s statement timeout for the authenticated role, which
+  aborted January after its rows were written and hid the log. The relink
+  is now non-fatal (reported as `relinkError`) and failed months stay in
+  the page log. The full relink was run once by SQL.
+- Re-run the sync whenever Harvest changes during the parallel month; it
+  is idempotent and deletes entries removed in Harvest unless batched.
+- Rates bug found and fixed on this run: every imported entry had a null
+  rate_snapshot. Postgres runs BEFORE INSERT triggers on an upsert's
+  proposed row before the conflict check, so ON CONFLICT's EXCLUDED values
+  carried the trigger's resolve_rate() result (null, since projects have no
+  rate and people have no default). The route now fixes rates with plain
+  UPDATEs grouped by rate. While there, `set_rate_snapshot()` gained a
+  guard (migration `rate_snapshot_guard`): staff can no longer change a
+  frozen rate on update, admins can, which is what the import relies on.
+- New `projects` mode (also run automatically at the end of "Sync
+  January to ..."): copies budget, rate, billing method, code, and active
+  flag from Harvest onto every Docket project that came from Harvest.
+  Harvest's `budget_by = project` is hours, `project_cost` is dollars;
+  this account bills by person, so projects have no flat hourly rate and
+  per-entry rates come from Harvest's billable_rate. 953 projects updated,
+  225 with a dollar budget, 647 inactive.
 
 ## Step 7: reports + CSV
 

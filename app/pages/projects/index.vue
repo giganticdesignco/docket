@@ -24,11 +24,32 @@ const { data: projects, refresh } = await useAsyncData('projects', async () => {
   return data
 }, fresh)
 
+// Burn for every project in one call (security definer, totals only).
+const { data: burn } = await useAsyncData('project-budgets', async () => {
+  const { data, error } = await supabase.rpc('project_budgets')
+  if (error) throw error
+  return data
+}, fresh)
+const burnById = computed(() => new Map((burn.value ?? []).map(b => [b.project_id, b])))
+
+// Percent of the budget used: by hours when the project has an hours
+// budget, otherwise by billable amount. Null when there is no budget.
+function usedPct(p: { id: string, budget_hours: number | null, budget_amount: number | null }): number | null {
+  const b = burnById.value.get(p.id)
+  if (!b) return null
+  if (p.budget_hours) return b.hours_used / p.budget_hours * 100
+  if (p.budget_amount) return b.amount_used / p.budget_amount * 100
+  return null
+}
+const burnColor = (pct: number) => (pct >= 100 ? 'error' : pct >= 80 ? 'warning' : 'primary')
+
 const rows = computed(() =>
-  (projects.value ?? []).filter(p =>
-    (showInactive.value || p.is_active)
-    && (!clientFilter.value || p.client_id === clientFilter.value),
-  ),
+  (projects.value ?? [])
+    .filter(p =>
+      (showInactive.value || p.is_active)
+      && (!clientFilter.value || p.client_id === clientFilter.value),
+    )
+    .map(p => ({ ...p, pct: usedPct(p) })),
 )
 
 const clientOptions = computed(() => [
@@ -38,6 +59,9 @@ const clientOptions = computed(() => [
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
 const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
+// Harvest budgets are either hours or dollars per project, rarely both.
+const budget = (p: { budget_hours: number | null, budget_amount: number | null }) =>
+  p.budget_hours != null ? `${p.budget_hours.toLocaleString()} h` : p.budget_amount != null ? money(p.budget_amount) : ''
 </script>
 
 <template>
@@ -57,8 +81,8 @@ const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undef
             <th class="px-4 py-2 font-medium">Client</th>
             <th class="px-4 py-2 font-medium">Code</th>
             <th class="px-4 py-2 font-medium">Billing</th>
-            <th class="px-4 py-2 font-medium text-right">Rate</th>
-            <th class="px-4 py-2 font-medium text-right">Budget hrs</th>
+            <th class="px-4 py-2 font-medium text-right">Budget</th>
+            <th class="px-4 py-2 font-medium">Remaining</th>
             <th class="px-4 py-2 font-medium">Status</th>
           </tr>
         </thead>
@@ -68,8 +92,16 @@ const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undef
             <td class="px-4 py-2"><NuxtLink :to="`/clients/${p.client_id}`" class="hover:underline">{{ p.clients?.name }}</NuxtLink></td>
             <td class="px-4 py-2 text-muted">{{ p.code }}</td>
             <td class="px-4 py-2">{{ billingLabel(p.billing_method) }}</td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ money(p.hourly_rate) }}</td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ p.budget_hours ?? '' }}</td>
+            <td class="px-4 py-2 text-right tabular-nums">{{ budget(p) }}</td>
+            <td class="px-4 py-2 w-48">
+              <div v-if="p.pct != null" class="flex items-center gap-2">
+                <UProgress :model-value="Math.min(p.pct, 100)" :color="burnColor(p.pct)" size="sm" class="flex-1" />
+                <span class="w-16 whitespace-nowrap text-right text-xs tabular-nums" :class="p.pct > 100 ? 'text-error' : 'text-muted'">
+                  {{ p.pct > 100 ? Math.round(p.pct - 100) + '% over' : Math.round(100 - p.pct) + '% left' }}
+                </span>
+              </div>
+              <span v-else class="text-xs text-muted">No budget</span>
+            </td>
             <td class="px-4 py-2">
               <UBadge :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
             </td>

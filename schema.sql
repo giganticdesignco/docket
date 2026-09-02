@@ -150,7 +150,10 @@ $$;
 
 -- Freeze the rate on insert. Only recompute on update if the entry is
 -- moved to a different project/task/user, so later rate changes don't
--- rewrite history.
+-- rewrite history. Staff cannot edit a frozen rate; admins can, which is
+-- how the Harvest import stores Harvest's own rate after the insert.
+-- (An upsert cannot do it: BEFORE INSERT runs on the proposed row first,
+-- and ON CONFLICT's EXCLUDED values carry that result.)
 create or replace function public.set_rate_snapshot()
 returns trigger
 language plpgsql
@@ -162,6 +165,9 @@ begin
      or new.task_id    is distinct from old.task_id
      or new.user_id    is distinct from old.user_id then
     new.rate_snapshot := public.resolve_rate(new.project_id, new.task_id, new.user_id);
+  elsif new.rate_snapshot is distinct from old.rate_snapshot
+        and auth.uid() is not null and not public.is_admin() then
+    new.rate_snapshot := old.rate_snapshot;
   end if;
   new.updated_at := now();
   return new;
@@ -795,6 +801,35 @@ as $$
   from live, arch;
 $$;
 
+-- Same numbers for every project at once, for list pages.
+create or replace function public.project_budgets()
+returns table (project_id uuid, hours_used numeric, billable_hours numeric, amount_used numeric)
+language sql stable security definer
+set search_path = ''
+as $$
+  with live as (
+    select te.project_id,
+           sum(te.hours) as hours,
+           sum(case when te.is_billable then te.hours else 0 end) as billable_hours,
+           sum(case when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end) as amount
+    from public.time_entries te
+    where te.ended_at is not null or te.started_at is null
+    group by te.project_id
+  ), arch as (
+    select a.project_id, sum(a.hours) as hours, sum(a.billable_hours) as billable_hours, sum(a.amount) as amount
+    from public.harvest_archive_monthly a
+    where a.project_id is not null
+    group by a.project_id
+  )
+  select p.id,
+         coalesce(live.hours, 0) + coalesce(arch.hours, 0),
+         coalesce(live.billable_hours, 0) + coalesce(arch.billable_hours, 0),
+         coalesce(live.amount, 0) + coalesce(arch.amount, 0)
+  from public.projects p
+  left join live on live.project_id = p.id
+  left join arch on arch.project_id = p.id;
+$$;
+
 -- Every retainer with use and rollover worked out. Periods chain when they
 -- share client, project, and name and one starts the day after the previous
 -- ends. A period's leftover carries into the next when the earlier period
@@ -1083,6 +1118,7 @@ revoke execute on function public.set_rate_snapshot()        from public, anon, 
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.project_budget(uuid)       from public, anon;
+revoke execute on function public.project_budgets()          from public, anon;
 revoke execute on function public.retainer_status()          from public, anon;
 revoke execute on function public.relink_harvest_archive()   from public, anon;
 revoke execute on function public.report_time_monthly(date, date, text, text, text, text[]) from public, anon;
