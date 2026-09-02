@@ -224,6 +224,12 @@ async function chooseServerFile() {
 function dropServerFile(e: DragEvent) {
   useServerFileName(droppedName(e))
 }
+// The Mac app drops the real path, mapped to the share.
+const desktop = useDesktop()
+async function dropServerFileDesktop(e: Event) {
+  const path = (e as CustomEvent<{ paths: string[] }>).detail.paths[0]
+  if (path) linkPath.value = await desktop.shareUrl(path)
+}
 function useServerFileName(name: string | null) {
   if (!name) return
   const typed = linkPath.value.trim()
@@ -511,7 +517,7 @@ async function deleteTask() {
           </div>
           <template v-if="attachKind === 'link'">
             <UFormField label="Path on the server" help="Paste the path, drop the file from Finder, or choose it. Dropped and chosen files only give their name, so it goes after the project folder. Nothing is copied; people outside the office cannot open it.">
-              <div class="flex gap-2" @dragover.prevent @drop.prevent="dropServerFile">
+              <div class="flex gap-2" @dragover.prevent @drop.prevent="dropServerFile" @desktop-drop="dropServerFileDesktop">
                 <UInput v-model="linkPath" class="w-full" placeholder="smb://server/Jobs/Client/file.indd, or drop the file here" />
                 <UButton variant="outline" color="neutral" icon="i-lucide-folder-open" title="Choose the file. The browser only gives its name, so it goes after the folder typed here." @click="chooseServerFile">Choose</UButton>
               </div>

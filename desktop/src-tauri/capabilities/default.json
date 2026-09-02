@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The Docket site, live or local, gets the shell's commands and Finder.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["https://docket-wine-one.vercel.app/*", "http://localhost:3000/*"]
+  },
+  "permissions": [
+    "core:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "smb://**" }, { "url": "afp://**" }, { "url": "file://**" }, { "url": "https://**" }]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "/Volumes/**" }]
+    }
+  ]
+}

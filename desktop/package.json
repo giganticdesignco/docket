@@ -1,0 +1,14 @@
+{
+  "name": "docket-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mac shell around the Docket web app",
+  "scripts": {
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

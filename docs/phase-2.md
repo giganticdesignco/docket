@@ -10,11 +10,11 @@ model, verify in the browser, then commit).
 
 | Wave | Items | Why this order | Size |
 | --- | --- | --- | --- |
-| 2a, quick wins | Project server folder; Reports, Harvest layout; Rollups on detail pages; Search; Power user shortcuts; Feature walkthrough | Small, independent, useful on day one. Reports first because the data is all there and the team knows the Harvest layout; the walkthrough last so it describes the finished UI | 15 to 18 days |
+| 2a, quick wins | Project server folder; Reports, Harvest layout; Rollups on detail pages; Mac desktop shell; Sidebar navigation rework; Search; Power user shortcuts; Feature walkthrough | Small, independent, useful on day one. Reports first because the data is all there and the team knows the Harvest layout; the walkthrough last so it describes the finished UI | 18 to 22 days |
 | 2b, foundations | Roles and permissions; Client logins; Google Calendar | Client logins need real roles; calendar feeds the capacity page that already exists | 15 to 18 days |
 | 2c, bigger builds | Gantt; Estimator; AI assistant | Each is its own product surface; the AI work reads best once the data model is stable | 20 to 25 days |
 
-Roughly ten to twelve weeks of build if done one after the other.
+Roughly eleven to thirteen weeks of build if done one after the other.
 
 ## 1. Search, ClickUp style
 
@@ -353,6 +353,42 @@ How:
   permission once Roles ship, until then admin only.
 
 Depends on: items 11 and 12. Size: 2 to 3 days.
+
+## 14. Sidebar navigation rework
+
+Added 2026-09-02 by Luke: "it's getting long, needs better
+organization."
+
+What: the rail has grown to nineteen entries in four sections (Work,
+Accounts, Manage, Settings), and Settings alone is seven. Reorganise so
+the daily items are one click and the rest are one hop away.
+
+How:
+- Top of the rail, always visible: Time, Tasks, Projects, Clients,
+  Reports, plus Search once it exists. These are the five to six things
+  people open every day.
+- A "More" group for the weekly and monthly items: Expenses, Quotes,
+  Capacity, Time off, Billing, Invoices.
+- Settings collapses to a single gear entry that opens a settings page
+  with its own left nav (People, Project settings, Task statuses, Task
+  types, Expense categories, Invoice settings, Imports). The two import
+  pages go under one "Imports" entry since they are used once.
+- Role aware: staff never see Billing, Invoices, Quotes, or Settings at
+  all, so their rail is short by default.
+- Keep the collapsed icon rail and the hover labels; on hover or focus
+  the rail can expand to show labels, the way Supabase's does.
+- Same treatment on the mobile slideover.
+
+Depends on: nothing; better done before the walkthrough so the tour
+describes the final layout. Size: 1 to 2 days.
+
+## 15. Mac desktop shell
+
+Built 2026-09-02, ahead of the rest of 2a, at Luke's request. A Tauri 2
+shell in `desktop/` around the live site, so dropped folders and files
+carry real paths, mapped from the mounted volume back to the smb://
+share, and smb links open in Finder. Unsigned until there is an Apple
+Developer account; see `desktop/README.md`.
 
 ## Not in this list but worth a word
 

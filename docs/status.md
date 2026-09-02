@@ -1,5 +1,29 @@
 # Status
 
+## Phase 2: Mac desktop shell (2026-09-02)
+
+`desktop/` is a Tauri 2 app that opens the live site in a webview. Luke
+asked for it so dropped folders carry real paths (a browser only gives
+the name). See `desktop/README.md` for building and signing.
+
+- Rust command `share_url(path)` maps `/Volumes/SHARE/...` to
+  `smb://host/SHARE/...` from the `mount` table (unit tests in
+  `src-tauri/src/lib.rs`). Opener plugin opens smb, afp, file links and
+  `/Volumes` paths in Finder.
+- Web side: `useDesktop()` (isDesktop, shareUrl, open) and
+  `app/plugins/desktop.client.ts`, which turns Tauri's drag-drop event
+  into a `desktop-drop` DOM event on the element under the cursor and
+  routes smb/afp/file link clicks to Finder. ProjectForm and the task
+  Attach dialog listen with `@desktop-drop` and take the full mapped
+  path; in a browser the name-only drop keeps working.
+- `capabilities/default.json` grants the remote origin (the Vercel URL
+  and localhost:3000) access to the shell's commands. The window uses a
+  Safari user agent so Google sign-in accepts the webview.
+- Rust installed via rustup (user-local) on Luke's machine on
+  2026-09-02. Unsigned builds run locally; team distribution needs an
+  Apple Developer account for signing and notarization.
+
+
 ## Phase 2, wave 2a: rollups on detail pages (2026-09-02)
 
 Item 13 of `docs/phase-2.md`. No migration; everything reads the

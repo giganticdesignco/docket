@@ -50,6 +50,15 @@ async function chooseFolder() {
 function dropFolder(e: DragEvent) {
   useFolderName(droppedName(e))
 }
+// In the Mac app a drop carries the real path, so the whole thing goes
+// in, mapped from the mounted volume to its smb:// share.
+const desktop = useDesktop()
+async function dropFolderDesktop(e: Event) {
+  const path = (e as CustomEvent<{ paths: string[] }>).detail.paths[0]
+  if (!path) return
+  state.server_path = await desktop.shareUrl(path)
+  folderTouched.value = true
+}
 function useFolderName(name: string | null) {
   if (!name) return
   const client = props.clients.find(c => c.id === state.client_id)?.name
@@ -134,7 +143,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
       </UFormField>
     </div>
     <UFormField label="Server folder" name="server_path" help="Where this project's files live on the office server. New task file links start here.">
-      <div class="flex gap-2" @dragover.prevent @drop.prevent="dropFolder">
+      <div class="flex gap-2" @dragover.prevent @drop.prevent="dropFolder" @desktop-drop="dropFolderDesktop">
         <USelect v-if="roots.length > 1" v-model="root" :items="roots" class="w-36 shrink-0" aria-label="Volume" />
         <UInput v-model="state.server_path" class="w-full" placeholder="smb://server/Jobs/Client/1234 Project, or drop the folder here" @input="folderTouched = true" />
         <UButton variant="outline" color="neutral" icon="i-lucide-folder-open" title="Choose the folder. The browser only gives its name, so it goes under the template's path." @click="chooseFolder">Choose</UButton>
