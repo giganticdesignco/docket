@@ -10,26 +10,26 @@ const seeAll = computed(() => can('see_all_time'))
 const seeMoney = computed(() => can('see_money'))
 const editing = ref(false)
 
-const { data: project, refresh } = await useAsyncData(`project-${id}`, async () => {
+const __ad1 = useAsyncData(`project-${id}`, async () => {
   const { data, error } = await supabase.from('projects').select('*, clients(id, name)').eq('id', id).single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   return data
 }, fresh)
 
-const { data: projectTasks } = await useAsyncData(`project-${id}-tasks-named`, async () => {
+const __ad2 = useAsyncData(`project-${id}-tasks-named`, async () => {
   const { data, error } = await supabase.from('project_tasks').select('hourly_rate, tasks(name)').eq('project_id', id)
   if (error) throw error
   return data
 }, fresh)
 
-const { data: clients } = await useAsyncData('clients-for-projects', async () => {
+const __ad3 = useAsyncData('clients-for-projects', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').order('name')
   if (error) throw error
   return data
 }, fresh)
 
 // Tasks on this project, newest due first among the open ones.
-const { data: workItems, refresh: refreshItems } = await useAsyncData(`project-${id}-work-items`, async () => {
+const __ad4 = useAsyncData(`project-${id}-work-items`, async () => {
   const { data, error } = await supabase
     .from('work_items')
     .select('id, title, status, due_on, work_item_assignees(user_id, profiles(full_name))')
@@ -38,12 +38,19 @@ const { data: workItems, refresh: refreshItems } = await useAsyncData(`project-$
   if (error) throw error
   return data
 }, fresh)
-const { data: people } = await useAsyncData('people-for-tasks', async () => {
+const __ad5 = useAsyncData('people-for-tasks', async () => {
   const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
   if (error) throw error
   return data
 }, fresh)
-const ws = await useWorkStatuses()
+const __ad6 = useWorkStatuses()
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
+const { data: project, refresh } = __ad1
+const { data: projectTasks } = __ad2
+const { data: clients } = __ad3
+const { data: workItems, refresh: refreshItems } = __ad4
+const { data: people } = __ad5
+const ws = await __ad6
 const showDone = ref(false)
 const openItems = computed(() => (workItems.value ?? []).filter(i => !ws.isDone(i.status)))
 const visibleItems = computed(() => (showDone.value ? workItems.value ?? [] : openItems.value))
@@ -55,14 +62,14 @@ function taskCreated() {
 
 // Lifetime burn across everyone's time plus linked Harvest history.
 // Security definer function, so staff see the real total.
-const { data: budget, refresh: refreshBudget } = await useAsyncData(`project-${id}-budget`, async () => {
+const __ad7 = useAsyncData(`project-${id}-budget`, async () => {
   const { data, error } = await supabase.rpc('project_budget', { p_project_id: id }).single()
   if (error) throw error
   return data
 }, fresh)
 
 // time_detail runs under RLS: admins see everyone, staff see their own.
-const { data: recent } = await useAsyncData(`project-${id}-recent`, async () => {
+const __ad8 = useAsyncData(`project-${id}-recent`, async () => {
   const { data, error } = await supabase
     .from('time_detail')
     .select('id, spent_on, user_name, task_name, hours, notes, is_billable')
@@ -72,6 +79,9 @@ const { data: recent } = await useAsyncData(`project-${id}-recent`, async () => 
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad7, __ad8])
+const { data: budget, refresh: refreshBudget } = __ad7
+const { data: recent } = __ad8
 
 useHead({ title: () => project.value?.name ?? 'Project' })
 

@@ -1101,6 +1101,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          client_id: string | null
           created_at: string
           default_rate: number | null
           email: string
@@ -1111,6 +1112,7 @@ export type Database = {
           tours_seen: Json
         }
         Insert: {
+          client_id?: string | null
           created_at?: string
           default_rate?: number | null
           email: string
@@ -1121,6 +1123,7 @@ export type Database = {
           tours_seen?: Json
         }
         Update: {
+          client_id?: string | null
           created_at?: string
           default_rate?: number | null
           email?: string
@@ -2639,6 +2642,8 @@ export type Database = {
         Returns: undefined
       }
       has_permission: { Args: { p_key: string }; Returns: boolean }
+      is_client: { Args: never; Returns: boolean }
+      my_client_id: { Args: never; Returns: string }
       task_visible: { Args: { p_item: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       next_invoice_number: { Args: never; Returns: string }

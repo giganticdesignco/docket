@@ -116,7 +116,7 @@ export function useTour() {
 
   // First visit: the general tour, then the page's own the next time.
   function maybeStart() {
-    if (!profile.value || running.value) return
+    if (!profile.value || profile.value.role === 'client' || running.value) return
     const next = forPage.value.find(t => !seen.value[t.id])
     if (next) setTimeout(() => start(next.id), 600)
   }

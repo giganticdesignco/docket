@@ -108,11 +108,14 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
         v-model:search-term="term"
         :groups="groups"
         :loading="loading"
-        placeholder="Search, or t: p: c: q: i: to narrow"
+        placeholder="Search tasks, projects, clients, quotes, invoices"
         class="h-96"
         :close="true"
         @update:open="open = $event"
       />
+      <p class="border-t border-default px-4 py-2 text-xs text-muted">
+        Start with <UKbd>t:</UKbd> tasks, <UKbd>p:</UKbd> projects, <UKbd>c:</UKbd> clients, <UKbd>q:</UKbd> quotes, or <UKbd>i:</UKbd> invoices to search only that kind, for example <span class="font-mono">t: email</span>.
+      </p>
     </template>
   </UModal>
 </template>

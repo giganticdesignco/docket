@@ -20,7 +20,7 @@ const showCompleted = ref(false)
 const search = ref('')
 const collapsed = ref(new Set<string>())
 
-const { data: items, refresh } = await useAsyncData('work-items', async () => {
+const __ad1 = useAsyncData('work-items', async () => {
   const { data, error } = await supabase
     .from('work_items')
     .select('id, title, status, priority, due_on, estimate_hours, project_id, updated_at, projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
@@ -31,17 +31,21 @@ const { data: items, refresh } = await useAsyncData('work-items', async () => {
   return data
 }, fresh)
 
-const { data: projects } = await useAsyncData('projects-for-tasks', async () => {
+const __ad2 = useAsyncData('projects-for-tasks', async () => {
   const { data, error } = await supabase.from('projects').select('id, name, clients(name)').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: people } = await useAsyncData('people-for-tasks', async () => {
+const __ad3 = useAsyncData('people-for-tasks', async () => {
   const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3])
+const { data: items, refresh } = __ad1
+const { data: projects } = __ad2
+const { data: people } = __ad3
 
 type Item = NonNullable<typeof items.value>[number]
 type Group = { key: string, label: string, sublabel?: string, color?: string, items: Item[], done?: boolean }

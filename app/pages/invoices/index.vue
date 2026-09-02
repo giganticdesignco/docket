@@ -8,7 +8,7 @@ useHead({ title: 'Invoices' })
 const supabase = useSupabaseClient()
 const toast = useToast()
 
-const { data: invoices } = await useAsyncData('invoices', async () => {
+const __ad1 = useAsyncData('invoices', async () => {
   const { data, error } = await supabase
     .from('invoices')
     .select('id, number, status, subject, issue_date, due_date, total, due_amount, sent_at, client_id, clients(name)')
@@ -18,11 +18,14 @@ const { data: invoices } = await useAsyncData('invoices', async () => {
   return data
 }, fresh)
 
-const { data: clients } = await useAsyncData('clients-for-invoices', async () => {
+const __ad2 = useAsyncData('clients-for-invoices', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2])
+const { data: invoices } = __ad1
+const { data: clients } = __ad2
 
 type Row = NonNullable<typeof invoices.value>[number]
 type Filter = 'open' | 'overdue' | 'draft' | 'paid' | 'void' | 'all'

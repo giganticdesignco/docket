@@ -7,7 +7,7 @@ useHead({ title: 'Quotes' })
 const supabase = useSupabaseClient()
 const toast = useToast()
 
-const { data: quotes } = await useAsyncData('quotes', async () => {
+const __ad1 = useAsyncData('quotes', async () => {
   const { data, error } = await supabase
     .from('quotes')
     .select('id, number, title, status, subtotal, valid_until, sent_at, accepted_at, created_at, client_id, project_id, clients(name)')
@@ -16,11 +16,14 @@ const { data: quotes } = await useAsyncData('quotes', async () => {
   return data
 }, fresh)
 
-const { data: clients } = await useAsyncData('clients-for-quotes', async () => {
+const __ad2 = useAsyncData('clients-for-quotes', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2])
+const { data: quotes } = __ad1
+const { data: clients } = __ad2
 
 type Row = NonNullable<typeof quotes.value>[number]
 type Filter = 'all' | 'draft' | 'sent' | 'accepted' | 'declined'

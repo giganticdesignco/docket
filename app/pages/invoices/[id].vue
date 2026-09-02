@@ -13,7 +13,7 @@ const user = useSupabaseUser()
 const toast = useToast()
 const origin = useRequestURL().origin
 
-const { data: invoice, refresh: refreshInvoice } = await useAsyncData(`invoice-${id}`, async () => {
+const __ad1 = useAsyncData(`invoice-${id}`, async () => {
   const { data, error } = await supabase
     .from('invoices')
     .select('*, clients(name), billing_batches(id, period_start, period_end)')
@@ -23,17 +23,21 @@ const { data: invoice, refresh: refreshInvoice } = await useAsyncData(`invoice-$
   return data
 }, fresh)
 
-const { data: lines, refresh: refreshLines } = await useAsyncData(`invoice-${id}-lines`, async () => {
+const __ad2 = useAsyncData(`invoice-${id}-lines`, async () => {
   const { data, error } = await supabase.from('invoice_lines').select('*').eq('invoice_id', id).order('position')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: payments, refresh: refreshPayments } = await useAsyncData(`invoice-${id}-payments`, async () => {
+const __ad3 = useAsyncData(`invoice-${id}-payments`, async () => {
   const { data, error } = await supabase.from('invoice_payments').select('*, profiles(full_name)').eq('invoice_id', id).order('paid_on')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3])
+const { data: invoice, refresh: refreshInvoice } = __ad1
+const { data: lines, refresh: refreshLines } = __ad2
+const { data: payments, refresh: refreshPayments } = __ad3
 
 // The document exactly as the public page renders it.
 const { data: doc, refresh: refreshDoc } = await useAsyncData(`invoice-${id}-doc`, () =>

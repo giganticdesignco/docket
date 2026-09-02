@@ -12,26 +12,31 @@ const supabase = useSupabaseClient()
 const toast = useToast()
 const origin = useRequestURL().origin
 
-const { data: quote, refresh: refreshQuote } = await useAsyncData(`quote-${id}`, async () => {
+const __ad1 = useAsyncData(`quote-${id}`, async () => {
   const { data, error } = await supabase.from('quotes').select('*, clients(name), projects(id, name)').eq('id', id).single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Quote not found' })
   return data
 }, fresh)
-const { data: lines, refresh: refreshLines } = await useAsyncData(`quote-${id}-lines`, async () => {
+const __ad2 = useAsyncData(`quote-${id}-lines`, async () => {
   const { data, error } = await supabase.from('quote_line_items').select('*').eq('quote_id', id).order('sort_order').order('created_at')
   if (error) throw error
   return data
 }, fresh)
-const { data: nodes, refresh: refreshNodes } = await useAsyncData(`quote-${id}-nodes`, async () => {
+const __ad3 = useAsyncData(`quote-${id}-nodes`, async () => {
   const { data, error } = await supabase.from('quote_sitemap_nodes').select('*').eq('quote_id', id).order('sort_order').order('created_at')
   if (error) throw error
   return data
 }, fresh)
-const { data: taskTypes } = await useAsyncData('task-types-for-quotes', async () => {
+const __ad4 = useAsyncData('task-types-for-quotes', async () => {
   const { data, error } = await supabase.from('tasks').select('id, name').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const { data: quote, refresh: refreshQuote } = __ad1
+const { data: lines, refresh: refreshLines } = __ad2
+const { data: nodes, refresh: refreshNodes } = __ad3
+const { data: taskTypes } = __ad4
 const { data: doc, refresh: refreshDoc } = await useAsyncData(`quote-${id}-doc`, () => $fetch<QuoteDoc>(`/api/q/${quote.value!.public_token}`), fresh)
 
 useHead({ title: () => (quote.value ? `Quote ${quote.value.number}` : 'Quote') })

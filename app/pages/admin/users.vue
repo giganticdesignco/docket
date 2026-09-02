@@ -39,17 +39,20 @@ async function addPerson() {
   }
 }
 
-const { data: profiles, refresh } = await useAsyncData('admin-profiles', async () => {
+const __ad1 = useAsyncData('admin-profiles', async () => {
   const { data, error } = await supabase.from('profiles').select('*').order('full_name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: availability, refresh: refreshAvailability } = await useAsyncData('admin-availability', async () => {
+const __ad2 = useAsyncData('admin-availability', async () => {
   const { data, error } = await supabase.from('availability').select('user_id, hours_per_week').is('effective_to', null)
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2])
+const { data: profiles, refresh } = __ad1
+const { data: availability, refresh: refreshAvailability } = __ad2
 
 const hoursFor = (id: string) => availability.value?.find(a => a.user_id === id)?.hours_per_week ?? null
 

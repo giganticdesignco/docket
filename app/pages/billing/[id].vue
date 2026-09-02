@@ -9,7 +9,7 @@ const supabase = useSupabaseClient()
 const toast = useToast()
 const csv = useCsv()
 
-const { data: batch, refresh } = await useAsyncData(`batch-${id}`, async () => {
+const __ad1 = useAsyncData(`batch-${id}`, async () => {
   const { data, error } = await supabase
     .from('billing_batches')
     .select('*, clients(name), projects(name), profiles(full_name)')
@@ -19,7 +19,7 @@ const { data: batch, refresh } = await useAsyncData(`batch-${id}`, async () => {
   return data
 }, fresh)
 
-const { data: time, refresh: refreshTime } = await useAsyncData(`batch-${id}-time`, async () => {
+const __ad2 = useAsyncData(`batch-${id}-time`, async () => {
   const { data, error } = await supabase
     .from('time_detail')
     .select('id, spent_on, user_name, project_name, task_name, hours, amount, notes')
@@ -30,7 +30,7 @@ const { data: time, refresh: refreshTime } = await useAsyncData(`batch-${id}-tim
   return data
 }, fresh)
 
-const { data: expenses, refresh: refreshExpenses } = await useAsyncData(`batch-${id}-expenses`, async () => {
+const __ad3 = useAsyncData(`batch-${id}-expenses`, async () => {
   const { data, error } = await supabase
     .from('expenses')
     .select('id, spent_on, amount, notes, receipt_path, projects(name), expense_categories(name), profiles(full_name)')
@@ -41,11 +41,16 @@ const { data: expenses, refresh: refreshExpenses } = await useAsyncData(`batch-$
 }, fresh)
 
 // The live invoice made from this batch, if any.
-const { data: invoice, refresh: refreshInvoice } = await useAsyncData(`batch-${id}-invoice`, async () => {
+const __ad4 = useAsyncData(`batch-${id}-invoice`, async () => {
   const { data, error } = await supabase.from('invoices').select('id, number, status').eq('batch_id', id).neq('status', 'void').maybeSingle()
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const { data: batch, refresh } = __ad1
+const { data: time, refresh: refreshTime } = __ad2
+const { data: expenses, refresh: refreshExpenses } = __ad3
+const { data: invoice, refresh: refreshInvoice } = __ad4
 
 useHead({ title: () => (batch.value ? `Batch for ${batch.value.clients?.name ?? 'client'}` : 'Batch') })
 

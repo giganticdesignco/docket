@@ -14,30 +14,35 @@ const projectId = ref<string | undefined>()
 const from = ref(startOfMonth(lastMonth))
 const to = ref(endOfMonth(lastMonth))
 
-const { data: clients } = await useAsyncData('clients-for-billing', async () => {
+const __ad1 = useAsyncData('clients-for-billing', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').order('name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: projects } = await useAsyncData('projects-for-billing', async () => {
+const __ad2 = useAsyncData('projects-for-billing', async () => {
   if (!clientId.value) return []
   const { data, error } = await supabase.from('projects').select('id, name').eq('client_id', clientId.value).order('name')
   if (error) throw error
   return data
 }, { ...fresh, watch: [clientId] })
 
-const { data: categories } = await useAsyncData('categories-for-billing', async () => {
+const __ad3 = useAsyncData('categories-for-billing', async () => {
   const { data, error } = await supabase.from('expense_categories').select('id, name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: people } = await useAsyncData('people-for-billing', async () => {
+const __ad4 = useAsyncData('people-for-billing', async () => {
   const { data, error } = await supabase.from('profiles').select('id, full_name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const { data: clients } = __ad1
+const { data: projects } = __ad2
+const { data: categories } = __ad3
+const { data: people } = __ad4
 
 // PostgREST caps a response at 1000 rows; a busy client-month can pass that.
 async function selectAll<T>(query: { range: (from: number, to: number) => PromiseLike<{ data: T[] | null, error: { message: string } | null }> }): Promise<T[]> {
@@ -52,7 +57,7 @@ async function selectAll<T>(query: { range: (from: number, to: number) => Promis
 
 const ready = computed(() => !!clientId.value && from.value <= to.value)
 
-const { data: time, status: timeStatus } = await useAsyncData('unbilled-time', async () => {
+const __ad5 = useAsyncData('unbilled-time', async () => {
   if (!ready.value) return []
   let q = supabase.from('unbilled_time')
     .select('id, spent_on, project_id, project_name, task_name, user_name, hours, amount, notes')
@@ -62,7 +67,7 @@ const { data: time, status: timeStatus } = await useAsyncData('unbilled-time', a
   return selectAll(q)
 }, { ...fresh, watch: [clientId, projectId, from, to] })
 
-const { data: expenses, status: expenseStatus } = await useAsyncData('unbilled-expenses', async () => {
+const __ad6 = useAsyncData('unbilled-expenses', async () => {
   if (!ready.value) return []
   let q = supabase.from('unbilled_expenses')
     .select('id, spent_on, project_id, project_name, category_id, user_id, amount, notes, receipt_path')
@@ -71,6 +76,9 @@ const { data: expenses, status: expenseStatus } = await useAsyncData('unbilled-e
   if (projectId.value) q = q.eq('project_id', projectId.value)
   return selectAll(q)
 }, { ...fresh, watch: [clientId, projectId, from, to] })
+await Promise.all([__ad5, __ad6])
+const { data: time, status: timeStatus } = __ad5
+const { data: expenses, status: expenseStatus } = __ad6
 
 const loading = computed(() => timeStatus.value === 'pending' || expenseStatus.value === 'pending')
 

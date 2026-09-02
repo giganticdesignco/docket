@@ -12,7 +12,7 @@ const toast = useToast()
 const year = ref(new Date().getFullYear())
 const everyone = ref(false)
 
-const { data: expenses, refresh } = await useAsyncData('expenses', async () => {
+const __ad1 = useAsyncData('expenses', async () => {
   let query = supabase
     .from('expenses')
     .select('*, projects(name, clients(name)), expense_categories(name), profiles(full_name)')
@@ -26,17 +26,21 @@ const { data: expenses, refresh } = await useAsyncData('expenses', async () => {
   return data
 }, { ...fresh, watch: [year, everyone] })
 
-const { data: projects } = await useAsyncData('projects-for-expenses', async () => {
+const __ad2 = useAsyncData('projects-for-expenses', async () => {
   const { data, error } = await supabase.from('projects').select('id, name, clients(name)').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: categories } = await useAsyncData('expense-categories-active', async () => {
+const __ad3 = useAsyncData('expense-categories-active', async () => {
   const { data, error } = await supabase.from('expense_categories').select('id, name').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3])
+const { data: expenses, refresh } = __ad1
+const { data: projects } = __ad2
+const { data: categories } = __ad3
 
 type Row = NonNullable<typeof expenses.value>[number]
 

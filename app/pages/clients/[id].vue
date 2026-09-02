@@ -19,13 +19,13 @@ const editingRetainer = ref<Tables<'retainers'> | null>(null)
 const deletingRetainer = ref<RetainerRow | null>(null)
 const toast = useToast()
 
-const { data: client, refresh } = await useAsyncData(`client-${id}`, async () => {
+const __ad1 = useAsyncData(`client-${id}`, async () => {
   const { data, error } = await supabase.from('clients').select('*').eq('id', id).single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Client not found' })
   return data
 }, fresh)
 
-const { data: projects, refresh: refreshProjects } = await useAsyncData(`client-${id}-projects`, async () => {
+const __ad2 = useAsyncData(`client-${id}-projects`, async () => {
   const { data, error } = await supabase.from('projects').select('*').eq('client_id', id).order('name')
   if (error) throw error
   return data
@@ -33,7 +33,7 @@ const { data: projects, refresh: refreshProjects } = await useAsyncData(`client-
 
 // Use and rollover come from retainer_status(), a security definer function,
 // so staff see the real burn rather than just their own hours.
-const { data: retainers, refresh: refreshRetainers } = await useAsyncData(`client-${id}-retainers`, async () => {
+const __ad3 = useAsyncData(`client-${id}-retainers`, async () => {
   const { data, error } = await supabase.rpc('retainer_status')
   if (error) throw error
   return data.filter(r => r.client_id === id).sort((a, b) => b.period_start.localeCompare(a.period_start))
@@ -41,12 +41,12 @@ const { data: retainers, refresh: refreshRetainers } = await useAsyncData(`clien
 
 // Quotes, Docket invoices, then Harvest history. RLS gives staff nothing
 // for any of them, so no admin check on the queries.
-const { data: quotes } = await useAsyncData(`client-${id}-quotes`, async () => {
+const __ad4 = useAsyncData(`client-${id}-quotes`, async () => {
   const { data, error } = await supabase.from('quotes').select('id, number, title, status, subtotal, valid_until').eq('client_id', id).order('created_at', { ascending: false }).limit(20)
   if (error) throw error
   return data
 }, fresh)
-const { data: docketInvoices } = await useAsyncData(`client-${id}-docket-invoices`, async () => {
+const __ad5 = useAsyncData(`client-${id}-docket-invoices`, async () => {
   const { data, error } = await supabase
     .from('invoices')
     .select('id, number, subject, status, issue_date, due_date, total, due_amount')
@@ -57,7 +57,7 @@ const { data: docketInvoices } = await useAsyncData(`client-${id}-docket-invoice
   return data
 }, fresh)
 
-const { data: invoices } = await useAsyncData(`client-${id}-invoices`, async () => {
+const __ad6 = useAsyncData(`client-${id}-invoices`, async () => {
   const { data, error } = await supabase
     .from('harvest_invoices')
     .select('id, number, subject, state, issue_date, due_date, amount, due_amount')
@@ -67,8 +67,45 @@ const { data: invoices } = await useAsyncData(`client-${id}-invoices`, async () 
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
+const { data: client, refresh } = __ad1
+const { data: projects, refresh: refreshProjects } = __ad2
+const { data: retainers, refresh: refreshRetainers } = __ad3
+const { data: quotes } = __ad4
+const { data: docketInvoices } = __ad5
+const { data: invoices } = __ad6
 
 useHead({ title: () => client.value?.name ?? 'Client' })
+
+// Client contacts: people with a login for this client's portal.
+const { data: contacts, refresh: refreshContacts } = await useAsyncData(`client-${id}-contacts`, async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name, email, is_active, created_at').eq('client_id', id).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+const inviting = ref(false)
+const invite = reactive({ fullName: '', email: '' })
+const inviteBusy = ref(false)
+async function sendInvite(email = invite.email, fullName = invite.fullName) {
+  inviteBusy.value = true
+  try {
+    const r = await $fetch<{ resent: boolean }>('/api/clients/invite', { method: 'POST', body: { clientId: id, email, fullName } })
+    toast.add({ title: r.resent ? 'Sign-in link sent again' : 'Invitation sent', description: email, color: 'success' })
+    inviting.value = false
+    invite.fullName = ''
+    invite.email = ''
+    await refreshContacts()
+  } catch (e) {
+    toast.add({ title: 'Could not invite', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+  } finally {
+    inviteBusy.value = false
+  }
+}
+async function setContactActive(contactId: string, active: boolean) {
+  const { error } = await supabase.from('profiles').update({ is_active: active }).eq('id', contactId)
+  if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
+  else await refreshContacts()
+}
 
 // Lifetime burn per project, everyone's time, for the projects table.
 const { data: budgets } = await useAsyncData('project-budgets', async () => {
@@ -144,7 +181,10 @@ const invoiceLabel = (inv: InvoiceLike) =>
       <UButton to="/clients" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <h1 class="text-2xl font-semibold">{{ client.name }}</h1>
       <UBadge v-if="!client.is_active" color="neutral" variant="subtle">Inactive</UBadge>
-      <UButton v-if="isAdmin" class="ml-auto" variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
+      <div class="ml-auto flex gap-2">
+        <UButton v-if="canBill" :to="`/portal?as=${id}`" variant="outline" color="neutral" icon="i-lucide-eye">View as client</UButton>
+        <UButton v-if="isAdmin" variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
+      </div>
     </div>
 
     <dl v-if="client.qbo_customer_id" class="text-sm">
@@ -165,6 +205,28 @@ const invoiceLabel = (inv: InvoiceLike) =>
         <div><div class="text-xs text-muted">Outstanding</div><div class="text-lg font-semibold tabular-nums" :class="billing.outstanding > 0 ? 'text-warning' : ''">{{ money(billing.outstanding) }}</div></div>
       </div>
     </UCard>
+
+    <template v-if="canBill">
+      <div class="flex items-center gap-4">
+        <h2 class="text-lg font-semibold">Contacts</h2>
+        <span class="text-sm text-muted">People who can sign in to see this client's quotes, invoices, and reviews.</span>
+        <UButton class="ml-auto" size="sm" variant="outline" icon="i-lucide-user-plus" @click="inviting = true;">Invite a contact</UButton>
+      </div>
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <ul v-if="contacts?.length" class="divide-y divide-default text-sm">
+          <li v-for="c in contacts" :key="c.id" class="flex items-center gap-3 px-4 py-2">
+            <div class="min-w-0 flex-1">
+              <span class="font-medium">{{ c.full_name }}</span>
+              <span class="ml-2 text-muted">{{ c.email }}</span>
+            </div>
+            <UBadge :color="c.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ c.is_active ? 'Active' : 'Inactive' }}</UBadge>
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-mail" :loading="inviteBusy" @click="sendInvite(c.email, c.full_name)">Send link</UButton>
+            <UButton size="xs" variant="ghost" color="neutral" @click="setContactActive(c.id, !c.is_active)">{{ c.is_active ? 'Deactivate' : 'Reactivate' }}</UButton>
+          </li>
+        </ul>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No contacts have a login yet. Invite one and they get an email with a sign-in link.</p>
+      </UCard>
+    </template>
 
     <div class="flex items-center gap-4">
       <h2 class="text-lg font-semibold">Projects</h2>
@@ -339,6 +401,23 @@ const invoiceLabel = (inv: InvoiceLike) =>
           <UButton variant="ghost" color="neutral" @click="deletingRetainer = null;">Cancel</UButton>
           <UButton color="error" @click="confirmDeleteRetainer">Delete</UButton>
         </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="inviting" title="Invite a contact" description="They get an email from Docket with a sign-in link. No password.">
+      <template #body>
+        <form class="space-y-4" @submit.prevent="sendInvite()">
+          <UFormField label="Name">
+            <UInput v-model="invite.fullName" class="w-full" placeholder="Jane Smith" autofocus />
+          </UFormField>
+          <UFormField label="Email" required>
+            <UInput v-model="invite.email" type="email" class="w-full" placeholder="jane@theirdomain.com" required />
+          </UFormField>
+          <div class="flex justify-end gap-2">
+            <UButton variant="ghost" color="neutral" @click="inviting = false;">Cancel</UButton>
+            <UButton type="submit" :loading="inviteBusy" :disabled="!invite.email.trim()">Send invitation</UButton>
+          </div>
+        </form>
       </template>
     </UModal>
 

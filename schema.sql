@@ -98,6 +98,7 @@ as $$
 $$;
 
 -- A task is visible when you may see all tasks, made it, or are on it.
+-- A client sees what was shared for review on their own projects.
 -- Security definer so comment and file policies can ask without RLS
 -- recursing through work_items.
 create or replace function public.task_visible(p_item uuid)
@@ -105,9 +106,30 @@ returns boolean
 language sql stable security definer
 set search_path = ''
 as $$
-  select public.has_permission('see_all_tasks')
+  select case when public.is_client() then
+      exists (select 1 from public.work_items w join public.projects p on p.id = w.project_id
+              where w.id = p_item and w.shared_at is not null and p.client_id = public.my_client_id())
+    else
+      public.has_permission('see_all_tasks')
       or exists (select 1 from public.work_items w where w.id = p_item and w.created_by = auth.uid())
-      or exists (select 1 from public.work_item_assignees a where a.work_item_id = p_item and a.user_id = auth.uid());
+      or exists (select 1 from public.work_item_assignees a where a.work_item_id = p_item and a.user_id = auth.uid())
+    end;
+$$;
+
+-- Client contacts: role 'client' with a client_id.
+create or replace function public.is_client()
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'client');
+$$;
+create or replace function public.my_client_id()
+returns uuid
+language sql stable security definer
+set search_path = ''
+as $$
+  select client_id from public.profiles where id = auth.uid();
 $$;
 
 -- Create a profile row when a user is created in Supabase Auth.
@@ -118,23 +140,29 @@ returns trigger
 language plpgsql security definer
 set search_path = ''
 as $$
+declare
+  v_role   text := new.raw_user_meta_data ->> 'role';
+  v_client uuid := nullif(new.raw_user_meta_data ->> 'client_id', '')::uuid;
 begin
-  -- Sign-in is Google only, restricted to the agency domain. Supabase
+  -- Invited clients arrive with role and client_id in their metadata
+  -- (server/api/clients/invite.post.ts) and may use any address.
+  if v_role = 'client' and v_client is not null then
+    insert into public.profiles (id, full_name, email, role, client_id)
+    values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', split_part(new.email, '@', 1)), new.email, 'client', v_client)
+    on conflict (id) do nothing;
+    return new;
+  end if;
+  -- Staff sign-in is Google only, restricted to the agency domain. Supabase
   -- Auth is configured with signups off and admin invites, and the
   -- Google provider is limited to the Workspace domain; this is the
   -- last line of defence if either setting drifts.
   if lower(split_part(new.email, '@', 2)) <> 'giganticdesign.com' then
     raise exception 'Docket accounts must use a giganticdesign.com address';
   end if;
-
   insert into public.profiles (id, full_name, email)
   values (
     new.id,
-    coalesce(
-      new.raw_user_meta_data ->> 'full_name',
-      new.raw_user_meta_data ->> 'name',
-      split_part(new.email, '@', 1)
-    ),
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1)),
     new.email
   )
   on conflict (id) do nothing;
@@ -316,7 +344,8 @@ create table roles (
 insert into roles (key, label, description, is_builtin, position) values
   ('admin',   'Admin',   'Everything.', true, 0),
   ('manager', 'Manager', 'Everyone''s time, tasks, budgets, capacity. No billing or settings.', true, 1),
-  ('staff',   'Staff',   'Own time and expenses, all tasks.', true, 2);
+  ('staff',   'Staff',   'Own time and expenses, all tasks.', true, 2),
+  ('client',  'Client',  'Sees their own quotes, invoices, and tasks shared for review. Nothing else.', true, 3);
 
 -- Nobody can delete a built-in role, and a role in use stays.
 create or replace function public.protect_roles()
@@ -341,8 +370,11 @@ create table profiles (
   default_rate numeric(10,2),          -- fallback billable rate
   is_active    boolean not null default true,
   tours_seen   jsonb not null default '{}'::jsonb,   -- walkthroughs finished or skipped, by id
-  created_at   timestamptz not null default now()
+  client_id    uuid references clients(id) on delete restrict,  -- set only for role 'client'
+  created_at   timestamptz not null default now(),
+  check ((role = 'client') = (client_id is not null))
 );
+create index profiles_client on profiles (client_id) where client_id is not null;
 
 create trigger on_auth_user_created
   after insert on auth.users
@@ -1248,6 +1280,7 @@ declare
   prev_chain text := null;
   prev_end date := null;
   prev_leftover numeric := 0;
+  v_client uuid := case when public.is_client() then public.my_client_id() end;  -- clients: own rows only
 begin
   for r in
     select x.id, x.client_id, x.project_id, x.name, x.basis, x.period_start, x.period_end,
@@ -1290,7 +1323,9 @@ begin
     used := r.used_total;
     available := r.allotted + carried_in;
     remaining := available - used;
-    return next;
+    if v_client is null or r.client_id = v_client then
+      return next;
+    end if;
     prev_chain := r.chain;
     prev_end := r.period_end;
     prev_leftover := case when r.rollover
@@ -2006,15 +2041,15 @@ alter table saved_reports          enable row level security;
 
 -- ---------- Reference data: everyone reads, admins write ----------
 
-create policy read_all on profiles           for select to authenticated using (true);
+create policy read_all on profiles           for select to authenticated using (id = auth.uid() or not is_client());
 create policy read_all on roles              for select to authenticated using (true);
 create policy read_all on permissions        for select to authenticated using (true);
-create policy read_all on clients            for select to authenticated using (true);
-create policy read_all on projects           for select to authenticated using (true);
-create policy read_all on tasks              for select to authenticated using (true);
-create policy read_all on project_tasks      for select to authenticated using (true);
-create policy read_all on expense_categories for select to authenticated using (true);
-create policy read_all on retainers          for select to authenticated using (true);
+create policy read_all on clients            for select to authenticated using (not is_client() or id = my_client_id());
+create policy read_all on projects           for select to authenticated using (not is_client() or client_id = my_client_id());
+create policy read_all on tasks              for select to authenticated using (not is_client());
+create policy read_all on project_tasks      for select to authenticated using (not is_client());
+create policy read_all on expense_categories for select to authenticated using (not is_client());
+create policy read_all on retainers          for select to authenticated using (not is_client());
 
 create policy admin_write on roles              for all to authenticated using (is_admin()) with check (is_admin());
 create policy admin_write on permissions        for all to authenticated using (is_admin()) with check (is_admin());
@@ -2037,7 +2072,7 @@ create policy own_time_select on time_entries for select to authenticated
   using (user_id = auth.uid() or has_permission('see_all_time'));
 
 create policy own_time_insert on time_entries for insert to authenticated
-  with check (user_id = auth.uid() or is_admin());
+  with check ((user_id = auth.uid() and not is_client()) or is_admin());
 
 create policy own_time_update on time_entries for update to authenticated
   using ((user_id = auth.uid() and not is_locked) or is_admin())
@@ -2052,7 +2087,7 @@ create policy own_exp_select on expenses for select to authenticated
   using (user_id = auth.uid() or has_permission('see_all_time'));
 
 create policy own_exp_insert on expenses for insert to authenticated
-  with check (user_id = auth.uid() or is_admin());
+  with check ((user_id = auth.uid() and not is_client()) or is_admin());
 
 create policy own_exp_update on expenses for update to authenticated
   using ((user_id = auth.uid() and not is_locked) or is_admin())
@@ -2063,21 +2098,26 @@ create policy own_exp_delete on expenses for delete to authenticated
 
 -- ---------- Billing batches ----------
 
-create policy read_all    on billing_batches for select to authenticated using (true);
+create policy read_all    on billing_batches for select to authenticated using (not is_client());
 create policy manage_billing on billing_batches for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Invoicing: admins only ----------
 
 create policy manage_settings on invoice_settings for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy client_select    on invoice_settings for select to authenticated using (is_client());  -- portal header
 create policy manage_billing on invoices         for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+-- Clients read their own sent and paid invoices (and Harvest history).
+create policy client_select on invoices         for select to authenticated using (is_client() and client_id = my_client_id() and status in ('sent', 'paid'));
+create policy client_select on invoice_lines    for select to authenticated using (is_client() and exists (select 1 from invoices i where i.id = invoice_id));
+create policy client_select on invoice_payments for select to authenticated using (is_client() and exists (select 1 from invoices i where i.id = invoice_id));
 create policy manage_billing on invoice_lines    for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 create policy manage_billing on invoice_payments for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Quoting ----------
 
-create policy read_all on quotes              for select to authenticated using (true);
-create policy read_all on quote_line_items    for select to authenticated using (true);
-create policy read_all on quote_sitemap_nodes for select to authenticated using (true);
+create policy read_all on quotes              for select to authenticated using (not is_client() or (client_id = my_client_id() and status <> 'draft'));
+create policy read_all on quote_line_items    for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
+create policy read_all on quote_sitemap_nodes for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
 
 create policy manage_billing on quotes              for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 create policy manage_billing on quote_line_items    for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
@@ -2085,9 +2125,10 @@ create policy manage_billing on quote_sitemap_nodes for all to authenticated usi
 
 -- ---------- Harvest archive ----------
 
-create policy read_all    on harvest_archive_monthly for select to authenticated using (true);
+create policy read_all    on harvest_archive_monthly for select to authenticated using (not is_client());
 create policy manage_billing on harvest_archive_monthly for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 create policy manage_billing on harvest_invoices for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy client_select  on harvest_invoices for select to authenticated using (is_client() and client_id = my_client_id());
 
 -- ---------- Tasks: the whole team reads and writes ----------
 -- Deleting a task is the creator's or an admin's; comments and files are
@@ -2098,33 +2139,34 @@ create policy manage_settings on work_statuses for all to authenticated using (h
 
 -- Contractors see the tasks they are on or made; everyone else sees all.
 create policy visible_select on work_items for select to authenticated using (task_visible(id));
-create policy team_insert    on work_items for insert to authenticated with check (created_by = auth.uid());
-create policy visible_update on work_items for update to authenticated using (task_visible(id)) with check (task_visible(id));
+create policy team_insert    on work_items for insert to authenticated with check (created_by = auth.uid() and not is_client());
+create policy visible_update on work_items for update to authenticated using (task_visible(id) and not is_client()) with check (task_visible(id) and not is_client());
 create policy owner_delete   on work_items for delete to authenticated using (created_by = auth.uid() or has_permission('manage_tasks'));
 
 create policy visible_select on work_item_assignees for select to authenticated using (task_visible(work_item_id));
-create policy visible_write  on work_item_assignees for all to authenticated using (task_visible(work_item_id)) with check (task_visible(work_item_id));
+create policy visible_write  on work_item_assignees for all to authenticated using (task_visible(work_item_id) and not is_client()) with check (task_visible(work_item_id) and not is_client());
 
-create policy visible_select on work_item_comments for select to authenticated using (task_visible(work_item_id));
-create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid());
+-- Clients see and write only comments marked visible to them.
+create policy visible_select on work_item_comments for select to authenticated using (task_visible(work_item_id) and (not is_client() or visible_to_client));
+create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid() and task_visible(work_item_id) and (not is_client() or visible_to_client));
 create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or has_permission('manage_tasks')) with check (author_id = auth.uid() or has_permission('manage_tasks'));
 create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or has_permission('manage_tasks'));
 
-create policy visible_select on work_item_files for select to authenticated using (task_visible(work_item_id));
-create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid());
+create policy visible_select on work_item_files for select to authenticated using (task_visible(work_item_id) and (not is_client() or kind = 'upload'));
+create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid() and not is_client());
 -- Anyone on the team may turn a server link into a shareable uploaded copy.
-create policy visible_update on work_item_files for update to authenticated using (task_visible(work_item_id)) with check (task_visible(work_item_id));
+create policy visible_update on work_item_files for update to authenticated using (task_visible(work_item_id) and not is_client()) with check (task_visible(work_item_id) and not is_client());
 create policy own_delete  on work_item_files for delete to authenticated using (uploaded_by = auth.uid() or has_permission('manage_tasks'));
 
 -- ---------- Time off, capacity ----------
 
-create policy read_all on time_off            for select to authenticated using (true);
-create policy read_all on availability        for select to authenticated using (true);
+create policy read_all on time_off            for select to authenticated using (not is_client());
+create policy read_all on availability        for select to authenticated using (not is_client());
 
 -- People log their own time off; admins manage holidays and everyone else.
 create policy own_time_off on time_off for all to authenticated
-  using (user_id = auth.uid() or has_permission('manage_people'))
-  with check (user_id = auth.uid() or has_permission('manage_people'));
+  using ((user_id = auth.uid() and not is_client()) or has_permission('manage_people'))
+  with check ((user_id = auth.uid() and not is_client()) or has_permission('manage_people'));
 
 -- Calendar detail is personal: own rows only.
 create policy own_calendar on calendar_busy for select to authenticated
@@ -2149,8 +2191,8 @@ create policy own_or_shared on saved_reports for select to authenticated
   using (owner_id = auth.uid() or is_shared or is_admin());
 
 create policy own_reports on saved_reports for all to authenticated
-  using (owner_id = auth.uid() or is_admin())
-  with check (owner_id = auth.uid() or is_admin());
+  using ((owner_id = auth.uid() and not is_client()) or is_admin())
+  with check ((owner_id = auth.uid() and not is_client()) or is_admin());
 
 -- ============================================================
 -- 5. FUNCTION GRANTS
@@ -2175,6 +2217,8 @@ revoke execute on function public.decline_quote(uuid, text, text) from public, a
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.has_permission(text)        from public, anon;
 revoke execute on function public.task_visible(uuid)          from public, anon;
+revoke execute on function public.is_client()                 from public, anon;
+revoke execute on function public.my_client_id()              from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.project_budget(uuid)       from public, anon;
 revoke execute on function public.project_budgets()          from public, anon;

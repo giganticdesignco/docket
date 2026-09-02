@@ -84,31 +84,37 @@ const days = computed(() => Math.round((parseDateString(state.to).getTime() - pa
 
 // ---------- filters ----------
 
-const { data: clients } = await useAsyncData('report-clients', async () => {
+const __ad1 = useAsyncData('report-clients', async () => {
   const { data, error } = await supabase.from('clients').select('name').order('name')
   if (error) throw error
   return data
 }, fresh)
-const { data: projects } = await useAsyncData('report-projects', async () => {
+const __ad2 = useAsyncData('report-projects', async () => {
   const { data, error } = await supabase.from('projects').select('name, clients(name)').order('name')
   if (error) throw error
   return data
 }, fresh)
-const { data: people } = await useAsyncData('report-people', async () => {
+const __ad3 = useAsyncData('report-people', async () => {
   const { data, error } = await supabase.from('profiles').select('full_name').order('full_name')
   if (error) throw error
   return data
 }, fresh)
-const { data: tasks } = await useAsyncData('report-tasks', async () => {
+const __ad4 = useAsyncData('report-tasks', async () => {
   const { data, error } = await supabase.from('tasks').select('name').order('name')
   if (error) throw error
   return data
 }, fresh)
-const { data: categories } = await useAsyncData('report-categories', async () => {
+const __ad5 = useAsyncData('report-categories', async () => {
   const { data, error } = await supabase.from('expense_categories').select('name').order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
+const { data: clients } = __ad1
+const { data: projects } = __ad2
+const { data: people } = __ad3
+const { data: tasks } = __ad4
+const { data: categories } = __ad5
 
 // Reka menus refuse an empty-string value, so "any" is a sentinel.
 const ALL = '__all__'

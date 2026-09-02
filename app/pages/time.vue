@@ -24,7 +24,7 @@ function goTo(date: string) {
   router.push({ query: date === todayString() ? {} : { date } })
 }
 
-const { data: entries, refresh } = await useAsyncData('time-week', async () => {
+const __ad1 = useAsyncData('time-week', async () => {
   const { data, error } = await supabase
     .from('time_entries')
     .select('*, projects(name, clients(name)), tasks(name)')
@@ -37,7 +37,7 @@ const { data: entries, refresh } = await useAsyncData('time-week', async () => {
   return data
 }, { ...fresh, watch: [weekStart] })
 
-const { data: projects } = await useAsyncData('projects-for-time', async () => {
+const __ad2 = useAsyncData('projects-for-time', async () => {
   const { data, error } = await supabase
     .from('projects')
     .select('id, name, billing_method, clients(name)')
@@ -47,7 +47,7 @@ const { data: projects } = await useAsyncData('projects-for-time', async () => {
   return data
 }, fresh)
 
-const { data: projectTasks } = await useAsyncData('project-tasks-for-time', async () => {
+const __ad3 = useAsyncData('project-tasks-for-time', async () => {
   const { data, error } = await supabase
     .from('project_tasks')
     .select('project_id, task_id, tasks(id, name, is_billable_default, is_active)')
@@ -55,7 +55,11 @@ const { data: projectTasks } = await useAsyncData('project-tasks-for-time', asyn
   return data
 }, fresh)
 
-await timer.load()
+const __ad4 = timer.load()
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const { data: entries, refresh } = __ad1
+const { data: projects } = __ad2
+const { data: projectTasks } = __ad3
 
 // The signed-in person's pace: this week and this month against their
 // weekly target, and how much of it is billable.

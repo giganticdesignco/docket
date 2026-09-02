@@ -9,19 +9,22 @@ const isAdmin = computed(() => can('manage_reference'))
 const showInactive = ref(false)
 const creating = ref(false)
 
-const { data: clients, refresh } = await useAsyncData('clients', async () => {
+const __ad1 = useAsyncData('clients', async () => {
   const { data, error } = await supabase.from('clients').select('*').order('name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: projectCounts } = await useAsyncData('client-project-counts', async () => {
+const __ad2 = useAsyncData('client-project-counts', async () => {
   const { data, error } = await supabase.from('projects').select('client_id').eq('is_active', true)
   if (error) throw error
   const counts: Record<string, number> = {}
   for (const p of data) counts[p.client_id] = (counts[p.client_id] ?? 0) + 1
   return counts
 }, fresh)
+await Promise.all([__ad1, __ad2])
+const { data: clients, refresh } = __ad1
+const { data: projectCounts } = __ad2
 
 const rows = computed(() =>
   (clients.value ?? []).filter(c => showInactive.value || c.is_active),

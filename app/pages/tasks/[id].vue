@@ -14,9 +14,9 @@ const { can } = useCurrentUser()
 const isAdmin = computed(() => can('manage_tasks'))
 const files = useWorkFiles()
 const toast = useToast()
-const ws = await useWorkStatuses()
+const __ad1 = useWorkStatuses()
 
-const { data: item, refresh } = await useAsyncData(`task-${id}`, async () => {
+const __ad2 = useAsyncData(`task-${id}`, async () => {
   const { data, error } = await supabase
     .from('work_items')
     .select('*, projects(id, name, server_path, clients(id, name)), profiles!work_items_created_by_fkey(full_name), work_item_assignees(user_id, profiles(full_name))')
@@ -26,36 +26,44 @@ const { data: item, refresh } = await useAsyncData(`task-${id}`, async () => {
   return data
 }, fresh)
 
-const { data: comments, refresh: refreshComments } = await useAsyncData(`task-${id}-comments`, async () => {
+const __ad3 = useAsyncData(`task-${id}-comments`, async () => {
   const { data, error } = await supabase.from('work_item_comments').select('*, profiles(full_name)').eq('work_item_id', id).order('created_at')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: attachments, refresh: refreshFiles } = await useAsyncData(`task-${id}-files`, async () => {
+const __ad4 = useAsyncData(`task-${id}-files`, async () => {
   const { data, error } = await supabase.from('work_item_files').select('*, profiles(full_name)').eq('work_item_id', id).order('created_at')
   if (error) throw error
   return data
 }, fresh)
 
 // time_entries under RLS: admins see everyone's, staff their own.
-const { data: timeLogged } = await useAsyncData(`task-${id}-time`, async () => {
+const __ad5 = useAsyncData(`task-${id}-time`, async () => {
   const { data, error } = await supabase.from('time_entries').select('hours').eq('work_item_id', id)
   if (error) throw error
   return (data ?? []).reduce((s, r) => s + r.hours, 0)
 }, fresh)
 
-const { data: people } = await useAsyncData('people-for-tasks', async () => {
+const __ad6 = useAsyncData('people-for-tasks', async () => {
   const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: projects } = await useAsyncData('projects-for-tasks', async () => {
+const __ad7 = useAsyncData('projects-for-tasks', async () => {
   const { data, error } = await supabase.from('projects').select('id, name, clients(name)').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
+const ws = await __ad1
+const { data: item, refresh } = __ad2
+const { data: comments, refresh: refreshComments } = __ad3
+const { data: attachments, refresh: refreshFiles } = __ad4
+const { data: timeLogged } = __ad5
+const { data: people } = __ad6
+const { data: projects } = __ad7
 const projectOptions = computed(() => (projects.value ?? []).map(p => ({ label: `${p.clients?.name ?? ''} / ${p.name}`, value: p.id })))
 const setProject = (projectId: string) => { if (projectId && projectId !== item.value?.project_id) patch({ project_id: projectId }) }
 

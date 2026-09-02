@@ -12,7 +12,7 @@ const isAdmin = computed(() => can('manage_people'))
 const toast = useToast()
 
 const everyone = ref(false)
-const { data: entries, refresh } = await useAsyncData('time-off', async () => {
+const __ad1 = useAsyncData('time-off', async () => {
   let q = supabase.from('time_off').select('*, profiles(full_name)').order('starts_on', { ascending: false }).limit(200)
   if (!(isAdmin.value && everyone.value)) q = q.or(`user_id.eq.${user.value!.sub},user_id.is.null`)
   const { data, error } = await q
@@ -20,12 +20,15 @@ const { data: entries, refresh } = await useAsyncData('time-off', async () => {
   return data
 }, { ...fresh, watch: [everyone] })
 
-const { data: people } = await useAsyncData('people-for-time-off', async () => {
+const __ad2 = useAsyncData('people-for-time-off', async () => {
   if (!isAdmin.value) return []
   const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2])
+const { data: entries, refresh } = __ad1
+const { data: people } = __ad2
 
 const KINDS = [
   { label: 'PTO', value: 'pto' }, { label: 'Sick', value: 'sick' }, { label: 'Unpaid', value: 'unpaid' }, { label: 'Holiday', value: 'holiday' },

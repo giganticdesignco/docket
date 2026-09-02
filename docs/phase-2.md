@@ -166,7 +166,9 @@ How:
   never sign in.
 - Notifications: email on new invoice, new quote, task ready for review.
 
-Depends on: Roles and permissions. Size: 7 to 8 days.
+Depends on: Roles and permissions. Size: 7 to 8 days. Built 2026-09-02;
+contacts are client-role profiles rather than a separate table, and the
+portal links to the public pages rather than duplicating them.
 
 ## 6. Local server folder per project
 

@@ -16,10 +16,19 @@ export default defineNuxtConfig({
     cronSecret: '',
   },
   routeRules: {
-    // The timesheet picks "today" and ticks a timer from the browser clock.
-    // Rendering it on the server (UTC on Vercel) would show the wrong day
-    // in the evening and mismatch on hydration.
-    '/time': { ssr: false },
+    // The signed-in app renders in the browser. Every page needs the
+    // person's session and several Supabase queries; rendering that on
+    // the server meant a Vercel function cold start (about two seconds)
+    // plus the queries before any HTML arrived. As a static shell the
+    // app loads from the CDN and talks to Supabase directly, and the
+    // timesheet's "today" and timers use the browser clock. The public
+    // quote, invoice, and review pages keep server rendering: they take
+    // a token, not a session, and should read well in an email preview.
+    '/**': { ssr: false },
+    '/q/**': { ssr: true },
+    '/i/**': { ssr: true },
+    '/r/**': { ssr: true },
+    '/login': { ssr: true },
   },
   supabase: {
     // Public quote (/q/[token]), invoice (/i/[token]), and task review

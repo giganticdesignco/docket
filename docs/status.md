@@ -1,5 +1,67 @@
 # Status
 
+## Page load speed (2026-09-02)
+
+Luke: "it can take a long time for the pages to load." Two causes found
+and fixed, uncommitted with the client-login work:
+
+- Production HTML came from a Vercel serverless function. A cold start
+  cost about two seconds before any HTML (measured 2.1 s then 0.2 s on
+  /login, which fetches nothing), and then the page's queries ran in
+  series on the server. Fix: `routeRules` in nuxt.config now render the
+  signed-in app in the browser (`'/**': { ssr: false }`), so the shell
+  is static on the CDN and the browser talks to Supabase directly
+  (us-east-2). The public `/q`, `/i`, `/r` pages and `/login` keep SSR.
+- Pages awaited five to eight `useAsyncData` calls one after another.
+  A script turned each run of independent fetches into `const __adN =
+  useAsyncData(...)` plus one `await Promise.all([...])`, then the
+  original destructuring, across 19 pages; dependent fetches (project
+  breakdown, quote and invoice docs) stay after their inputs.
+  `useWorkStatuses()` is awaited after the group since it resolves to
+  an object.
+- Dev measurements (not representative of production, which serves a
+  prebuilt bundle): project page TTFB 7.9 s before, 6 ms after; an
+  in-app navigation to Clients renders in about 50 ms. Confirm on the
+  live site after the next push.
+
+
+## Phase 2, wave 2b: client logins (2026-09-02)
+
+Item 5 of `docs/phase-2.md`. Migration `client_logins`.
+
+- Role `client` (built in) with `profiles.client_id`; a check keeps the
+  two in step. `is_client()` and `my_client_id()` are security definer.
+  `handle_new_user` reads role and client_id from the invite metadata
+  and skips the agency-domain rule for clients.
+- What a client can read: their own client row and projects; quotes
+  (not drafts) with lines and sitemap; invoices in sent or paid with
+  lines and payments; Harvest invoices; tasks on their projects that
+  were shared for review (`task_visible` handles the client case),
+  with only client-visible comments and uploaded files. Every other
+  read_all policy now carries `not is_client()`. Clients cannot create
+  tasks, time, expenses, time off, files, or saved reports; comments
+  they add must be client-visible on a visible task.
+- Invite: `server/api/clients/invite.post.ts` (needs manage_billing)
+  calls `auth.admin.inviteUserByEmail` with role, client_id, and name
+  in the metadata; Supabase sends the invite email. For an existing
+  contact it sends a magic link instead. Client page has a Contacts
+  card (invite, send link again, deactivate).
+- Sign in: the login page gains "Email me a sign-in link"
+  (`signInWithOtp`, existing users only). `middleware/portal.global.ts`
+  sends clients to `/portal` and keeps staff out of it; app.vue renders
+  no staff chrome for clients; tours skip them.
+- `/portal`: waiting-on-you and balance strip, retainer burn (current
+  period plus the two before, from `retainer_status()`, which now
+  returns only the caller's client's rows when the caller is a client;
+  migration `retainer_status_for_clients`), tasks for review, quotes,
+  invoices, each opening the existing public page (`/r`, `/q`, `/i`) so
+  approving, accepting, and paying stay as built. Staff with the
+  billing permission preview it from the client page (View as client,
+  `/portal?as=<client id>`).
+- Supabase Auth must have the Email provider enabled (magic links) for
+  invites and sign-in links to work; Google stays for staff.
+
+
 ## Phase 2, wave 2b: roles and permissions (2026-09-02)
 
 Item 8 of `docs/phase-2.md`. Migrations `roles_manager_contractor`

@@ -10,13 +10,13 @@ const showInactive = ref(false)
 const clientFilter = ref<string | undefined>()
 const creating = ref(false)
 
-const { data: clients } = await useAsyncData('clients-for-projects', async () => {
+const __ad1 = useAsyncData('clients-for-projects', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').order('name')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: projects, refresh } = await useAsyncData('projects', async () => {
+const __ad2 = useAsyncData('projects', async () => {
   const { data, error } = await supabase
     .from('projects')
     .select('*, clients(name)')
@@ -26,11 +26,15 @@ const { data: projects, refresh } = await useAsyncData('projects', async () => {
 }, fresh)
 
 // Burn for every project in one call (security definer, totals only).
-const { data: burn } = await useAsyncData('project-budgets', async () => {
+const __ad3 = useAsyncData('project-budgets', async () => {
   const { data, error } = await supabase.rpc('project_budgets')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3])
+const { data: clients } = __ad1
+const { data: projects, refresh } = __ad2
+const { data: burn } = __ad3
 const burnById = computed(() => new Map((burn.value ?? []).map(b => [b.project_id, b])))
 
 // Percent of the budget used: by hours when the project has an hours

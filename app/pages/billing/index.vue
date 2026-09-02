@@ -7,13 +7,13 @@ useHead({ title: 'Billing' })
 
 const supabase = useSupabaseClient()
 
-const { data: unbilled } = await useAsyncData('unbilled-summary', async () => {
+const __ad1 = useAsyncData('unbilled-summary', async () => {
   const { data, error } = await supabase.rpc('unbilled_summary')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: batches } = await useAsyncData('billing-batches', async () => {
+const __ad2 = useAsyncData('billing-batches', async () => {
   const { data, error } = await supabase
     .from('billing_batches')
     .select('*, clients(name), projects(name), profiles(full_name)')
@@ -21,6 +21,9 @@ const { data: batches } = await useAsyncData('billing-batches', async () => {
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2])
+const { data: unbilled } = __ad1
+const { data: batches } = __ad2
 
 const unbilledTotal = computed(() => (unbilled.value ?? []).reduce((sum, r) => sum + r.time_amount + r.expense_amount, 0))
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
