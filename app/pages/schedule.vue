@@ -241,6 +241,25 @@ const initials = (n: string) => n.split(' ').map(w => w[0]).join('').slice(0, 2)
 const statusBar: Record<string, string> = { primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }
 const barClass = (i: Item) => statusBar[ws.color(i.status) ?? ''] ?? 'bg-accented'
 const monthLabel = (d: string) => parseDateString(d).toLocaleDateString('en-US', { month: 'short' })
+
+// A card near the pointer with the whole title, project, dates, estimate,
+// and people, for bars too short to show their label and for names the
+// left column cut off (those only when they really are cut off).
+type Tip = { title: string, sub?: string, meta?: string, x: number, y: number }
+const tip = ref<Tip | null>(null)
+function tipBar(i: Item, e: MouseEvent) {
+  const people = i.work_item_assignees.map(a => a.profiles?.full_name).filter(Boolean).join(', ')
+  const when = `${shortDate(barStart(i))} to ${shortDate(i.due_on!)}${i.estimate_hours ? `, ${formatHours(i.estimate_hours)} est.` : ''}`
+  tip.value = { title: i.title, sub: [i.projects?.clients?.name, i.projects?.name].filter(Boolean).join(' / '), meta: people ? `${when}. ${people}` : when, x: e.clientX, y: e.clientY }
+}
+function tipIfCut(text: string, e: MouseEvent, sub?: string) {
+  const el = e.currentTarget as HTMLElement
+  const cut = [el, ...el.querySelectorAll<HTMLElement>('.truncate')].some(x => x.scrollWidth > x.clientWidth + 1)
+  tip.value = cut ? { title: text, sub, x: e.clientX, y: e.clientY } : null
+}
+function tipMove(e: MouseEvent) { if (tip.value) { tip.value.x = e.clientX; tip.value.y = e.clientY } }
+const hideTip = () => { tip.value = null }
+const tipStyle = computed(() => tip.value ? { left: `${Math.min(tip.value.x + 12, window.innerWidth - 320)}px`, top: `${tip.value.y + 16}px` } : {})
 </script>
 
 <template>
@@ -266,20 +285,27 @@ const monthLabel = (d: string) => parseDateString(d).toLocaleDateString('en-US',
       </div>
     </div>
 
+    <Teleport to="body">
+      <div v-if="tip" class="pointer-events-none fixed z-50 max-w-xs rounded-md border border-default bg-default px-3 py-2 text-xs shadow-lg" :style="tipStyle">
+        <div class="font-medium">{{ tip.title }}</div>
+        <div v-if="tip.sub" class="text-muted">{{ tip.sub }}</div>
+        <div v-if="tip.meta" class="mt-0.5 text-muted">{{ tip.meta }}</div>
+      </div>
+    </Teleport>
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <div class="flex overflow-x-auto">
         <!-- labels -->
         <div class="sticky left-0 z-10 w-60 shrink-0 border-r border-default bg-default text-sm">
           <div class="h-12 border-b border-default" />
           <div v-for="g in groups" :key="g.key">
-            <div class="flex h-7 items-center gap-2 px-3 font-semibold" :style="{ height: `${rowH}px` }">
+            <div class="flex h-7 items-center gap-2 px-3 font-semibold" :style="{ height: `${rowH}px` }" @mouseenter="tipIfCut(g.label, $event, g.sublabel)" @mousemove="tipMove" @mouseleave="hideTip">
               <span v-if="g.userId" class="grid size-5 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(g.label) }}</span>
               <span class="truncate">{{ g.label }}</span>
               <span v-if="g.sublabel" class="truncate text-xs font-normal text-muted">{{ g.sublabel }}</span>
             </div>
             <div v-if="view === 'person' && g.userId" class="px-3 text-[10px] text-muted" style="height: 18px">capacity by week</div>
-            <div v-for="i in g.items" :key="i.id" class="flex items-center gap-2 px-3" :style="{ height: `${rowH}px` }">
-              <NuxtLink :to="`/tasks/${i.id}`" class="min-w-0 flex-1 truncate hover:underline" :title="i.title">{{ i.title }}</NuxtLink>
+            <div v-for="i in g.items" :key="i.id" class="flex items-center gap-2 px-3" :style="{ height: `${rowH}px` }" @mouseenter="tipIfCut(i.title, $event, [i.projects?.clients?.name, i.projects?.name].filter(Boolean).join(' / '))" @mousemove="tipMove" @mouseleave="hideTip">
+              <NuxtLink :to="`/tasks/${i.id}`" class="min-w-0 flex-1 truncate hover:underline">{{ i.title }}</NuxtLink>
               <UIcon v-if="lateStart(i)" name="i-lucide-triangle-alert" class="size-3.5 shrink-0 text-error" title="Starts before what it waits on ends" />
               <span v-if="view === 'project' && i.work_item_assignees.length" class="shrink-0 text-[10px] text-muted">{{ i.work_item_assignees.map(a => initials(a.profiles?.full_name ?? '?')).join(' ') }}</span>
             </div>
@@ -318,8 +344,8 @@ const monthLabel = (d: string) => parseDateString(d).toLocaleDateString('en-US',
                 class="absolute flex h-5 items-center rounded text-[11px] text-white shadow-sm select-none"
                 :class="[barClass(i), i.is_milestone ? 'rotate-45 !w-4 !h-4 rounded-sm' : '', drag?.item.id === i.id ? 'opacity-80 ring-2 ring-primary' : 'cursor-grab']"
                 :style="{ top: `${itemY.get(`${g.key}:${i.id}`)! + 4}px`, ...barStyle(i), ...dragResize(i), transform: `translateX(${dragOffset(i)}px)${i.is_milestone ? ' rotate(45deg)' : ''}` }"
-                :title="`${i.title}: ${shortDate(barStart(i))} to ${shortDate(i.due_on!)}${i.estimate_hours ? `, ${formatHours(i.estimate_hours)} est.` : ''}`"
-                @pointerdown="onPointerDown(i, 'move', $event)" @dblclick="toggleMilestone(i)"
+                @mouseenter="tipBar(i, $event)" @mousemove="tipMove" @mouseleave="hideTip"
+                @pointerdown="hideTip(); onPointerDown(i, 'move', $event)" @dblclick="toggleMilestone(i)"
               >
                 <span v-if="!i.is_milestone" class="absolute inset-y-0 left-0 w-2 cursor-ew-resize" @pointerdown.stop="onPointerDown(i, 'start', $event)" />
                 <span v-if="!i.is_milestone" class="truncate px-2">{{ i.title }}</span>

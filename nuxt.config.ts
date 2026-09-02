@@ -44,6 +44,9 @@ export default defineNuxtConfig({
       login: '/login',
       callback: '/callback',
       exclude: ['/q/**', '/i/**', '/r/**', '/login', '/callback'],
+      // Remember where a signed-out person was headed (the OAuth consent
+      // page, for one) so the callback can send them back there.
+      saveRedirectToCookie: true,
     },
     types: '~~/shared/types/database.ts',
   },

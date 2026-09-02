@@ -85,6 +85,8 @@ const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-US
       </div>
     </UCard>
 
+    <ConnectClaudeCard v-if="profile?.role !== 'client'" />
+
     <UCard v-if="can('manage_people')">
       <template #header><h2 class="font-semibold">Team calendars</h2></template>
       <ul v-if="others.length" class="divide-y divide-default text-sm">

@@ -1377,3 +1377,59 @@ accept or decline for the client, the create-invoice line choice,
 Attach a file, Keyboard shortcuts, Search. The Assistant uses AppDrawer
 too. Verified in the dev browser: New task, Edit client, Invite a
 contact, and the Assistant open as drawers and close on Escape.
+
+## Phase 3: MCP server (2026-09-02)
+
+Docket is a remote MCP server at `/api/mcp` (Streamable HTTP, stateless,
+JSON responses, `@modelcontextprotocol/sdk`). `server/utils/mcp.ts`:
+`bearerCaller()` validates the Supabase access token in the Authorization
+header and builds a client with it, so RLS decides everything; clients
+of the agency are refused. Tools: the assistant's eight read tools plus
+list_projects, project_task_types, people, log_time, start_timer,
+running_timer, stop_timer, update_time_entry, my_week, create_task,
+update_task, add_comment. No deletes. A missing or bad token gets 401
+with `WWW-Authenticate: Bearer resource_metadata=...`;
+`server/middleware/oauth-metadata.ts` serves
+`/.well-known/oauth-protected-resource` pointing at Supabase Auth.
+
+Sign-in is Supabase's OAuth 2.1 server. `app/pages/oauth/consent.vue`
+is the authorization page (`getAuthorizationDetails`, approve, deny);
+`saveRedirectToCookie` is on so a signed-out person comes back to it
+after login (callback.vue plucks the cookie). The Account page has a
+Claude card with the connector URL, the `claude mcp add` command, and
+connected apps with Disconnect (`listGrants`, `revokeGrant`).
+
+Verified locally with a real session token: metadata, 401 without a
+token, initialize, tools/list (20 tools), and every write tool round
+trip on the internal Admin project (entries, timer start, refuse second
+timer, stop, task, update, comment), then the test rows were deleted.
+
+Not verified: the OAuth flow itself. The project's OAuth server is off
+(`/.well-known/oauth-authorization-server/auth/v1` says
+feature_disabled). Luke: Authentication, OAuth Server in the dashboard:
+enable it, set Authorization Path to `/oauth/consent`, allow dynamic
+client registration, and check Site URL is the live site. Then add the
+connector in Claude and approve it.
+
+## Morning sync cron (2026-09-02)
+
+`/api/sync/morning` runs daily at 11:00 UTC (6 AM Central in summer)
+from `vercel.json`, guarded by CRON_SECRET like the other crons. It
+pulls ClickUp's open tasks and Harvest's time and expenses for the
+current month (plus the previous month during the first three days),
+then Harvest project budgets and rates. The import code moved from the
+two POST routes into `server/utils/clickupImport.ts` and
+`server/utils/harvestImport.ts`; the Imports page routes are thin
+wrappers that check the admin and call the same functions. The cron
+runs with the service role; ClickUp-created tasks are owned by the
+first active admin. `?dry=1` exercises it without writes. Results are
+returned and logged (`[sync/morning]` in Vercel logs); nothing is
+stored yet.
+
+## Schedule hover card (2026-09-02)
+
+Bars on the schedule show a card near the pointer with the full title,
+client / project, dates, estimate, and people; the left column's names
+show the same card only when the column cut them off. Replaces the
+native title tooltips. `tipBar`, `tipIfCut`, and a teleported card in
+`app/pages/schedule.vue`.

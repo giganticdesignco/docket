@@ -12,6 +12,7 @@
     "schema:check": "./supabase/local-check/run.sh"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@nuxt/ui": "^3.3.7",
     "@nuxtjs/supabase": "^2.0.10",
     "driver.js": "^1.8.0",
