@@ -2,6 +2,30 @@
 
 Last updated: 2026-09-02, local session, step 7 done and the 2026 Harvest sync run.
 
+## Deployed (2026-09-02)
+
+Production is on Vercel, project `docket` under the Gigantic Design
+Company team, deployed with `vercel --prod` from this branch (the repo's
+default branch, so Git pushes deploy too). Public URL:
+https://docket-wine-one.vercel.app. The team-named alias and the
+per-deployment URLs sit behind Vercel's deployment protection (Vercel
+SSO), so give clients and staff the wine-one URL until a custom domain
+(docket.giganticdesign.com) is added; that also fixes the Resend sender
+domain. The five env vars from .env.example are set on Vercel. Vault
+`app_url` now points at the wine-one URL so cron emails link there.
+
+Signed-out checks on the live URL: /login 200 with the Google button,
+protected pages redirect to /login, /api/i/<bad token> 404 and a real
+token 200 (service role env var works), send route 403. Luke added
+https://docket-wine-one.vercel.app/callback to Supabase Auth Redirect
+URLs and Google sign-in worked in his Chrome: /time, /billing
+(unbilled total renders), /invoices, /projects (budget bars), and
+/admin/harvest all load with data, and a "Sync project details" dry run
+from the live server fetched 1,021 Harvest projects in about 30 s, so
+the Harvest env vars are right and the function limit is not 10 s. A
+receipt-heavy expense month is still the slowest call; if one ever
+times out, run that sync locally.
+
 ## Where things stand
 
 Step 1 (auth, profiles, clients, projects, tasks) is signed off.
