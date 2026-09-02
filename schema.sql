@@ -60,7 +60,6 @@ create type quote_status         as enum ('draft', 'sent', 'accepted', 'declined
 create type time_off_kind        as enum ('pto', 'holiday', 'unpaid', 'sick');
 create type reminder_kind        as enum ('timer_left_running', 'missing_time', 'timesheet_nudge');
 create type invoice_status       as enum ('draft', 'sent', 'paid', 'void');
-create type work_status          as enum ('new', 'ready_to_start', 'in_progress', 'internal_review', 'client_review', 'back_in_our_court', 'sent_to_print', 'on_hold', 'completed');
 create type work_priority        as enum ('low', 'normal', 'high', 'urgent');
 create type audit_action         as enum ('insert', 'update', 'delete');
 create type billing_batch_status as enum ('draft', 'pushing', 'pushed', 'failed', 'void', 'invoiced');
@@ -219,18 +218,22 @@ begin
 end;
 $$;
 
--- work_items: updated_at and completed_at look after themselves.
+-- work_items: updated_at and completed_at look after themselves;
+-- completed_at follows the status's is_done flag.
 create or replace function public.work_item_touch() returns trigger
 language plpgsql security definer set search_path = '' as $$
+declare v_done boolean;
 begin
+  select is_done into v_done from public.work_statuses where key = new.status;
+  v_done := coalesce(v_done, false);
   if tg_op = 'INSERT' then
-    if new.status = 'completed' then new.completed_at := now(); end if;
+    if v_done then new.completed_at := now(); end if;
     return new;
   end if;
   new.updated_at := now();
-  if new.status = 'completed' and old.status <> 'completed' then
+  if v_done and old.completed_at is null then
     new.completed_at := now();
-  elsif new.status <> 'completed' then
+  elsif not v_done then
     new.completed_at := null;
   end if;
   return new;
@@ -306,16 +309,46 @@ create table project_tasks (
 );
 
 -- ---------- Tasks (step 10; ClickUp is being cancelled) ----------
+-- Statuses are a table admins manage (Settings > Task statuses). Flags say
+-- which status means done (completed_at, off open lists), paused (off
+-- capacity), client review (Share for review moves there), and returned
+-- (a client's "changes requested" moves there). Keys are stable; labels,
+-- colours, and order are not.
+create table work_statuses (
+  key              text primary key,
+  label            text not null,
+  color            text not null default 'neutral' check (color in ('neutral', 'primary', 'info', 'success', 'warning', 'error')),
+  position         int not null default 0,
+  is_done          boolean not null default false,
+  is_paused        boolean not null default false,
+  is_client_review boolean not null default false,
+  is_return        boolean not null default false,
+  is_active        boolean not null default true
+);
+insert into work_statuses (key, label, color, position, is_done, is_paused, is_client_review, is_return) values
+  ('new',               'New',               'neutral', 1, false, false, false, false),
+  ('ready_to_start',    'Ready to start',    'neutral', 2, false, false, false, false),
+  ('in_progress',       'In progress',       'primary', 3, false, false, false, false),
+  ('internal_review',   'Internal review',   'info',    4, false, false, false, false),
+  ('client_review',     'Client review',     'info',    5, false, false, true,  false),
+  ('back_in_our_court', 'Back in our court', 'warning', 6, false, false, false, true),
+  ('sent_to_print',     'Sent to print',     'info',    7, false, false, false, false),
+  ('on_hold',           'On hold',           'neutral', 8, false, true,  false, false),
+  ('completed',         'Completed',         'success', 9, true,  false, false, false)
+on conflict (key) do nothing;
+
 -- work_items live under projects; several people can be assigned; comments
 -- and files hang off them. Comments allow a null author with a typed name
--- so a client review link (step 11) can post without an account.
+-- so the client review link (step 11, /r/<public_token>, served by a
+-- service-role route) can post without an account. Only uploaded files
+-- and comments marked visible_to_client reach the link.
 
 create table work_items (
   id             uuid primary key default gen_random_uuid(),
   project_id     uuid not null references projects(id) on delete restrict,
   title          text not null,
   description    text,
-  status         work_status not null default 'new',
+  status         text not null default 'new' references work_statuses(key) on update cascade on delete restrict,
   priority       work_priority not null default 'normal',
   start_on       date,
   due_on         date,
@@ -324,6 +357,12 @@ create table work_items (
   public_token   text not null unique
                  default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   clickup_id     text unique,           -- set by the one-time ClickUp import
+  -- Client review (step 11): /r/<public_token> needs no login. The client's
+  -- last decision lives here; shared_at is when the link was first sent.
+  client_decision    text check (client_decision in ('approved', 'changes_requested')),
+  client_decision_by text,
+  client_decision_at timestamptz,
+  shared_at          timestamptz,
   created_by     uuid not null references profiles(id) on delete restrict,
   completed_at   timestamptz,
   created_at     timestamptz not null default now(),
@@ -342,12 +381,13 @@ create table work_item_assignees (
 create index work_item_assignees_user on work_item_assignees (user_id);
 
 create table work_item_comments (
-  id           uuid primary key default gen_random_uuid(),
-  work_item_id uuid not null references work_items(id) on delete cascade,
-  author_id    uuid references profiles(id) on delete set null,  -- null = a client, via review link
-  author_name  text,                                             -- what the client typed
-  body         text not null,
-  created_at   timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  work_item_id      uuid not null references work_items(id) on delete cascade,
+  author_id         uuid references profiles(id) on delete set null,  -- null = a client, via review link
+  author_name       text,                                             -- what the client typed
+  body              text not null,
+  visible_to_client boolean not null default false,                   -- client comments are always true
+  created_at        timestamptz not null default now()
 );
 create index work_item_comments_item on work_item_comments (work_item_id, created_at);
 
@@ -907,15 +947,16 @@ select
       and cb.starts_at >= w.week_start
       and cb.starts_at <  w.week_start + 7
   ), 0) as meeting_hours,
-  -- Estimates split evenly across a task's assignees; done and on-hold
-  -- tasks do not book time.
+  -- Estimates split evenly across a task's assignees; done and paused
+  -- statuses do not book time.
   coalesce((
     select sum(coalesce(wi.estimate_hours, 0)
                / greatest((select count(*) from work_item_assignees a2 where a2.work_item_id = wi.id), 1))
     from work_items wi
     join work_item_assignees a on a.work_item_id = wi.id
+    join work_statuses s on s.key = wi.status
     where a.user_id = pr.id
-      and wi.status not in ('completed', 'on_hold')
+      and not s.is_done and not s.is_paused
       and wi.due_on >= w.week_start
       and wi.due_on <  w.week_start + 7
   ), 0) as booked_hours,
@@ -923,8 +964,9 @@ select
     select count(*)
     from work_items wi
     join work_item_assignees a on a.work_item_id = wi.id
+    join work_statuses s on s.key = wi.status
     where a.user_id = pr.id
-      and wi.status not in ('completed', 'on_hold')
+      and not s.is_done and not s.is_paused
       and wi.due_on >= w.week_start
       and wi.due_on <  w.week_start + 7
   ), 0) as booked_tasks,
@@ -1446,6 +1488,7 @@ alter table invoice_lines          enable row level security;
 alter table invoice_payments       enable row level security;
 alter table time_off               enable row level security;
 alter table availability           enable row level security;
+alter table work_statuses          enable row level security;
 alter table work_items             enable row level security;
 alter table work_item_assignees    enable row level security;
 alter table work_item_comments     enable row level security;
@@ -1539,6 +1582,9 @@ create policy admin_all   on harvest_invoices for all to authenticated using (is
 -- ---------- Tasks: the whole team reads and writes ----------
 -- Deleting a task is the creator's or an admin's; comments and files are
 -- edited by their author or an admin.
+
+create policy read_all    on work_statuses for select to authenticated using (true);
+create policy admin_write on work_statuses for all to authenticated using (is_admin()) with check (is_admin());
 
 create policy read_all     on work_items for select to authenticated using (true);
 create policy team_insert  on work_items for insert to authenticated with check (created_by = auth.uid());

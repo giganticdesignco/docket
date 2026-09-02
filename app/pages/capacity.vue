@@ -2,12 +2,11 @@
 // Who has room, week by week. Available = weekly hours minus time off
 // (weekdays) minus meetings. Past weeks compare logged time to that;
 // coming weeks compare what tasks have due, estimates split by assignee.
-import { workStatusLabel } from '~~/shared/types/app'
-
 definePageMeta({ middleware: 'admin' })
 useHead({ title: 'Capacity' })
 
 const supabase = useSupabaseClient()
+const ws = await useWorkStatuses()
 
 const thisWeek = weekDays(todayString())[0]!
 const from = addDays(thisWeek, -14)
@@ -72,7 +71,7 @@ const { data: tasks, status: tasksStatus } = await useAsyncData('capacity-tasks'
   const week = open.value.week
   return (data ?? [])
     .map(r => r.work_items)
-    .filter((w): w is NonNullable<typeof w> => !!w && !!w.due_on && w.due_on >= week && w.due_on < addDays(week, 7) && w.status !== 'completed' && w.status !== 'on_hold')
+    .filter((w): w is NonNullable<typeof w> => !!w && !!w.due_on && w.due_on >= week && w.due_on < addDays(week, 7) && !ws.isDone(w.status) && !ws.isPaused(w.status))
     .sort((a, b) => a.due_on!.localeCompare(b.due_on!))
 }, { ...fresh, watch: [open] })
 const openName = computed(() => people.value.find(p => p.id === open.value?.person)?.name ?? '')
@@ -139,7 +138,7 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
           <li v-for="t in tasks" :key="t.id" class="flex items-start gap-3 py-2">
             <div class="min-w-0 flex-1">
               <NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink>
-              <div class="text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }} &middot; {{ workStatusLabel(t.status) }}</div>
+              <div class="text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }} &middot; {{ ws.label(t.status) }}</div>
             </div>
             <div class="text-right tabular-nums">
               <div>{{ t.estimate_hours ? h(t.estimate_hours / Math.max(t.work_item_assignees.length, 1)) : 'no estimate' }}<span v-if="t.estimate_hours && t.work_item_assignees.length > 1" class="text-xs text-muted"> of {{ h(t.estimate_hours) }}</span></div>

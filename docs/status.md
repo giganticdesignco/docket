@@ -112,6 +112,55 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Step 11: client review links, editable statuses, ClickUp-style list (2026-09-02)
+
+Migrations `client_review`, `work_statuses_table`, mirrored in schema.sql.
+
+Client review link:
+
+- `/r/<public_token>` (excluded from the auth redirect, service-role
+  route `server/api/r/[token].get.ts` via `server/utils/reviewDoc.ts`):
+  the task title, description, due date, a readable status, uploaded
+  files with one-hour signed URLs (server links never appear), and only
+  comments marked `visible_to_client` plus all client comments. Clients
+  give a name (remembered in localStorage), comment, approve, or request
+  changes; changes need a note. `comment.post.ts` and `decision.post.ts`
+  store the comment with author_id null and author_name, record
+  client_decision / _by / _at on the task, move it to the status flagged
+  is_return on "changes requested", and email the task's assignees and
+  creator through `server/utils/notify.ts` (Resend key from Vault).
+- Task page: "Share for review" shows the link with Copy, emails it
+  (`server/api/tasks/share.post.ts`, any team member, reply-to the
+  sender) and can set the status flagged is_client_review; shared_at is
+  kept. A banner shows the client's decision. Team comments have a
+  "Visible to client" checkbox and a "Client can see" badge.
+- Verified with curl and in the browser: GET with no session returns the
+  doc, bad token 404, client comment posted and emailed, missing name
+  400, "request changes" moved the task to Back in our court and recorded
+  the decision; the internal comment stayed hidden.
+
+Editable statuses (Luke's ask):
+
+- `work_statuses` table replaces the enum: key, label, colour, position,
+  and flags is_done (completed_at, hidden from open lists and capacity),
+  is_paused (hidden from capacity), is_client_review, is_return,
+  is_active. `work_items.status` is text with a FK (on update cascade).
+  The trigger and the capacity view read the flags. Seeded with the nine
+  ClickUp statuses.
+- `useWorkStatuses()` (awaited in setup, cached in useState) feeds every
+  status menu, label, and colour. `/admin/task-statuses` (Settings) adds,
+  edits, reorders, deactivates, and deletes unused statuses.
+
+Task list rebuilt like ClickUp (`/tasks`): collapsible groups by status,
+project, or due date; a coloured dot, title, project, stacked assignees,
+due (click to edit), priority, estimate, status; one shared floating
+menu for status, priority, and assignees (tick people on and off), so
+rows stay cheap; drag a row onto another group to change its status,
+move it to that project, or shift its due date. The task page also has a
+Project picker. The "ClickUp import" catch-all projects were renamed
+"General" and are hidden in row subtitles. Assignees on the task page
+stack with a "+N" past five.
+
 ## Step 10: task management (2026-09-02)
 
 Luke reframed the scope: ClickUp is being cancelled, so Docket takes over

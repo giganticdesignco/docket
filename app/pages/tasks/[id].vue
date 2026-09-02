@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Database } from '~~/shared/types/database'
-import { WORK_STATUSES, workStatusColor, WORK_PRIORITIES } from '~~/shared/types/app'
+import { WORK_PRIORITIES } from '~~/shared/types/app'
 
 // One task, laid out like ClickUp: breadcrumb and an inline title up top,
 // a property grid edited in place, description and files below, and the
@@ -13,6 +13,7 @@ const user = useSupabaseUser()
 const { isAdmin } = useCurrentUser()
 const files = useWorkFiles()
 const toast = useToast()
+const ws = await useWorkStatuses()
 
 const { data: item, refresh } = await useAsyncData(`task-${id}`, async () => {
   const { data, error } = await supabase
@@ -49,12 +50,20 @@ const { data: people } = await useAsyncData('people-for-tasks', async () => {
   return data
 }, fresh)
 
+const { data: projects } = await useAsyncData('projects-for-tasks', async () => {
+  const { data, error } = await supabase.from('projects').select('id, name, clients(name)').eq('is_active', true).order('name')
+  if (error) throw error
+  return data
+}, fresh)
+const projectOptions = computed(() => (projects.value ?? []).map(p => ({ label: `${p.clients?.name ?? ''} / ${p.name}`, value: p.id })))
+const setProject = (projectId: string) => { if (projectId && projectId !== item.value?.project_id) patch({ project_id: projectId }) }
+
 useHead({ title: () => item.value?.title ?? 'Task' })
 
 type Item = NonNullable<typeof item.value>
 const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 const canDelete = computed(() => isAdmin.value || item.value?.created_by === user.value?.sub)
-const overdue = computed(() => !!item.value?.due_on && item.value.due_on < todayString() && item.value.status !== 'completed')
+const overdue = computed(() => !!item.value?.due_on && item.value.due_on < todayString() && !ws.isDone(item.value.status))
 
 // ---------- inline editing ----------
 
@@ -105,7 +114,7 @@ const saveEstimate = () => {
   const n = draft.estimate_hours === '' ? null : Number(draft.estimate_hours)
   if (n !== item.value?.estimate_hours) patch({ estimate_hours: n })
 }
-const setStatus = (status: string) => patch({ status: status as Item['status'] })
+const setStatus = (status: string) => patch({ status })
 const setPriority = (priority: string) => patch({ priority: priority as Item['priority'] })
 
 async function saveAssignees(ids: string[]) {
@@ -134,12 +143,13 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
 // ---------- comments ----------
 
 const commentBody = ref('')
+const commentVisible = ref(false)
 const commenting = ref(false)
 async function addComment() {
   if (!commentBody.value.trim()) return
   commenting.value = true
   try {
-    const { error } = await supabase.from('work_item_comments').insert({ work_item_id: id, author_id: user.value!.sub, body: commentBody.value.trim() })
+    const { error } = await supabase.from('work_item_comments').insert({ work_item_id: id, author_id: user.value!.sub, body: commentBody.value.trim(), visible_to_client: commentVisible.value })
     if (error) throw error
     commentBody.value = ''
     await refreshComments()
@@ -153,6 +163,41 @@ async function deleteComment(commentId: string) {
   const { error } = await supabase.from('work_item_comments').delete().eq('id', commentId)
   if (error) toast.add({ title: 'Could not remove', description: error.message, color: 'error' })
   else await refreshComments()
+}
+
+// ---------- client review link ----------
+
+const origin = useRequestURL().origin
+const reviewLink = computed(() => `${origin}/r/${item.value?.public_token}`)
+const shareOpen = ref(false)
+const shareTo = ref('')
+const shareMessage = ref('')
+const shareMark = ref(true)
+const sharing = ref(false)
+function openShare() {
+  shareTo.value = ''
+  shareMessage.value = ''
+  shareMark.value = item.value?.status !== ws.clientReviewKey.value
+  shareOpen.value = true
+}
+async function copyReviewLink() {
+  await navigator.clipboard.writeText(reviewLink.value)
+  toast.add({ title: 'Review link copied', description: 'Anyone with it can see the shared files and client-visible comments.', color: 'success' })
+}
+async function shareByEmail() {
+  sharing.value = true
+  try {
+    const to = shareTo.value.split(/[\s,;]+/).filter(Boolean)
+    const res = await $fetch<{ to: string[] }>('/api/tasks/share', { method: 'POST', body: { taskId: id, to, message: shareMessage.value, markClientReview: shareMark.value } })
+    shareOpen.value = false
+    toast.add({ title: 'Review link sent', description: `To ${res.to.join(', ')}`, color: 'success' })
+    await refresh()
+  } catch (e) {
+    const err = e as { data?: { statusMessage?: string }, message?: string }
+    toast.add({ title: 'Not sent', description: err.data?.statusMessage ?? err.message, color: 'error' })
+  } finally {
+    sharing.value = false
+  }
 }
 
 // ---------- files ----------
@@ -273,8 +318,9 @@ async function deleteTask() {
       <UButton to="/tasks" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <NuxtLink :to="`/clients/${item.projects?.clients?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.clients?.name }}</NuxtLink>
       <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
-      <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name }}</NuxtLink>
+      <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name === 'General' ? 'General tasks' : item.projects?.name }}</NuxtLink>
       <div class="ml-auto flex items-center gap-2">
+        <UButton variant="outline" size="sm" icon="i-lucide-share-2" @click="openShare">Share for review</UButton>
         <UButton :to="`/time?item=${item.id}`" variant="outline" size="sm" icon="i-lucide-timer">Log time</UButton>
         <UButton v-if="canDelete" variant="ghost" color="neutral" size="sm" icon="i-lucide-trash-2" aria-label="Delete task" @click="deleting = true;" />
       </div>
@@ -284,25 +330,38 @@ async function deleteTask() {
       <!-- Left: the task -->
       <div class="min-h-0 space-y-6 overflow-y-auto py-6 lg:col-span-3 lg:pr-8">
         <div class="flex flex-wrap items-center gap-3">
-          <USelect :model-value="item.status" :items="[...WORK_STATUSES]" :color="workStatusColor(item.status)" variant="subtle" size="sm" class="w-44" @update:model-value="setStatus($event as string)" />
+          <USelect :model-value="item.status" :items="ws.items.value" :color="ws.color(item.status)" variant="subtle" size="sm" class="w-44" @update:model-value="setStatus($event as string)" />
           <span v-if="item.completed_at" class="text-xs text-muted">Completed {{ stamp(item.completed_at) }}</span>
+          <span v-else-if="item.shared_at" class="text-xs text-muted">Shared for review {{ stamp(item.shared_at) }}</span>
+        </div>
+        <div v-if="item.client_decision" class="rounded-md px-4 py-2 text-sm" :class="item.client_decision === 'approved' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'">
+          {{ item.client_decision === 'approved' ? 'Approved' : 'Changes requested' }} by {{ item.client_decision_by }}<span v-if="item.client_decision_at">, {{ stamp(item.client_decision_at) }}</span>
         </div>
 
         <UInput v-model="draft.title" variant="none" size="xl" class="w-full" :ui="{ base: 'text-2xl font-semibold px-0' }" placeholder="Task title" @blur="saveTitle" @keydown.enter.prevent="($event.target as HTMLInputElement).blur()" />
 
-        <dl class="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+        <dl class="grid gap-y-2 text-sm">
           <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Assignees</dt>
             <dd class="min-w-0 flex-1">
               <USelectMenu v-model="draft.assignees" :items="peopleOptions" value-key="value" multiple variant="ghost" size="sm" class="w-full" placeholder="Nobody yet" @update:model-value="saveAssignees(draft.assignees)">
                 <template #default>
-                  <span v-if="item.work_item_assignees.length" class="flex items-center gap-1">
-                    <span v-for="a in item.work_item_assignees" :key="a.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium" :title="a.profiles?.full_name ?? ''">{{ initials(a.profiles?.full_name ?? '?') }}</span>
-                    <span class="ml-1 truncate">{{ item.work_item_assignees.map(a => a.profiles?.full_name).join(', ') }}</span>
+                  <span v-if="item.work_item_assignees.length" class="flex min-w-0 items-center gap-2" :title="item.work_item_assignees.map(a => a.profiles?.full_name).join(', ')">
+                    <span class="flex shrink-0 -space-x-1.5">
+                      <span v-for="a in item.work_item_assignees.slice(0, 5)" :key="a.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                      <span v-if="item.work_item_assignees.length > 5" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ item.work_item_assignees.length - 5 }}</span>
+                    </span>
+                    <span class="min-w-0 truncate">{{ item.work_item_assignees.length <= 2 ? item.work_item_assignees.map(a => a.profiles?.full_name).join(', ') : `${item.work_item_assignees[0]?.profiles?.full_name?.split(' ')[0]} and ${item.work_item_assignees.length - 1} others` }}</span>
                   </span>
                   <span v-else class="text-muted">Nobody yet</span>
                 </template>
               </USelectMenu>
+            </dd>
+          </div>
+          <div class="flex items-center gap-3">
+            <dt class="w-24 shrink-0 text-muted">Project</dt>
+            <dd class="min-w-0 flex-1">
+              <USelectMenu :model-value="item.project_id" :items="projectOptions" value-key="value" variant="ghost" size="sm" class="w-full max-w-md" placeholder="Pick a project" @update:model-value="setProject($event as string)" />
             </dd>
           </div>
           <div class="flex items-center gap-3">
@@ -311,7 +370,7 @@ async function deleteTask() {
               <USelect :model-value="item.priority" :items="[...WORK_PRIORITIES]" variant="ghost" size="sm" class="w-40" @update:model-value="setPriority($event as string)" />
             </dd>
           </div>
-          <div class="flex items-center gap-3 sm:col-span-2">
+          <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Dates</dt>
             <dd class="flex min-w-0 flex-1 items-center gap-2">
               <UInput v-model="draft.start_on" type="date" variant="ghost" size="sm" @change="saveDates" />
@@ -319,14 +378,14 @@ async function deleteTask() {
               <UInput v-model="draft.due_on" type="date" variant="ghost" size="sm" :color="overdue ? 'error' : undefined" @change="saveDates" />
             </dd>
           </div>
-          <div class="flex items-center gap-3 sm:col-span-2">
+          <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Estimate</dt>
             <dd class="flex min-w-0 flex-1 items-center gap-3">
               <UInput v-model="draft.estimate_hours" type="number" step="0.25" :min="0" variant="ghost" size="sm" class="w-24" placeholder="hours" @change="saveEstimate" />
               <span class="text-muted">Logged <span class="text-default tabular-nums">{{ formatHours(timeLogged ?? 0) }}</span></span>
             </dd>
           </div>
-          <div class="flex items-center gap-3 sm:col-span-2">
+          <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Created</dt>
             <dd class="text-muted">{{ item.profiles?.full_name }}, {{ stamp(item.created_at) }}</dd>
           </div>
@@ -378,6 +437,7 @@ async function deleteTask() {
                 <div class="flex items-baseline gap-2 text-xs text-muted">
                   <span class="font-medium text-default">{{ c.author_id ? c.profiles?.full_name : `${c.author_name ?? 'Client'} (client)` }}</span>
                   <span>{{ stamp(c.created_at) }}</span>
+                  <UBadge v-if="c.visible_to_client && c.author_id" color="info" variant="subtle" size="xs">Client can see</UBadge>
                   <UButton v-if="isAdmin || c.author_id === user?.sub" icon="i-lucide-x" variant="ghost" color="neutral" size="xs" class="-my-1 ml-auto" aria-label="Remove comment" @click="deleteComment(c.id)" />
                 </div>
                 <p class="mt-0.5 whitespace-pre-line">{{ c.body }}</p>
@@ -388,12 +448,39 @@ async function deleteTask() {
         </div>
         <div class="shrink-0 border-t border-default py-4">
           <UTextarea v-model="commentBody" :rows="2" class="w-full" placeholder="Write a comment. Cmd+Enter to post." autoresize @keydown.meta.enter="addComment" @keydown.ctrl.enter="addComment" />
-          <div class="mt-2 flex justify-end">
-            <UButton size="sm" :loading="commenting" :disabled="!commentBody.trim()" @click="addComment">Comment</UButton>
+          <div class="mt-2 flex items-center gap-3">
+            <UCheckbox v-model="commentVisible" label="Visible to client" size="sm" />
+            <UButton size="sm" class="ml-auto" :loading="commenting" :disabled="!commentBody.trim()" @click="addComment">Comment</UButton>
           </div>
         </div>
       </div>
     </div>
+
+    <UModal v-model:open="shareOpen" title="Share for review">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="Review link" help="Anyone with the link sees the title, description, uploaded files (not server links), and comments marked visible to client. They can comment, approve, or request changes without signing in.">
+            <div class="flex gap-2">
+              <UInput :model-value="reviewLink" readonly class="flex-1" />
+              <UButton variant="outline" color="neutral" icon="i-lucide-copy" @click="copyReviewLink">Copy</UButton>
+            </div>
+          </UFormField>
+          <UFormField label="Email it to" help="Comma separated.">
+            <UInput v-model="shareTo" class="w-full" placeholder="name@client.com" />
+          </UFormField>
+          <UFormField label="Message" help="Optional. The email always includes the link.">
+            <UTextarea v-model="shareMessage" :rows="3" class="w-full" />
+          </UFormField>
+          <UCheckbox v-model="shareMark" label="Set status to Client review" />
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="shareOpen = false;">Close</UButton>
+          <UButton :loading="sharing" :disabled="!shareTo.trim()" icon="i-lucide-send" @click="shareByEmail">Send</UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal v-model:open="attachOpen" title="Attach a file">
       <template #body>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BILLING_METHODS, workStatusColor, workStatusLabel } from '~~/shared/types/app'
+import { BILLING_METHODS } from '~~/shared/types/app'
 
 const route = useRoute()
 const id = route.params.id as string
@@ -40,8 +40,9 @@ const { data: people } = await useAsyncData('people-for-tasks', async () => {
   if (error) throw error
   return data
 }, fresh)
+const ws = await useWorkStatuses()
 const showDone = ref(false)
-const openItems = computed(() => (workItems.value ?? []).filter(i => i.status !== 'completed'))
+const openItems = computed(() => (workItems.value ?? []).filter(i => !ws.isDone(i.status)))
 const visibleItems = computed(() => (showDone.value ? workItems.value ?? [] : openItems.value))
 const creatingTask = ref(false)
 function taskCreated() {
@@ -173,8 +174,8 @@ const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'pr
             <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
             <div class="truncate text-muted">{{ i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Unassigned' }}</div>
           </div>
-          <span class="w-16 text-right tabular-nums" :class="i.due_on && i.due_on < todayString() && i.status !== 'completed' ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
-          <UBadge :color="workStatusColor(i.status)" variant="subtle" size="sm">{{ workStatusLabel(i.status) }}</UBadge>
+          <span class="w-16 text-right tabular-nums" :class="i.due_on && i.due_on < todayString() && !ws.isDone(i.status) ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
+          <UBadge :color="ws.color(i.status)" variant="subtle" size="sm">{{ ws.label(i.status) }}</UBadge>
         </li>
       </ul>
       <p v-else class="px-4 py-6 text-center text-sm text-muted">No tasks on this project yet.</p>

@@ -22,12 +22,12 @@ export default defineNuxtConfig({
     '/time': { ssr: false },
   },
   supabase: {
-    // Public quote (/q/[token]) and invoice (/i/[token]) links must never
-    // bounce to the login screen.
+    // Public quote (/q/[token]), invoice (/i/[token]), and task review
+    // (/r/[token]) links must never bounce to the login screen.
     redirectOptions: {
       login: '/login',
       callback: '/callback',
-      exclude: ['/q/**', '/i/**', '/login', '/callback'],
+      exclude: ['/q/**', '/i/**', '/r/**', '/login', '/callback'],
     },
     types: '~~/shared/types/database.ts',
   },

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Tables } from '~~/shared/types/database'
-import { WORK_PRIORITIES, WORK_STATUSES } from '~~/shared/types/app'
+import { WORK_PRIORITIES } from '~~/shared/types/app'
 
 type Item = Tables<'work_items'>
 type ProjectOption = { id: string, name: string, clients: { name: string } | null }
@@ -19,12 +19,13 @@ const emit = defineEmits<{ saved: [id: string]; cancel: [] }>()
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const toast = useToast()
+const ws = await useWorkStatuses()
 
 const state = reactive({
   project_id: (props.item?.project_id ?? props.defaultProjectId) as string | undefined,
   title: props.item?.title ?? '',
   description: props.item?.description ?? '',
-  status: props.item?.status ?? 'new',
+  status: props.item?.status ?? (ws.active.value[0]?.key ?? 'new'),
   priority: props.item?.priority ?? 'normal',
   start_on: props.item?.start_on ?? '',
   due_on: props.item?.due_on ?? '',
@@ -97,7 +98,7 @@ function fail(message: string) {
       <USelectMenu v-model="state.assignee_ids" :items="peopleOptions" value-key="value" multiple class="w-full" placeholder="Nobody yet" />
     </UFormField>
     <UFormField label="Status">
-      <USelect v-model="state.status" :items="[...WORK_STATUSES]" class="w-full" />
+      <USelect v-model="state.status" :items="ws.items.value" class="w-full" />
     </UFormField>
     <UFormField label="Priority">
       <USelect v-model="state.priority" :items="[...WORK_PRIORITIES]" class="w-full" />

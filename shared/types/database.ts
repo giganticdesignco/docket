@@ -1974,6 +1974,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          visible_to_client: boolean
           work_item_id: string
         }
         Insert: {
@@ -1982,6 +1983,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          visible_to_client?: boolean
           work_item_id: string
         }
         Update: {
@@ -1990,6 +1992,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          visible_to_client?: boolean
           work_item_id?: string
         }
         Relationships: [
@@ -2108,6 +2111,9 @@ export type Database = {
       work_items: {
         Row: {
           clickup_id: string | null
+          client_decision: string | null
+          client_decision_at: string | null
+          client_decision_by: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -2119,13 +2125,17 @@ export type Database = {
           priority: Database["public"]["Enums"]["work_priority"]
           project_id: string
           public_token: string
+          shared_at: string | null
           start_on: string | null
-          status: Database["public"]["Enums"]["work_status"]
+          status: string
           title: string
           updated_at: string
         }
         Insert: {
           clickup_id?: string | null
+          client_decision?: string | null
+          client_decision_at?: string | null
+          client_decision_by?: string | null
           completed_at?: string | null
           created_at?: string
           created_by: string
@@ -2137,13 +2147,17 @@ export type Database = {
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id: string
           public_token?: string
+          shared_at?: string | null
           start_on?: string | null
-          status?: Database["public"]["Enums"]["work_status"]
+          status?: string
           title: string
           updated_at?: string
         }
         Update: {
           clickup_id?: string | null
+          client_decision?: string | null
+          client_decision_at?: string | null
+          client_decision_by?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string
@@ -2155,8 +2169,9 @@ export type Database = {
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id?: string
           public_token?: string
+          shared_at?: string | null
           start_on?: string | null
-          status?: Database["public"]["Enums"]["work_status"]
+          status?: string
           title?: string
           updated_at?: string
         }
@@ -2217,7 +2232,50 @@ export type Database = {
             referencedRelation: "unbilled_time"
             referencedColumns: ["project_id"]
           },
+          {
+            foreignKeyName: "work_items_status_fkey"
+            columns: ["status"]
+            isOneToOne: false
+            referencedRelation: "work_statuses"
+            referencedColumns: ["key"]
+          },
         ]
+      }
+      work_statuses: {
+        Row: {
+          color: string
+          is_active: boolean
+          is_client_review: boolean
+          is_done: boolean
+          is_paused: boolean
+          is_return: boolean
+          key: string
+          label: string
+          position: number
+        }
+        Insert: {
+          color?: string
+          is_active?: boolean
+          is_client_review?: boolean
+          is_done?: boolean
+          is_paused?: boolean
+          is_return?: boolean
+          key: string
+          label: string
+          position?: number
+        }
+        Update: {
+          color?: string
+          is_active?: boolean
+          is_client_review?: boolean
+          is_done?: boolean
+          is_paused?: boolean
+          is_return?: boolean
+          key?: string
+          label?: string
+          position?: number
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -2618,16 +2676,6 @@ export type Database = {
       time_off_kind: "pto" | "holiday" | "unpaid" | "sick"
       user_role: "admin" | "staff"
       work_priority: "low" | "normal" | "high" | "urgent"
-      work_status:
-        | "new"
-        | "ready_to_start"
-        | "in_progress"
-        | "internal_review"
-        | "client_review"
-        | "back_in_our_court"
-        | "sent_to_print"
-        | "on_hold"
-        | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2772,17 +2820,6 @@ export const Constants = {
       time_off_kind: ["pto", "holiday", "unpaid", "sick"],
       user_role: ["admin", "staff"],
       work_priority: ["low", "normal", "high", "urgent"],
-      work_status: [
-        "new",
-        "ready_to_start",
-        "in_progress",
-        "internal_review",
-        "client_review",
-        "back_in_our_court",
-        "sent_to_print",
-        "on_hold",
-        "completed",
-      ],
     },
   },
 } as const

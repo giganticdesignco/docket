@@ -8,12 +8,12 @@ import type { Database } from '~~/shared/types/database'
 // Mapping:
 //   list      -> client by name (" - Shared" and punctuation ignored)
 //   task name -> the client's project whose name appears in it (longest
-//                wins), else a "ClickUp import" project made for the client
+//                wins), else a "General" project made for the client
 //   assignees -> profiles by email (client guests are dropped)
 //   status    -> the same names Docket uses; anything else becomes new
 
 type Body = { dryRun?: boolean }
-type Status = Database['public']['Enums']['work_status']
+type Status = string
 
 const STATUS: Record<string, Status> = {
   'new': 'new', 'to do': 'new', 'open': 'new',
@@ -68,12 +68,12 @@ export default defineEventHandler(async (event) => {
   const catchAll = new Map<string, string>()
   let createdProjects = 0
   async function catchAllProject(clientId: string): Promise<string> {
-    const known = catchAll.get(clientId) ?? projectKeys.find(p => p.client_id === clientId && p.name === 'ClickUp import')?.id
+    const known = catchAll.get(clientId) ?? projectKeys.find(p => p.client_id === clientId && p.name === 'General')?.id
     if (known) return known
     createdProjects++
     let id = `dry-${clientId}`
     if (!dryRun) {
-      const { data, error } = await supabase.from('projects').insert({ client_id: clientId, name: 'ClickUp import', billing_method: 'hourly' }).select('id').single()
+      const { data, error } = await supabase.from('projects').insert({ client_id: clientId, name: 'General', billing_method: 'hourly' }).select('id').single()
       if (error) throw createError({ statusCode: 500, statusMessage: error.message })
       id = data.id
     }

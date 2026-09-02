@@ -53,7 +53,7 @@ async function run() {
           <UButton icon="i-lucide-download" :loading="running" @click="run">{{ dryRun ? 'Preview import' : 'Import open tasks' }}</UButton>
         </div>
         <p class="text-xs text-muted">
-          Lists match clients by name; a task matches the client's project whose name appears in the task name, otherwise it goes into a "ClickUp import" project made for that client. Assignees match people by email; client guests are dropped. Statuses map to Docket's. Needs NUXT_CLICKUP_TOKEN and NUXT_CLICKUP_TEAM_ID on the server.
+          Lists match clients by name; a task matches the client's project whose name appears in the task name, otherwise it goes into a "General" project made for that client. Assignees match people by email; client guests are dropped. Statuses map to Docket's. Needs NUXT_CLICKUP_TOKEN and NUXT_CLICKUP_TEAM_ID on the server.
         </p>
       </div>
     </UCard>
@@ -69,7 +69,7 @@ async function run() {
         <dt class="text-muted">Created</dt><dd class="tabular-nums">{{ result.created }}</dd>
         <dt class="text-muted">Updated</dt><dd class="tabular-nums">{{ result.updated }}</dd>
         <dt class="text-muted">Assignments</dt><dd class="tabular-nums">{{ result.assignments }} <span class="text-muted">({{ result.droppedAssignees }} guests dropped)</span></dd>
-        <dt class="text-muted">Into "ClickUp import" projects</dt><dd class="tabular-nums">{{ result.inCatchAll }} <span class="text-muted">({{ result.createdProjects }} projects made)</span></dd>
+        <dt class="text-muted">Into "General" projects</dt><dd class="tabular-nums">{{ result.inCatchAll }} <span class="text-muted">({{ result.createdProjects }} projects made)</span></dd>
         <dt class="text-muted">Skipped, list not a client</dt><dd class="tabular-nums">{{ result.skippedNoClient }}</dd>
       </dl>
       <p v-if="result.unmatchedLists.length" class="mt-3 text-sm"><strong>Lists that matched no client:</strong> {{ result.unmatchedLists.join(', ') }}</p>
