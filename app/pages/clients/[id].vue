@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BILLING_METHODS } from '~~/shared/types/database'
+import { BILLING_METHODS } from '~~/shared/types/app'
 
 const route = useRoute()
 const id = route.params.id as string

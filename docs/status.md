@@ -1,12 +1,42 @@
 # Status
 
-Last updated: 2026-09-01, local session finishing step 1 sign-off.
+Last updated: 2026-09-01, local session, step 2 built and browser-verified.
 
 ## Where things stand
 
-Step 1 (auth, profiles, clients, projects, tasks) is coded, typechecked,
-built, and pushed on `claude/docket-schema-auth-i7jyom`. Admin and staff
-flows are verified in a real browser. Step 1 is signed off.
+Step 1 (auth, profiles, clients, projects, tasks) is signed off.
+
+Step 2 (time entries + timer + week view) is built on
+`claude/docket-schema-auth-i7jyom` and verified in a real browser as luke@.
+Shape chosen with Luke: Harvest's day view with a Monday-to-Sunday strip,
+not the week grid. Pieces:
+
+- `/time` is the home page (`/` redirects). Week strip with per-day and
+  week totals, selected day lists entries, prev/next/Today, `?date=` in
+  the URL.
+- `TimeEntryForm`: project (Client / Project), task (from project_tasks,
+  active only), notes, hours as h:mm or decimal, billable switch defaulting
+  from the task and forced off for non-billable projects. New entries have
+  a Start timer button next to Save.
+- `useTimer`: Harvest-style duration timers. `hours` accumulates on stop,
+  started_at is set only while running. Starting a timer stops the running
+  one first; a 23505 from the partial unique index (another tab or device)
+  is resolved by reloading, stopping, and retrying once. Verified by
+  starting a timer in SQL behind the tab's back, then starting another in
+  the UI.
+- Banner at the top when the running timer is on a day other than the one
+  shown, with Go to day and Stop.
+- Locked entries (billing batch) show a lock and lose their buttons.
+- `/time` is rendered client-only (routeRules in nuxt.config) so "today"
+  and the ticking counter use the browser clock, not Vercel's UTC.
+- `shared/types/database.ts` is now the generated Supabase types (from the
+  MCP `generate_typescript_types` tool). App helpers (`BILLING_METHODS`,
+  `BillingMethod`, `UserRole`) moved to `shared/types/app.ts`. Regenerate
+  database.ts after every schema change.
+
+Conventions copied from the Harvest account settings: week starts Monday,
+time shows as h:mm, timers are durations not clock-in/out, notes optional,
+no rounding.
 
 ## Supabase
 
@@ -42,9 +72,22 @@ flows are verified in a real browser. Step 1 is signed off.
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
 
-## Step 1 sign-off
+## Step 2 sign-off
 
-Done. Next is step 2: time entries + timer + week view.
+Verified in Chrome as luke@: create entry (1:30), start and stop the timer
+on a row, timer conflict recovery, edit notes while running, delete with
+confirm, timer banner on another day with Stop, prev week, Today, day
+buttons. `npm run typecheck` passes. Test entries were deleted afterwards,
+so the timesheet is empty.
+
+Not done in step 2, on purpose:
+- No week grid (rows by project/task, columns by day). Add later if wanted.
+- No admin view of other people's time. That is reports, step 7.
+- No header indicator for a running timer when you are off the /time page.
+- Vue-tsc prints a "Resolve plugin path failed: vue-router/volar/sfc-route-blocks"
+  stack on every typecheck. Harmless, exit code is 0.
+
+Next is step 3: Harvest import (archive rollup + current year live).
 
 Optional later: have sean@ sign in once with Google so the account links
 and the staff view is seen on a second real account. Not blocking.

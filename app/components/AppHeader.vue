@@ -2,6 +2,7 @@
 const { profile, isAdmin, signOut } = useCurrentUser()
 
 const links = computed(() => [
+  { label: 'Time', to: '/time' },
   { label: 'Clients', to: '/clients' },
   { label: 'Projects', to: '/projects' },
   ...(isAdmin.value ? [{ label: 'Tasks', to: '/admin/tasks' }] : []),

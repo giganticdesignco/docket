@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BILLING_METHODS, type BillingMethod, type Tables } from '~~/shared/types/database'
+import type { Tables } from '~~/shared/types/database'
+import { BILLING_METHODS, type BillingMethod } from '~~/shared/types/app'
 import type { FormSubmitEvent } from '@nuxt/ui'
 
 // Create or edit a project. Admin only (see ClientForm).
