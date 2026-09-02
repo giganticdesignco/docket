@@ -380,7 +380,9 @@ How:
 - Same treatment on the mobile slideover.
 
 Depends on: nothing; better done before the walkthrough so the tour
-describes the final layout. Size: 1 to 2 days.
+describes the final layout. Size: 1 to 2 days. Built 2026-09-02: daily
+five plus a More group, a Settings gear to `/admin` with a strip across
+the settings pages, and an Imports page.
 
 ## 15. Mac desktop shell
 

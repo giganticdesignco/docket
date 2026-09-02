@@ -1,5 +1,24 @@
 # Status
 
+## Phase 2, wave 2a: sidebar rework (2026-09-02)
+
+Item 14 of `docs/phase-2.md`. `AppSidebar.vue` now has two groups: the
+daily five (Time, Tasks, Projects, Clients, Reports for admins) and a
+"More" group under a divider (Expenses, Time off, then Quotes, Capacity,
+Billing, Invoices for admins). Settings is one gear at the bottom of the
+rail, admin only, leading to `/admin`.
+
+- `/admin` (`app/pages/admin/index.vue`) is a card per settings page.
+- `SettingsNav.vue` is a strip across the top of every `/admin` page,
+  rendered from `app.vue` when the route is under /admin: People,
+  Projects, Task statuses, Task types, Expense categories, Invoices and
+  quotes, Imports.
+- `/admin/imports` links the Harvest and ClickUp pages, which keep their
+  URLs and highlight Imports in the strip.
+- Staff rail: Time, Tasks, Projects, Clients, More: Expenses, Time off.
+- Phone slideover mirrors the groups and the Settings entry.
+
+
 ## Phase 2: Mac desktop shell (2026-09-02)
 
 `desktop/` is a Tauri 2 app that opens the live site in a webview. Luke

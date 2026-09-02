@@ -8,52 +8,38 @@ const route = useRoute()
 type Link = { label: string, to: string, icon: string }
 type Section = { label: string, links: Link[] }
 
+// Two groups: what people open every day, then everything else under
+// More. Settings is the gear at the bottom. Staff never see admin pages,
+// so their rail is short by default.
 const sections = computed<Section[]>(() => {
-  const work: Section = {
-    label: 'Work',
+  const daily: Section = {
+    label: '',
     links: [
       { label: 'Time', to: '/time', icon: 'i-lucide-clock' },
       { label: 'Tasks', to: '/tasks', icon: 'i-lucide-list-todo' },
+      { label: 'Projects', to: '/projects', icon: 'i-lucide-folder-kanban' },
+      { label: 'Clients', to: '/clients', icon: 'i-lucide-building-2' },
+      ...(isAdmin.value ? [{ label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' }] : []),
+    ],
+  }
+  const more: Section = {
+    label: 'More',
+    links: [
       { label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' },
       { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
+      ...(isAdmin.value
+        ? [
+            { label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' },
+            { label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' },
+            { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },
+            { label: 'Invoices', to: '/invoices', icon: 'i-lucide-file-text' },
+          ]
+        : []),
     ],
   }
-  const accounts: Section = {
-    label: 'Accounts',
-    links: [
-      { label: 'Clients', to: '/clients', icon: 'i-lucide-building-2' },
-      { label: 'Projects', to: '/projects', icon: 'i-lucide-folder-kanban' },
-    ],
-  }
-  if (!isAdmin.value) return [work, accounts]
-  return [
-    work,
-    accounts,
-    {
-      label: 'Manage',
-      links: [
-        { label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' },
-        { label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' },
-        { label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' },
-        { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },
-        { label: 'Invoices', to: '/invoices', icon: 'i-lucide-file-text' },
-      ],
-    },
-    {
-      label: 'Settings',
-      links: [
-        { label: 'People', to: '/admin/users', icon: 'i-lucide-users' },
-        { label: 'Project settings', to: '/admin/project-settings', icon: 'i-lucide-folder-cog' },
-        { label: 'Task statuses', to: '/admin/task-statuses', icon: 'i-lucide-circle-dot' },
-        { label: 'Task types', to: '/admin/tasks', icon: 'i-lucide-list-checks' },
-        { label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-tags' },
-        { label: 'Invoice settings', to: '/admin/invoice-settings', icon: 'i-lucide-settings' },
-        { label: 'Harvest import', to: '/admin/harvest', icon: 'i-lucide-download' },
-        { label: 'ClickUp import', to: '/admin/clickup', icon: 'i-lucide-download' },
-      ],
-    },
-  ]
+  return [daily, more]
 })
+const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
 
 const active = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
 
@@ -79,7 +65,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
 
     <nav class="flex-1 overflow-y-auto overflow-x-hidden py-1">
       <div v-for="s in sections" :key="s.label" class="mb-1">
-        <div class="h-6 px-4 pt-2 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
+        <div v-if="s.label" class="mx-3 mt-2 mb-1 border-t border-default pt-2 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
           <span class="hidden group-hover:inline">{{ s.label }}</span>
         </div>
         <NuxtLink
@@ -94,6 +80,14 @@ watch(() => route.path, () => { mobileOpen.value = false })
     </nav>
 
     <div class="shrink-0 border-t border-default p-2">
+      <NuxtLink
+        v-if="isAdmin" :to="settings.to" :title="settings.label"
+        class="flex h-9 items-center gap-3 rounded-md px-2 text-sm transition-colors"
+        :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
+      >
+        <UIcon :name="settings.icon" class="size-5 shrink-0" />
+        <span class="hidden truncate group-hover:inline">{{ settings.label }}</span>
+      </NuxtLink>
       <ClientOnly>
         <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="isDark = !isDark;">
           <UIcon :name="isDark ? 'i-lucide-moon' : 'i-lucide-sun'" class="size-5 shrink-0" />
@@ -122,11 +116,14 @@ watch(() => route.path, () => { mobileOpen.value = false })
     <template #body>
       <nav class="space-y-4">
         <div v-for="s in sections" :key="s.label">
-          <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-dimmed">{{ s.label }}</div>
+          <div v-if="s.label" class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-dimmed">{{ s.label }}</div>
           <NuxtLink v-for="l in s.links" :key="l.to" :to="l.to" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active(l.to) ? 'bg-elevated text-highlighted' : 'text-muted'">
             <UIcon :name="l.icon" class="size-5" />{{ l.label }}
           </NuxtLink>
         </div>
+        <NuxtLink v-if="isAdmin" :to="settings.to" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted'">
+          <UIcon :name="settings.icon" class="size-5" />{{ settings.label }}
+        </NuxtLink>
       </nav>
     </template>
     <template #footer>
