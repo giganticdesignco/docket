@@ -242,7 +242,8 @@ How:
 - One `useShortcuts()` composable with a scope stack so a modal owns
   the keys while open; the sheet is generated from the registered list.
 
-Depends on: Search for Cmd+K. Size: 3 to 4 days.
+Depends on: Search for Cmd+K. Size: 3 to 4 days. Built 2026-09-02
+(G then K for Tasks since T is Time; Space quick look dropped).
 
 ## 10. Bring the signage and vinyl estimator into Docket
 

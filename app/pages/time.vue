@@ -102,6 +102,28 @@ if (route.query.new) creating.value = true
 const deleting = ref<Row | null>(null)
 const busy = ref<string | null>(null) // entry id with an action in flight
 
+// Keys: arrows move a day or a week, Enter opens a new entry, "." copies
+// the most recent earlier day's entries onto this one.
+async function copyPreviousDay() {
+  const { data: last } = await supabase.from('time_entries').select('spent_on').eq('user_id', user.value!.sub).lt('spent_on', selected.value).order('spent_on', { ascending: false }).limit(1).maybeSingle()
+  if (!last) { toast.add({ title: 'Nothing earlier to copy', color: 'neutral' }); return }
+  const { data: src, error } = await supabase.from('time_entries').select('project_id, task_id, hours, notes, is_billable, work_item_id').eq('user_id', user.value!.sub).eq('spent_on', last.spent_on).not('ended_at', 'is', null).is('started_at', null)
+  const rows = (src ?? []).length ? src! : (await supabase.from('time_entries').select('project_id, task_id, hours, notes, is_billable, work_item_id').eq('user_id', user.value!.sub).eq('spent_on', last.spent_on)).data ?? []
+  if (error) { toast.add({ title: 'Could not copy', description: error.message, color: 'error' }); return }
+  const { error: insErr } = await supabase.from('time_entries').insert(rows.map(r => ({ ...r, user_id: user.value!.sub, spent_on: selected.value })))
+  if (insErr) { toast.add({ title: 'Could not copy', description: insErr.message, color: 'error' }); return }
+  toast.add({ title: `Copied ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} from ${shortDate(last.spent_on)}`, color: 'success' })
+  refresh()
+}
+useShortcuts('Time', {
+  'arrowleft': { label: 'Previous day', handler: () => goTo(addDays(selected.value, -1)) },
+  'arrowright': { label: 'Next day', handler: () => goTo(addDays(selected.value, 1)) },
+  'arrowup': { label: 'Previous week', handler: () => goTo(addDays(selected.value, -7)) },
+  'arrowdown': { label: 'Next week', handler: () => goTo(addDays(selected.value, 7)) },
+  'enter': { label: 'New entry on this day', handler: () => { if (!creating.value && !editing.value) creating.value = true } },
+  '.': { label: 'Copy the previous day\'s entries here', handler: copyPreviousDay },
+})
+
 function saved() {
   creating.value = false
   editing.value = null

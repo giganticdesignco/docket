@@ -10,7 +10,6 @@ const supabase = useSupabaseClient()
 const router = useRouter()
 const { isAdmin } = useCurrentUser()
 
-defineShortcuts({ meta_k: () => { open.value = !open.value } })
 
 const term = ref('')
 const loading = ref(false)

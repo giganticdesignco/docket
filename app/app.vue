@@ -14,6 +14,7 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
   <UApp>
     <AppSidebar v-if="profile" />
     <SearchPalette v-if="profile" />
+    <AppShortcuts v-if="profile" />
     <div class="app-shell" :class="profile ? 'md:pl-14' : ''">
       <UContainer class="py-6">
         <SettingsNav v-if="profile && inSettings" />

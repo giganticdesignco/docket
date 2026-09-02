@@ -1,5 +1,32 @@
 # Status
 
+## Phase 2, wave 2a: power user shortcuts (2026-09-02)
+
+Item 9 of `docs/phase-2.md`. No migration.
+
+- `useShortcuts(scope, defs)` in `app/composables/useShortcuts.ts` wraps
+  Nuxt UI's defineShortcuts (same key syntax: `meta_k`, `g-t` chords,
+  `arrowleft`), never fires while typing in a field, and keeps a
+  registry in `useState('shortcut-registry')` so the sheet lists what
+  is active on the current page. A page's set unregisters on unmount.
+- `AppShortcuts.vue` (mounted from app.vue): Everywhere set, Cmd+K
+  search, N new task, T stop the running timer or go log time, G then
+  T/K/P/C/E (Time, Tasks, Projects, Clients, Expenses), admins also G
+  then R/I/S (Reports, Invoices, Settings), and "?" for the sheet modal.
+- Tasks page: J/K move a focus bar through the rows in the order shown,
+  X selects (check mark replaces the grip; a bottom bar counts the
+  selection), E or Enter opens, S/A/P open the status, assignee, or
+  priority menu anchored on the focused row, D edits the due date,
+  Delete asks then deletes, Escape clears. Status, priority, assignee,
+  and delete apply to the whole selection when the focused row is part
+  of it (`targets()`); the floating menu's pick/toggle now update by
+  id list.
+- Time page: arrows move a day (left/right) or a week (up/down), Enter
+  opens a new entry, "." copies the most recent earlier day's entries
+  onto the selected day (`copyPreviousDay`).
+- SearchPalette no longer registers Cmd+K itself; AppShortcuts does.
+
+
 ## Invoice detail level (2026-09-02)
 
 Luke: "there are times when we'd like to summarize the work done instead

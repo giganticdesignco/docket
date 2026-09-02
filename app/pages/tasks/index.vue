@@ -108,25 +108,37 @@ async function patch(i: Item, values: { status?: string, priority?: Item['priori
 // One floating menu for the whole list, placed where the row was clicked.
 const menu = ref<{ item: Item, kind: 'status' | 'priority' | 'assignees', x: number, y: number } | null>(null)
 function openMenu(i: Item, kind: 'status' | 'priority' | 'assignees', e: MouseEvent) {
-  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  openMenuAt(i, kind, e.currentTarget as HTMLElement)
+}
+function openMenuAt(i: Item, kind: 'status' | 'priority' | 'assignees', el: HTMLElement) {
+  const r = el.getBoundingClientRect()
   menu.value = { item: i, kind, x: Math.min(r.left, window.innerWidth - 220), y: r.bottom + 4 }
 }
 const closeMenu = () => { menu.value = null }
-function pick(value: string) {
+// A change on a row applies to every selected row when that row is one
+// of the selection, so X on a few tasks then S moves them together.
+const targets = (i: Item): Item[] => (selected.value.has(i.id) && selected.value.size > 1
+  ? (items.value ?? []).filter(x => selected.value.has(x.id))
+  : [i])
+async function pick(value: string) {
   const m = menu.value
   closeMenu()
   if (!m) return
-  if (m.kind === 'status') patch(m.item, { status: value })
-  else patch(m.item, { priority: value as Item['priority'] })
+  const values = m.kind === 'status' ? { status: value } : { priority: value as Item['priority'] }
+  const ids = targets(m.item).map(t => t.id)
+  const { error } = await supabase.from('work_items').update(values).in('id', ids)
+  if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
+  else await refresh()
 }
 // Assignees toggle one at a time and the menu stays open.
 async function toggleAssignee(userId: string) {
   const m = menu.value
   if (!m) return
   const has = m.item.work_item_assignees.some(a => a.user_id === userId)
+  const ids = targets(m.item).map(t => t.id)
   const q = has
-    ? supabase.from('work_item_assignees').delete().eq('work_item_id', m.item.id).eq('user_id', userId)
-    : supabase.from('work_item_assignees').insert({ work_item_id: m.item.id, user_id: userId })
+    ? supabase.from('work_item_assignees').delete().in('work_item_id', ids).eq('user_id', userId)
+    : supabase.from('work_item_assignees').upsert(ids.filter(id => !(items.value ?? []).find(x => x.id === id)?.work_item_assignees.some(a => a.user_id === userId)).map(id => ({ work_item_id: id, user_id: userId })))
   const { error } = await q
   if (error) {
     toast.add({ title: 'Not saved', description: error.message, color: 'error' })
@@ -169,6 +181,63 @@ async function onDrop(g: Group) {
     if (due !== undefined && due !== i.due_on) await patch(i, { due_on: due })
   }
 }
+
+// ---------- keyboard ----------
+
+// J and K walk the rows in the order shown, X selects, and the letter
+// keys act on the focused row (or the whole selection).
+const focused = ref<string | null>(null)
+const selected = ref(new Set<string>())
+const order = computed(() => groups.value.filter(g => !collapsed.value.has(g.key)).flatMap(g => g.items.map(i => i.id)))
+const focusedItem = computed(() => (items.value ?? []).find(i => i.id === focused.value) ?? null)
+function move(step: 1 | -1) {
+  const ids = order.value
+  if (!ids.length) return
+  const at = focused.value ? ids.indexOf(focused.value) : -1
+  const next = at < 0 ? (step > 0 ? 0 : ids.length - 1) : Math.min(ids.length - 1, Math.max(0, at + step))
+  focused.value = ids[next]!
+  nextTick(() => document.querySelector(`[data-task="${focused.value}"]`)?.scrollIntoView({ block: 'nearest' }))
+}
+function toggleSelect() {
+  if (!focused.value) return
+  const next = new Set(selected.value)
+  if (next.has(focused.value)) next.delete(focused.value)
+  else next.add(focused.value)
+  selected.value = next
+}
+function menuOnFocused(kind: 'status' | 'priority' | 'assignees') {
+  const i = focusedItem.value
+  const el = document.querySelector<HTMLElement>(`[data-task="${i?.id}"] [data-menu="${kind}"]`)
+  if (i && el) openMenuAt(i, kind, el)
+}
+const deletingMany = ref(false)
+async function deleteSelected() {
+  const ids = focusedItem.value ? targets(focusedItem.value).map(t => t.id) : [...selected.value]
+  deletingMany.value = false
+  if (!ids.length) return
+  const { error } = await supabase.from('work_items').delete().in('id', ids)
+  if (error) toast.add({ title: 'Could not delete', description: error.message, color: 'error' })
+  else {
+    toast.add({ title: `Deleted ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'}`, color: 'success' })
+    selected.value = new Set()
+    focused.value = null
+    await refresh()
+  }
+}
+const toDeleteCount = computed(() => (focusedItem.value ? targets(focusedItem.value).length : selected.value.size))
+useShortcuts('Tasks', {
+  'j': { label: 'Next row', handler: () => move(1) },
+  'k': { label: 'Previous row', handler: () => move(-1) },
+  'x': { label: 'Select or unselect the row', handler: toggleSelect },
+  'e': { label: 'Open the task', handler: () => { if (focused.value) navigateTo(`/tasks/${focused.value}`) } },
+  'enter': { label: 'Open the task', handler: () => { if (focused.value && !menu.value && !creating.value) navigateTo(`/tasks/${focused.value}`) } },
+  's': { label: 'Change status (selection too)', handler: () => menuOnFocused('status') },
+  'a': { label: 'Assign (selection too)', handler: () => menuOnFocused('assignees') },
+  'p': { label: 'Change priority (selection too)', handler: () => menuOnFocused('priority') },
+  'd': { label: 'Set the due date', handler: () => { if (focused.value) editingDue.value = focused.value } },
+  'escape': { label: 'Clear the selection', handler: () => { closeMenu(); selected.value = new Set(); focused.value = null } },
+  'delete': { label: 'Delete the task (selection too)', handler: () => { if (toDeleteCount.value) deletingMany.value = true } },
+})
 
 // ---------- new task ----------
 
@@ -213,20 +282,24 @@ function created(id: string) {
       <table v-if="!collapsed.has(g.key) && g.items.length" class="w-full border-t border-default text-sm">
         <tbody>
           <tr
-            v-for="i in g.items" :key="i.id" draggable="true"
-            class="border-b border-default last:border-0 hover:bg-elevated/60" :class="dragging?.id === i.id ? 'opacity-40' : ''"
-            @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null"
+            v-for="i in g.items" :key="i.id" draggable="true" :data-task="i.id"
+            class="border-b border-default last:border-0 hover:bg-elevated/60"
+            :class="[dragging?.id === i.id ? 'opacity-40' : '', focused === i.id ? 'bg-elevated/60 shadow-[inset_2px_0_0_0_var(--ui-primary)]' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
+            @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null" @click="focused = i.id;"
           >
-            <td class="w-8 cursor-grab px-2 py-1.5 text-dimmed"><UIcon name="i-lucide-grip-vertical" class="size-4" /></td>
+            <td class="w-8 cursor-grab px-2 py-1.5 text-dimmed" @click.stop="focused = i.id; toggleSelect()">
+              <UIcon v-if="selected.has(i.id)" name="i-lucide-check-square" class="size-4 text-primary" />
+              <UIcon v-else name="i-lucide-grip-vertical" class="size-4" />
+            </td>
             <td class="w-6 px-1 py-1.5">
-              <button type="button" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
+              <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
             </td>
             <td class="min-w-0 px-2 py-1.5">
               <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
               <span v-if="groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
             </td>
             <td class="hidden px-2 py-1.5 sm:table-cell">
-              <button type="button" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Assign'" @click="openMenu(i, 'assignees', $event)">
+              <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Assign'" @click="openMenu(i, 'assignees', $event)">
                 <template v-if="i.work_item_assignees.length">
                   <span v-for="a in i.work_item_assignees.slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                   <span v-if="i.work_item_assignees.length > 4" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ i.work_item_assignees.length - 4 }}</span>
@@ -239,7 +312,7 @@ function created(id: string) {
               <button v-else type="button" class="rounded px-1 hover:bg-elevated" :class="i.due_on && i.due_on < today && !ws.isDone(i.status) ? 'text-error' : i.due_on ? '' : 'text-dimmed'" @click="editingDue = i.id;">{{ i.due_on ? shortDate(i.due_on) : 'no date' }}</button>
             </td>
             <td class="w-10 px-1 py-1.5">
-              <button type="button" class="rounded p-1 hover:bg-elevated" :title="i.priority" @click="openMenu(i, 'priority', $event)"><UIcon :name="priorityIcon(i.priority)" class="size-4" :class="priorityClass(i.priority)" /></button>
+              <button type="button" data-menu="priority" class="rounded p-1 hover:bg-elevated" :title="i.priority" @click="openMenu(i, 'priority', $event)"><UIcon :name="priorityIcon(i.priority)" class="size-4" :class="priorityClass(i.priority)" /></button>
             </td>
             <td class="hidden w-16 px-2 py-1.5 text-right text-xs text-muted tabular-nums md:table-cell">{{ i.estimate_hours ? formatHours(i.estimate_hours) : '' }}</td>
             <td class="hidden w-36 px-3 py-1.5 lg:table-cell">
@@ -250,6 +323,24 @@ function created(id: string) {
       </table>
       <p v-else-if="!collapsed.has(g.key)" class="border-t border-default px-3 py-3 text-xs text-muted">Nothing here. Drop a task to move it.</p>
     </div>
+    <div v-if="selected.size" class="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-default bg-default px-4 py-2 text-sm shadow-lg">
+      <span class="font-medium tabular-nums">{{ selected.size }} selected</span>
+      <span class="text-xs text-muted">S status · A assign · P priority · Delete</span>
+      <UButton size="xs" variant="ghost" color="neutral" @click="selected = new Set();">Clear</UButton>
+    </div>
+
+    <UModal v-model:open="deletingMany" :title="`Delete ${toDeleteCount} ${toDeleteCount === 1 ? 'task' : 'tasks'}?`">
+      <template #body>
+        <p class="text-sm">Comments and files go with them. Time logged against them stays, just unlinked.</p>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="deletingMany = false;">Cancel</UButton>
+          <UButton color="error" @click="deleteSelected">Delete</UButton>
+        </div>
+      </template>
+    </UModal>
+
     <p v-if="!groups.length" class="py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.' }}</p>
 
     <Teleport to="body">
