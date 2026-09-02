@@ -11,7 +11,7 @@ model, verify in the browser, then commit).
 | Wave | Items | Why this order | Size |
 | --- | --- | --- | --- |
 | 2a, quick wins | Project server folder; Reports, Harvest layout; Rollups on detail pages; Mac desktop shell; Sidebar navigation rework; Search; Power user shortcuts; Feature walkthrough | Small, independent, useful on day one. Reports first because the data is all there and the team knows the Harvest layout; the walkthrough last so it describes the finished UI | 18 to 22 days |
-| 2b, foundations | Roles and permissions; Client logins; Google Calendar | Client logins need real roles; calendar feeds the capacity page that already exists | 15 to 18 days |
+| 2b, foundations | Roles and permissions; Client logins; Notifications and @mentions; Google Calendar | Client logins need real roles; calendar feeds the capacity page that already exists | 19 to 23 days |
 | 2c, bigger builds | Gantt; Estimator; AI assistant | Each is its own product surface; the AI work reads best once the data model is stable | 20 to 25 days |
 
 Roughly eleven to thirteen weeks of build if done one after the other.
@@ -395,6 +395,48 @@ shell in `desktop/` around the live site, so dropped folders and files
 carry real paths, mapped from the mounted volume back to the smb://
 share, and smb links open in Finder. Unsigned until there is an Apple
 Developer account; see `desktop/README.md`.
+
+## 16. Notifications and @mentions
+
+Added 2026-09-02 by Luke: "we need to add a notification package like
+ClickUp has." Today the only notifications are emails: the task's team
+when a client comments or decides on a review link, and invoice
+reminders. Comments have no @mentions.
+
+What: a bell in the rail with an unread count and a list; each entry
+says what happened, on what, by whom, and opens it. A per-person
+settings page chooses, per event, in-app only or in-app plus email
+(with a daily digest option instead of one email per event). Comment
+composers get @mentions with a people picker; a mention always
+notifies.
+
+Events: assigned to a task; @mentioned; comment on a task you are on
+or made; status change on a task you are on; task due tomorrow or
+overdue; client approved or requested changes; client commented;
+quote accepted or declined; invoice paid; timer left running past the
+day; time missing for yesterday (staff) and unbilled work past the
+month (admins).
+
+How:
+- `notifications (id, user_id, kind, title, body, link, actor_id,
+  work_item_id, read_at, created_at)` with RLS own rows;
+  `notification_prefs (user_id, kind, in_app, email, digest)`.
+- Database triggers write rows: on work_item_assignees insert, on
+  work_item_comments insert (assignees, creator, and mentioned ids),
+  on work_items status change, on client decisions, on quote and
+  invoice status changes. Due-soon and missing-time come from the
+  existing pg_cron reminder job.
+- Mentions: the composer offers people as you type @; the comment
+  stores `mentions uuid[]`, and the body keeps `@Full Name` text.
+  Mentioned people are notified even when not on the task.
+- Email: the cron's `run_reminders` grows a notification pass that
+  sends rows with email on, batched per person per hour, or once a
+  day for digest. Same Resend path.
+- UI: `NotificationBell.vue` in the rail (Realtime subscription on the
+  person's rows so the count updates live), a `/notifications` page,
+  and Settings, Notifications for the per-event choices.
+
+Depends on: nothing. Size: 4 to 5 days. Built 2026-09-02.
 
 ## Not in this list but worth a word
 

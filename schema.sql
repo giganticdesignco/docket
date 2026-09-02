@@ -536,6 +536,7 @@ create table work_item_comments (
   author_id         uuid references profiles(id) on delete set null,  -- null = a client, via review link
   author_name       text,                                             -- what the client typed
   body              text not null,
+  mentions          uuid[] not null default '{}',                     -- profiles named with @ in the body
   search            tsvector generated always as (to_tsvector('simple', coalesce(body, ''))) stored,
   visible_to_client boolean not null default false,                   -- client comments are always true
   created_at        timestamptz not null default now()
@@ -966,6 +967,43 @@ create table reminder_log (
   for_date date not null,
   sent_at  timestamptz not null default now(),
   unique (user_id, kind, for_date)      -- send once per person per day
+);
+
+-- ---------- Notifications ----------
+-- One row per person per thing that happened: assigned, mentioned, a
+-- comment or status change on your task, due soon, client decisions and
+-- comments, quote and invoice outcomes, timer and missing-time nudges.
+-- Rows are written by triggers through notify(); the bell reads them
+-- live (Realtime); run_notification_emails() emails the pending ones
+-- per each person's choices. Kinds: assigned, mentioned, comment,
+-- status, due, client_comment, client_decision, quote_decision,
+-- invoice_paid, timer, missing_time.
+create table notifications (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references profiles(id) on delete cascade,
+  kind         text not null,
+  title        text not null,
+  body         text,
+  link         text,
+  actor_id     uuid references profiles(id) on delete set null,
+  work_item_id uuid references work_items(id) on delete cascade,
+  read_at      timestamptz,
+  email        text not null default 'none' check (email in ('none', 'pending', 'sent')),
+  created_at   timestamptz not null default now()
+);
+create index notifications_user on notifications (user_id, created_at desc);
+create index notifications_pending on notifications (email) where email = 'pending';
+alter publication supabase_realtime add table notifications;
+
+-- Per person, per kind: show it in the bell, and email never, as it
+-- happens, or in a daily digest. Missing rows mean the defaults
+-- (bell on; email instant except comment, status, due).
+create table notification_prefs (
+  user_id uuid not null references profiles(id) on delete cascade,
+  kind    text not null,
+  in_app  boolean not null default true,
+  email   text not null default 'instant' check (email in ('off', 'instant', 'daily')),
+  primary key (user_id, kind)
 );
 
 -- ---------- Audit trail ----------
@@ -1616,6 +1654,217 @@ as $$
   limit greatest(1, least(p_limit, 50));
 $$;
 
+-- ---------- Notifications ----------
+
+create or replace function public.notification_email_default(p_kind text) returns text
+language sql immutable set search_path = '' as $$
+  select case when p_kind in ('comment', 'status', 'due') then 'off' else 'instant' end;
+$$;
+
+-- Insert a notification for one person, honouring their preferences.
+-- Never notifies the actor about their own action, or clients. p_email
+-- overrides the email column (the reminder job passes 'none' since it
+-- already emails).
+create or replace function public.notify(
+  p_user uuid, p_kind text, p_title text, p_body text default null, p_link text default null,
+  p_actor uuid default null, p_item uuid default null, p_email text default null
+) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_in_app boolean;
+  v_email  text;
+begin
+  if p_user is null or p_user = p_actor then return; end if;
+  if not exists (select 1 from public.profiles where id = p_user and is_active and role <> 'client') then return; end if;
+  select in_app, email into v_in_app, v_email from public.notification_prefs where user_id = p_user and kind = p_kind;
+  v_in_app := coalesce(v_in_app, true);
+  v_email := coalesce(p_email, v_email, public.notification_email_default(p_kind));
+  if not v_in_app and v_email = 'off' then return; end if;
+  insert into public.notifications (user_id, kind, title, body, link, actor_id, work_item_id, read_at, email)
+  values (p_user, p_kind, p_title, p_body, p_link, p_actor, p_item,
+          case when v_in_app then null else now() end,
+          case when v_email = 'off' then 'none' else 'pending' end);
+end $$;
+
+-- People on a task: assignees plus whoever made it.
+create or replace function public.task_people(p_item uuid) returns setof uuid
+language sql stable set search_path = '' as $$
+  select a.user_id from public.work_item_assignees a where a.work_item_id = p_item
+  union
+  select w.created_by from public.work_items w where w.id = p_item and w.created_by is not null;
+$$;
+create or replace function public.actor_name() returns text
+language sql stable set search_path = '' as $$
+  select coalesce((select full_name from public.profiles where id = auth.uid()), 'Someone');
+$$;
+-- Everyone who may run billing: admins and roles holding manage_billing.
+create or replace function public.billing_people() returns setof uuid
+language sql stable set search_path = '' as $$
+  select id from public.profiles
+  where is_active and (role = 'admin' or role in (select role from public.permissions where key = 'manage_billing'));
+$$;
+
+create or replace function public.notify_on_assignee() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_title text;
+begin
+  select title into v_title from public.work_items where id = new.work_item_id;
+  perform public.notify(new.user_id, 'assigned', public.actor_name() || ' assigned you: ' || v_title, null,
+                        '/tasks/' || new.work_item_id, auth.uid(), new.work_item_id);
+  return new;
+end $$;
+create trigger notify_on_assignee after insert on work_item_assignees for each row execute function public.notify_on_assignee();
+
+create or replace function public.notify_on_comment() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_title   text;
+  v_who     text;
+  v_client  boolean;
+  v_snippet text := left(regexp_replace(new.body, '\s+', ' ', 'g'), 160);
+  v_user    uuid;
+begin
+  select title into v_title from public.work_items where id = new.work_item_id;
+  v_client := new.author_id is null or exists (select 1 from public.profiles where id = new.author_id and role = 'client');
+  v_who := coalesce((select full_name from public.profiles where id = new.author_id), new.author_name, 'A client');
+  for v_user in select unnest(new.mentions) loop
+    perform public.notify(v_user, 'mentioned', v_who || ' mentioned you on ' || v_title, v_snippet,
+                          '/tasks/' || new.work_item_id, new.author_id, new.work_item_id);
+  end loop;
+  for v_user in select public.task_people(new.work_item_id) except select unnest(new.mentions) loop
+    perform public.notify(v_user, case when v_client then 'client_comment' else 'comment' end,
+                          v_who || (case when v_client then ' (client) commented on ' else ' commented on ' end) || v_title, v_snippet,
+                          '/tasks/' || new.work_item_id, new.author_id, new.work_item_id);
+  end loop;
+  return new;
+end $$;
+create trigger notify_on_comment after insert on work_item_comments for each row execute function public.notify_on_comment();
+
+create or replace function public.notify_on_item_change() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_user uuid; v_label text;
+begin
+  if new.status is distinct from old.status then
+    select label into v_label from public.work_statuses where key = new.status;
+    for v_user in select public.task_people(new.id) loop
+      perform public.notify(v_user, 'status', public.actor_name() || ' moved ' || new.title || ' to ' || coalesce(v_label, new.status), null,
+                            '/tasks/' || new.id, auth.uid(), new.id);
+    end loop;
+  end if;
+  if new.client_decision is distinct from old.client_decision and new.client_decision is not null then
+    for v_user in select public.task_people(new.id) loop
+      perform public.notify(v_user, 'client_decision',
+                            coalesce(new.client_decision_by, 'The client') || (case when new.client_decision = 'approved' then ' approved ' else ' requested changes on ' end) || new.title,
+                            null, '/tasks/' || new.id, null, new.id);
+    end loop;
+  end if;
+  return new;
+end $$;
+create trigger notify_on_item_change after update on work_items for each row execute function public.notify_on_item_change();
+
+create or replace function public.notify_on_quote() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_user uuid; v_client text;
+begin
+  if new.status is distinct from old.status and new.status in ('accepted', 'declined') then
+    select name into v_client from public.clients where id = new.client_id;
+    for v_user in select public.billing_people() loop
+      perform public.notify(v_user, 'quote_decision', v_client || ' ' || new.status || ' quote ' || new.number || ': ' || new.title, null, '/quotes/' || new.id);
+    end loop;
+  end if;
+  return new;
+end $$;
+create trigger notify_on_quote after update on quotes for each row execute function public.notify_on_quote();
+
+create or replace function public.notify_on_invoice() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_user uuid; v_client text;
+begin
+  if new.status is distinct from old.status and new.status = 'paid' then
+    select name into v_client from public.clients where id = new.client_id;
+    for v_user in select public.billing_people() loop
+      perform public.notify(v_user, 'invoice_paid', v_client || ' paid invoice ' || new.number, null, '/invoices/' || new.id);
+    end loop;
+  end if;
+  return new;
+end $$;
+create trigger notify_on_invoice after update on invoices for each row execute function public.notify_on_invoice();
+
+-- Every five minutes: one email per person with their pending rows.
+-- "Instant" rows go after a two-minute pause so a burst is one email;
+-- "daily" rows go at 8am Central. Uses the same Resend key as reminders.
+create or replace function public.run_notification_emails() returns int
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_local  timestamp := now() at time zone 'America/Chicago';
+  v_daily  boolean := extract(hour from v_local) = 8 and extract(minute from v_local) < 5;
+  v_key    text := public.vault_secret('resend_api_key');
+  v_from   text := public.vault_secret('resend_from', 'Docket <onboarding@resend.dev>');
+  v_app    text := public.vault_secret('app_url', 'https://docket.giganticdesign.com');
+  r        record;
+  v_lines  text;
+  v_count  int;
+  v_sent   int := 0;
+begin
+  if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
+  if v_key is null then return 0; end if;
+  for r in
+    select n.user_id, pr.email, pr.full_name
+    from public.notifications n
+    join public.profiles pr on pr.id = n.user_id and pr.is_active
+    where n.email = 'pending'
+      and n.created_at < now() - interval '2 minutes'
+      and (v_daily or coalesce((select p.email from public.notification_prefs p where p.user_id = n.user_id and p.kind = n.kind), public.notification_email_default(n.kind)) = 'instant')
+    group by n.user_id, pr.email, pr.full_name
+  loop
+    select string_agg('- ' || n.title || coalesce(E'\n  ' || n.body, '') || coalesce(E'\n  ' || v_app || n.link, ''), E'\n\n' order by n.created_at), count(*)
+      into v_lines, v_count
+    from public.notifications n
+    where n.user_id = r.user_id and n.email = 'pending'
+      and (v_daily or coalesce((select p.email from public.notification_prefs p where p.user_id = n.user_id and p.kind = n.kind), public.notification_email_default(n.kind)) = 'instant');
+    perform net.http_post(
+      url     := 'https://api.resend.com/emails',
+      body    := jsonb_build_object('from', v_from, 'to', jsonb_build_array(r.email),
+                                    'subject', case when v_count = 1 then split_part(v_lines, E'\n', 1) else v_count || ' things happened in Docket' end,
+                                    'text', format(E'Hi %s,\n\n%s\n\nSee everything: %s/notifications\n\nDocket', split_part(r.full_name, ' ', 1), regexp_replace(v_lines, '^- ', '', 'n'), v_app)),
+      headers := jsonb_build_object('Authorization', 'Bearer ' || v_key, 'Content-Type', 'application/json')
+    );
+    update public.notifications n set email = 'sent'
+    where n.user_id = r.user_id and n.email = 'pending'
+      and (v_daily or coalesce((select p.email from public.notification_prefs p where p.user_id = n.user_id and p.kind = n.kind), public.notification_email_default(n.kind)) = 'instant');
+    v_sent := v_sent + 1;
+  end loop;
+  return v_sent;
+end $$;
+
+-- Due tomorrow, today, and overdue: once a day at 9am Central, in the
+-- bell (and by email if the person turns 'due' on).
+create or replace function public.run_due_notifications() returns int
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_local timestamp := now() at time zone 'America/Chicago';
+  v_today date := v_local::date;
+  r record; v_n int := 0;
+begin
+  if extract(hour from v_local) <> 9 then return 0; end if;
+  for r in
+    select w.id, w.title, w.due_on, a.user_id
+    from public.work_items w
+    join public.work_item_assignees a on a.work_item_id = w.id
+    join public.work_statuses s on s.key = w.status
+    where not s.is_done and w.due_on is not null and w.due_on <= v_today + 1
+      and not exists (select 1 from public.notifications n where n.user_id = a.user_id and n.work_item_id = w.id and n.kind = 'due' and n.created_at::date = v_today)
+  loop
+    perform public.notify(r.user_id, 'due',
+      case when r.due_on > v_today then 'Due tomorrow: ' || r.title
+           when r.due_on = v_today then 'Due today: ' || r.title
+           else 'Overdue: ' || r.title || ' (due ' || to_char(r.due_on, 'FMMon FMDD') || ')' end,
+      null, '/tasks/' || r.id, null, r.id);
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
 -- ---------- Billing batches ----------
 
 -- Claim the given rows for a new draft batch, all or nothing. Rows that
@@ -2012,6 +2261,8 @@ end $$;
 alter table profiles               enable row level security;
 alter table roles       enable row level security;
 alter table permissions enable row level security;
+alter table notifications enable row level security;
+alter table notification_prefs enable row level security;
 alter table clients                enable row level security;
 alter table projects               enable row level security;
 alter table tasks                  enable row level security;
@@ -2056,6 +2307,11 @@ create policy read_all on retainers          for select to authenticated using (
 
 create policy admin_write on roles              for all to authenticated using (is_admin()) with check (is_admin());
 create policy admin_write on permissions        for all to authenticated using (is_admin()) with check (is_admin());
+-- Notifications: yours to read, mark, and clear; only triggers write them.
+create policy own_select on notifications      for select to authenticated using (user_id = auth.uid());
+create policy own_update on notifications      for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy own_delete on notifications      for delete to authenticated using (user_id = auth.uid());
+create policy own_all    on notification_prefs for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy manage_reference on clients       for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
 create policy manage_reference on projects      for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
 create policy manage_reference on tasks         for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
@@ -2220,6 +2476,9 @@ revoke execute on function public.decline_quote(uuid, text, text) from public, a
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.has_permission(text)        from public, anon;
 revoke execute on function public.task_visible(uuid)          from public, anon;
+revoke execute on function public.notify(uuid, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
+revoke execute on function public.run_notification_emails()   from public, anon;
+revoke execute on function public.run_due_notifications()     from public, anon;
 revoke execute on function public.is_client()                 from public, anon;
 revoke execute on function public.my_client_id()              from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
@@ -2417,6 +2676,7 @@ begin
     email := r.to_email;
     subject := v_subject;
     sent := public.send_reminder(r.user_id, 'timer_left_running', v_today, v_subject, v_body, p_dry_run);
+    if sent and not p_dry_run then perform public.notify(r.user_id, 'timer', v_subject, null, '/time', null, null, 'none'); end if;
     return next;
   end loop;
 
@@ -2439,6 +2699,7 @@ begin
       email := r.to_email;
       subject := v_subject;
       sent := public.send_reminder(r.user_id, 'missing_time', v_yesterday, v_subject, v_body, p_dry_run);
+      if sent and not p_dry_run then perform public.notify(r.user_id, 'missing_time', v_subject, null, '/time?date=' || v_yesterday, null, null, 'none'); end if;
       return next;
     end loop;
   end if;
@@ -2534,6 +2795,8 @@ grant execute on function public.vault_secret(text, text) to service_role;
 
 do $$ begin
   perform cron.schedule('docket-invoice-reminders', '10 * * * *', 'select public.run_invoice_reminders()');
+  perform cron.schedule('docket-notification-emails', '*/5 * * * *', 'select public.run_notification_emails()');
+  perform cron.schedule('docket-due-notifications', '15 * * * *', 'select public.run_due_notifications()');
 exception when others then
   raise notice 'pg_cron not available here, invoice reminders not scheduled: %', sqlerrm;
 end $$;

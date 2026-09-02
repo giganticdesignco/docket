@@ -154,11 +154,61 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
 const commentBody = ref('')
 const commentVisible = ref(false)
 const commenting = ref(false)
+// @mentions: typing @ offers people; the comment keeps "@Full Name" in
+// the text and the matching ids in mentions, which notifies them.
+const commentInput = ref<{ textareaRef?: HTMLTextAreaElement } | null>(null)
+const mentionQuery = ref<string | null>(null)
+const mentionAt = ref(0)
+const mentionPick = ref(0)
+const mentionMatches = computed(() => {
+  if (mentionQuery.value === null) return []
+  const q = mentionQuery.value.toLowerCase()
+  return (people.value ?? []).filter(p => p.full_name.toLowerCase().includes(q)).slice(0, 6)
+})
+function onCommentInput(e: Event) {
+  const el = e.target as HTMLTextAreaElement
+  const upto = el.value.slice(0, el.selectionStart ?? el.value.length)
+  const m = upto.match(/(^|\s)@([\w .-]{0,30})$/)
+  if (m) { mentionAt.value = upto.length - m[2]!.length - 1; mentionQuery.value = m[2]!; mentionPick.value = 0 }
+  else mentionQuery.value = null
+}
+function insertMention(p: { id: string, full_name: string }) {
+  const el = commentInput.value?.textareaRef
+  const text = commentBody.value
+  const caret = el?.selectionStart ?? text.length
+  commentBody.value = `${text.slice(0, mentionAt.value)}@${p.full_name} ${text.slice(caret)}`
+  mentionQuery.value = null
+  nextTick(() => { if (el) { const pos = mentionAt.value + p.full_name.length + 2; el.focus(); el.setSelectionRange(pos, pos) } })
+}
+function onCommentKeydown(e: KeyboardEvent) {
+  if (mentionQuery.value === null || !mentionMatches.value.length) return
+  if (e.key === 'ArrowDown') { e.preventDefault(); mentionPick.value = (mentionPick.value + 1) % mentionMatches.value.length }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); mentionPick.value = (mentionPick.value - 1 + mentionMatches.value.length) % mentionMatches.value.length }
+  else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionMatches.value[mentionPick.value]!) }
+  else if (e.key === 'Escape') mentionQuery.value = null
+}
+const mentionedIds = (text: string) => (people.value ?? []).filter(p => text.includes(`@${p.full_name}`)).map(p => p.id)
+// Comment text split into plain runs and mention runs for rendering.
+const commentRuns = (text: string) => {
+  const names = (people.value ?? []).map(p => p.full_name).sort((a, b) => b.length - a.length)
+  if (!names.length) return [{ text, mention: false }]
+  const re = new RegExp(`@(${names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g')
+  const out: { text: string, mention: boolean }[] = []
+  let last = 0
+  for (const m of text.matchAll(re)) {
+    if (m.index! > last) out.push({ text: text.slice(last, m.index), mention: false })
+    out.push({ text: m[0], mention: true })
+    last = m.index! + m[0].length
+  }
+  if (last < text.length) out.push({ text: text.slice(last), mention: false })
+  return out
+}
 async function addComment() {
-  if (!commentBody.value.trim()) return
+  if (!commentBody.value.trim() || mentionQuery.value !== null) return
   commenting.value = true
   try {
-    const { error } = await supabase.from('work_item_comments').insert({ work_item_id: id, author_id: user.value!.sub, body: commentBody.value.trim(), visible_to_client: commentVisible.value })
+    const body = commentBody.value.trim()
+    const { error } = await supabase.from('work_item_comments').insert({ work_item_id: id, author_id: user.value!.sub, body, visible_to_client: commentVisible.value, mentions: mentionedIds(body) })
     if (error) throw error
     commentBody.value = ''
     await refreshComments()
@@ -475,14 +525,23 @@ async function deleteTask() {
                   <UBadge v-if="c.visible_to_client && c.author_id" color="info" variant="subtle" size="xs">Client can see</UBadge>
                   <UButton v-if="isAdmin || c.author_id === user?.sub" icon="i-lucide-x" variant="ghost" color="neutral" size="xs" class="-my-1 ml-auto" aria-label="Remove comment" @click="deleteComment(c.id)" />
                 </div>
-                <p class="mt-0.5 whitespace-pre-line">{{ c.body }}</p>
+                <p class="mt-0.5 whitespace-pre-line"><template v-for="(run, ri) in commentRuns(c.body)" :key="ri"><span v-if="run.mention" class="rounded bg-primary/10 px-1 font-medium text-primary">{{ run.text }}</span><template v-else>{{ run.text }}</template></template></p>
               </div>
             </li>
           </ul>
           <p v-else class="text-sm text-muted">No comments yet.</p>
         </div>
         <div class="shrink-0 border-t border-default py-4">
-          <UTextarea v-model="commentBody" :rows="2" class="w-full" placeholder="Write a comment. Cmd+Enter to post." autoresize @keydown.meta.enter="addComment" @keydown.ctrl.enter="addComment" />
+          <div class="relative">
+            <UTextarea ref="commentInput" v-model="commentBody" :rows="2" class="w-full" placeholder="Write a comment. @ to mention someone. Cmd+Enter to post." autoresize @input="onCommentInput" @click="onCommentInput" @keydown="onCommentKeydown" @keydown.meta.enter="addComment" @keydown.ctrl.enter="addComment" />
+            <ul v-if="mentionMatches.length" class="absolute bottom-full left-0 z-20 mb-1 w-64 rounded-md border border-default bg-default p-1 shadow-lg">
+              <li v-for="(p, i) in mentionMatches" :key="p.id">
+                <button type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm" :class="i === mentionPick ? 'bg-elevated' : 'hover:bg-elevated'" @mousedown.prevent="insertMention(p)">
+                  <span class="grid size-5 place-items-center rounded-full bg-accented text-[10px] font-medium">{{ initials(p.full_name) }}</span>{{ p.full_name }}
+                </button>
+              </li>
+            </ul>
+          </div>
           <div class="mt-2 flex items-center gap-3">
             <UCheckbox v-model="commentVisible" label="Visible to client" size="sm" />
             <UButton size="sm" class="ml-auto" :loading="commenting" :disabled="!commentBody.trim()" @click="addComment">Comment</UButton>

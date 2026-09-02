@@ -1084,6 +1084,69 @@ export type Database = {
           },
         ]
       }
+      notification_prefs: {
+        Row: {
+          email: string
+          in_app: boolean
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          email?: string
+          in_app?: boolean
+          kind: string
+          user_id: string
+        }
+        Update: {
+          email?: string
+          in_app?: boolean
+          kind?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          body: string | null
+          created_at: string
+          email: string
+          id: string
+          kind: string
+          link: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+          work_item_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          body?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          kind: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+          work_item_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          body?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          user_id?: string
+          work_item_id?: string | null
+        }
+        Relationships: []
+      }
       permissions: {
         Row: {
           key: string
@@ -2058,6 +2121,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          mentions: string[]
           visible_to_client: boolean
           work_item_id: string
         }
@@ -2067,6 +2131,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          mentions?: string[]
           visible_to_client?: boolean
           work_item_id: string
         }
@@ -2076,6 +2141,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          mentions?: string[]
           visible_to_client?: boolean
           work_item_id?: string
         }

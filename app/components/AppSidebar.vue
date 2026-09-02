@@ -102,6 +102,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
         <UIcon :name="settings.icon" class="size-5 shrink-0" />
         <span class="hidden truncate group-hover:inline">{{ settings.label }}</span>
       </NuxtLink>
+      <NotificationBell />
       <UDropdownMenu :items="helpItems" :content="{ side: 'right', align: 'end' }">
         <button type="button" data-tour="help" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Help">
           <UIcon name="i-lucide-circle-help" class="size-5 shrink-0" />
@@ -142,6 +143,9 @@ watch(() => route.path, () => { mobileOpen.value = false })
             <UIcon :name="l.icon" class="size-5" />{{ l.label }}
           </NuxtLink>
         </div>
+        <NuxtLink to="/notifications" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active('/notifications') ? 'bg-elevated text-highlighted' : 'text-muted'">
+          <UIcon name="i-lucide-bell" class="size-5" />Notifications
+        </NuxtLink>
         <NuxtLink v-if="showSettings" :to="settings.to" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted'">
           <UIcon :name="settings.icon" class="size-5" />{{ settings.label }}
         </NuxtLink>

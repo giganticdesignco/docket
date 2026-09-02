@@ -1,5 +1,31 @@
 # Status
 
+## Phase 2, wave 2b: notifications and @mentions (2026-09-02)
+
+Item 16 of `docs/phase-2.md`. Migrations `notifications` and
+`reminders_in_app`.
+
+- `notifications` (own rows, Realtime on) and `notification_prefs`
+  (per kind: in_app, email off | instant | daily; missing rows mean
+  bell on and email instant except comment, status, due). `notify()`
+  is security definer and skips the actor and clients.
+- Triggers: assignee insert (assigned), comment insert (mentioned for
+  `work_item_comments.mentions`, comment or client_comment for the
+  task's people), work_items update (status; client_decision), quotes
+  update (accepted or declined, to billing people), invoices update
+  (paid). `run_reminders` also drops timer and missing_time rows in
+  the bell with email marked sent. `run_due_notifications` (cron, 9am
+  Central) makes due tomorrow, today, and overdue rows.
+- `run_notification_emails` (cron every 5 min): one email per person
+  with pending rows, instant after a two-minute pause, daily at 8am,
+  through Resend like reminders.
+- UI: `NotificationBell.vue` in the rail (popover, unread badge,
+  Realtime refresh, Mark all read), `/notifications` (full list plus
+  the per-kind choices), phone menu entry. Task comments: type @ for a
+  people picker (arrows, Enter, Tab), names stay in the text and ids go
+  to `mentions`; mentions render highlighted.
+
+
 ## Page load speed (2026-09-02)
 
 Luke: "it can take a long time for the pages to load." Two causes found
