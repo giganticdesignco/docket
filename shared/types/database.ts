@@ -334,10 +334,11 @@ export type Database = {
       clickup_assignments: {
         Row: {
           clickup_list_id: string | null
-          clickup_user_id: string | null
+          clickup_user_id: string
           due_on: string | null
           estimate_hours: number | null
           id: string
+          list_name: string | null
           project_id: string | null
           start_on: string | null
           status: string | null
@@ -348,10 +349,11 @@ export type Database = {
         }
         Insert: {
           clickup_list_id?: string | null
-          clickup_user_id?: string | null
+          clickup_user_id: string
           due_on?: string | null
           estimate_hours?: number | null
           id: string
+          list_name?: string | null
           project_id?: string | null
           start_on?: string | null
           status?: string | null
@@ -362,10 +364,11 @@ export type Database = {
         }
         Update: {
           clickup_list_id?: string | null
-          clickup_user_id?: string | null
+          clickup_user_id?: string
           due_on?: string | null
           estimate_hours?: number | null
           id?: string
+          list_name?: string | null
           project_id?: string | null
           start_on?: string | null
           status?: string | null
@@ -2014,6 +2017,7 @@ export type Database = {
         Row: {
           base_hours: number | null
           booked_hours: number | null
+          booked_tasks: number | null
           logged_hours: number | null
           meeting_hours: number | null
           time_off_hours: number | null

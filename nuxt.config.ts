@@ -7,6 +7,13 @@ export default defineNuxtConfig({
     // Server only. Set NUXT_HARVEST_ACCESS_TOKEN and NUXT_HARVEST_ACCOUNT_ID.
     harvestAccessToken: '',
     harvestAccountId: '',
+    // Server only. NUXT_CLICKUP_TOKEN (personal API token) and
+    // NUXT_CLICKUP_TEAM_ID (the workspace id).
+    clickupToken: '',
+    clickupTeamId: '',
+    // NUXT_CRON_SECRET, same value as CRON_SECRET, which Vercel sends with
+    // cron requests.
+    cronSecret: '',
   },
   routeRules: {
     // The timesheet picks "today" and ticks a timer from the browser clock.

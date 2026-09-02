@@ -15,7 +15,8 @@ const links = computed(() => [
   { label: 'Expenses', to: '/expenses' },
   { label: 'Clients', to: '/clients' },
   { label: 'Projects', to: '/projects' },
-  ...(isAdmin.value ? [{ label: 'Reports', to: '/reports' }, { label: 'Billing', to: '/billing' }, { label: 'Invoices', to: '/invoices' }] : []),
+  { label: 'Time off', to: '/time-off' },
+  ...(isAdmin.value ? [{ label: 'Capacity', to: '/capacity' }, { label: 'Reports', to: '/reports' }, { label: 'Billing', to: '/billing' }, { label: 'Invoices', to: '/invoices' }] : []),
 ])
 
 // Admin pages live in one menu so the bar stays short as they accumulate.

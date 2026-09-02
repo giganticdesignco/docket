@@ -35,9 +35,8 @@
 -- 4. No Docket invoice tables yet (see 1). harvest_invoices is imported
 --    history only. CSV export is app-side; saved_reports stores
 --    definitions, not output.
--- 5. capacity_weekly counts time off across all 7 days of a week.
---    A full week of PTO shows as 56h against a 40h base. Decide whether
---    to count weekdays only before step 9.
+-- 5. RESOLVED in step 9: capacity_weekly counts time off on weekdays
+--    only, so a week of PTO is 40h against a 40h base.
 -- 6. quotes.public_token (for the /q/[token] public zone) is not here
 --    yet. Add it in step 10.
 -- 7. RESOLVED in step 4: receipts bucket + storage policies are in
@@ -633,20 +632,25 @@ create table availability (
   unique (user_id, effective_from)
 );
 
--- Read-only mirror of ClickUp. Synced on a schedule; never edited by hand.
+-- Read-only mirror of ClickUp, one row per task and assignee (tasks there
+-- usually have several people on them; the estimate is split between the
+-- Docket people). Replaced whole by /api/clickup/sync, daily from a Vercel
+-- cron or by hand from the capacity page; never edited here.
 create table clickup_assignments (
-  id              text primary key,     -- ClickUp task id
+  id              text not null,        -- ClickUp task id
   user_id         uuid references profiles(id) on delete set null,
-  clickup_user_id text,
+  clickup_user_id text not null,
   project_id      uuid references projects(id) on delete set null,
   clickup_list_id text,
+  list_name       text,                 -- ClickUp lists are named after clients
   title           text not null,
   status          text,
   estimate_hours  numeric(8,2),
   start_on        date,
   due_on          date,
   url             text,
-  synced_at       timestamptz not null default now()
+  synced_at       timestamptz not null default now(),
+  primary key (id, clickup_user_id)
 );
 
 create index clickup_assignments_user_due on clickup_assignments (user_id, due_on);
@@ -820,11 +824,13 @@ select
   pr.full_name as user_name,
   w.week_start,
   coalesce(av.hours_per_week, 40) as base_hours,
+  -- Weekdays only: a Monday-to-Friday week off is 5 x hours_per_day.
   coalesce((
-    select sum(
-      (least(t.ends_on, w.week_start + 6) - greatest(t.starts_on, w.week_start) + 1)
-      * t.hours_per_day
-    )
+    select sum(t.hours_per_day * (
+      select count(*)
+      from generate_series(greatest(t.starts_on, w.week_start)::timestamp,
+                           least(t.ends_on, w.week_start + 6)::timestamp, interval '1 day') d
+      where extract(isodow from d) < 6))
     from time_off t
     where (t.user_id = pr.id or t.user_id is null)
       and t.starts_on <= w.week_start + 6
@@ -842,6 +848,12 @@ select
       and ca.due_on >= w.week_start
       and ca.due_on <  w.week_start + 7
   ), 0) as booked_hours,
+  coalesce((
+    select count(*) from clickup_assignments ca
+    where ca.user_id = pr.id
+      and ca.due_on >= w.week_start
+      and ca.due_on <  w.week_start + 7
+  ), 0) as booked_tasks,
   coalesce((
     select sum(td.hours) from time_detail td
     where td.user_id = pr.id

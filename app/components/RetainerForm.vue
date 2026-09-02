@@ -30,10 +30,16 @@ const state = reactive({
 })
 const saving = ref(false)
 
+// Reka UI menu items refuse an empty-string value, hence the sentinel.
+const WHOLE = '__client__'
 const projectOptions = computed(() => [
-  { label: 'Whole client', value: '' },
+  { label: 'Whole client', value: WHOLE },
   ...props.projects.map(p => ({ label: p.name, value: p.id })),
 ])
+const projectPick = computed({
+  get: () => state.project_id || WHOLE,
+  set: (v: string) => { state.project_id = v === WHOLE ? '' : v },
+})
 const basisOptions = [
   { label: 'Hours', value: 'hours' },
   { label: 'Dollars', value: 'amount' },
@@ -90,7 +96,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     </UFormField>
     <div class="grid grid-cols-2 gap-4">
       <UFormField label="Applies to" name="project_id">
-        <USelectMenu v-model="state.project_id" :items="projectOptions" value-key="value" class="w-full" />
+        <USelectMenu v-model="projectPick" :items="projectOptions" value-key="value" class="w-full" />
       </UFormField>
       <UFormField label="Basis" name="basis">
         <USelect v-model="state.basis" :items="basisOptions" class="w-full" />

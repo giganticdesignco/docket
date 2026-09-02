@@ -112,6 +112,55 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Step 9: capacity + ClickUp sync (2026-09-02)
+
+Built the same day as step 8. Migration `capacity_clickup`, mirrored in
+schema.sql; schema TODO 5 is resolved.
+
+- `clickup_assignments` is now keyed on (task id, ClickUp user id) with
+  a `list_name` column, because ClickUp tasks there carry several
+  assignees. Estimates are split evenly across the Docket people on a
+  task; guests and client staff are dropped.
+- `capacity_weekly` counts time off on weekdays only and gained
+  `booked_tasks`. Available = weekly hours (People page, default 40)
+  minus time off minus meetings (calendar_busy, not synced yet).
+- `/capacity` (admin): people x weeks (2 back, 8 ahead). Past weeks show
+  logged / available, this week and later show ClickUp booked /
+  available, with a bar that goes warning over 85% and error over 100%.
+  Click a cell for that person's ClickUp tasks due that week. "Sync
+  ClickUp" runs the route by hand and shows the last sync time.
+- `/time-off` (everyone): log your own PTO, sick, unpaid, or holiday
+  with hours per day; admins log anyone's and company holidays
+  (no person). Delete your own. Header links: Time off for all,
+  Capacity for admins.
+- `server/api/clickup/sync.ts`: replaces the mirror with every open task
+  in the workspace (`GET /team/{id}/task`, 100 a page). Assignee ->
+  profile by email; list -> client by name (" - Shared" and punctuation
+  ignored, partial match allowed); task -> project whose name appears in
+  the task name, longest wins. Auth: admin session, or
+  `Authorization: Bearer <CRON_SECRET>` from the Vercel cron in
+  vercel.json (daily at 11:00 UTC, 6am Central). Reads NUXT_CLICKUP_TOKEN,
+  NUXT_CLICKUP_TEAM_ID (workspace 8666791), NUXT_CRON_SECRET.
+- ClickUp shape, from the connector: one workspace, lists named after
+  clients (Hills Bank - Shared, CheckAlt, Manatts, CINC/TresRE, ful.
+  Health, Gigantic Print Shop), tasks named like Docket projects, many
+  assignees per task, client staff as guests.
+
+Verified as luke@: capacity renders 16 people over 11 weeks with last
+two weeks' logged hours (Luke over 40 shows red); "Sync ClickUp" with no
+token fails with a clear message; adding two days of PTO on /time-off
+showed 16:00 and dropped that week's available hours to 24:00 on
+/capacity; the entry was deleted afterwards.
+
+NOT VERIFIED: the sync itself. Luke needs to create a ClickUp personal
+API token (ClickUp > Settings > Apps) and add NUXT_CLICKUP_TOKEN and
+NUXT_CLICKUP_TEAM_ID=8666791 to .env (and Vercel, plus CRON_SECRET and
+NUXT_CRON_SECRET for the cron). First run will tell how many tasks carry
+estimates; ClickUp may not be used for estimates at all, in which case
+"booked" is task counts only. Time estimates and the project mapping may
+need tuning after the first real sync. Meetings (calendar_busy) are
+scaffolding only.
+
 ## Step 8: invoicing, Docket owns it (2026-09-02)
 
 Luke picked option 1: Docket invoices end to end. Built and verified the

@@ -90,10 +90,13 @@ function toggleAll(set: Set<string>, ids: string[], on: boolean) {
 }
 
 const clientOptions = computed(() => (clients.value ?? []).map(c => ({ label: c.name, value: c.id })))
-const projectOptions = computed(() => [{ label: 'All projects', value: '' }, ...(projects.value ?? []).map(p => ({ label: p.name, value: p.id }))])
+// The menu is built on Reka UI, whose items refuse an empty-string value
+// and render nothing at all, hence the 'all' sentinel.
+const ALL = 'all'
+const projectOptions = computed(() => [{ label: 'All projects', value: ALL }, ...(projects.value ?? []).map(p => ({ label: p.name, value: p.id }))])
 const projectPick = computed({
-  get: () => projectId.value ?? '',
-  set: (v: string) => { projectId.value = v || undefined },
+  get: () => projectId.value ?? ALL,
+  set: (v: string) => { projectId.value = v === ALL ? undefined : v },
 })
 const categoryName = (id: string | null) => categories.value?.find(c => c.id === id)?.name ?? ''
 const personName = (id: string | null) => people.value?.find(p => p.id === id)?.full_name ?? ''

@@ -62,14 +62,25 @@ const { data: saved, refresh: refreshSaved } = await useAsyncData('saved-reports
   return data
 }, fresh)
 
-const clientOptions = computed(() => [{ label: 'All clients', value: '' }, ...(clients.value ?? []).map(c => ({ label: c.name, value: c.name }))])
+// Reka UI menu items refuse an empty-string value (and then render no
+// options at all), so the menus use ALL while config keeps '' for "any",
+// which is what saved reports store.
+const ALL = '__all__'
+const pick = (key: 'client' | 'project' | 'person') => computed({
+  get: () => config[key] || ALL,
+  set: (v: string) => { config[key] = v === ALL ? '' : v },
+})
+const clientPick = pick('client')
+const projectPick = pick('project')
+const personPick = pick('person')
+const clientOptions = computed(() => [{ label: 'All clients', value: ALL }, ...(clients.value ?? []).map(c => ({ label: c.name, value: c.name }))])
 const projectOptions = computed(() => [
-  { label: 'All projects', value: '' },
+  { label: 'All projects', value: ALL },
   ...(projects.value ?? [])
     .filter(p => !config.client || p.clients?.name === config.client)
     .map(p => ({ label: config.client ? p.name : `${p.clients?.name} / ${p.name}`, value: p.name })),
 ])
-const personOptions = computed(() => [{ label: 'Everyone', value: '' }, ...(people.value ?? []).map(p => ({ label: p.full_name, value: p.full_name }))])
+const personOptions = computed(() => [{ label: 'Everyone', value: ALL }, ...(people.value ?? []).map(p => ({ label: p.full_name, value: p.full_name }))])
 watch(() => config.client, () => { config.project = '' })
 
 // ---------- running ----------
@@ -296,13 +307,13 @@ async function remove(r: Saved) {
           <UInput v-model="config.to" type="date" class="w-full" />
         </UFormField>
         <UFormField label="Client">
-          <USelectMenu v-model="config.client" :items="clientOptions" value-key="value" class="w-full" />
+          <USelectMenu v-model="clientPick" :items="clientOptions" value-key="value" class="w-full" />
         </UFormField>
         <UFormField label="Project">
-          <USelectMenu v-model="config.project" :items="projectOptions" value-key="value" class="w-full" />
+          <USelectMenu v-model="projectPick" :items="projectOptions" value-key="value" class="w-full" />
         </UFormField>
         <UFormField label="Person">
-          <USelectMenu v-model="config.person" :items="personOptions" value-key="value" class="w-full" />
+          <USelectMenu v-model="personPick" :items="personOptions" value-key="value" class="w-full" />
         </UFormField>
         <UFormField v-if="config.source === 'time_monthly_all'" label="Group by" class="md:col-span-4">
           <UCheckboxGroup v-model="config.groupBy" :items="GROUPS" orientation="horizontal" />
