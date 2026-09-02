@@ -4,7 +4,8 @@ useHead({ title: 'Expenses' })
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const isAdmin = computed(() => can('see_all_time'))
 const receipts = useReceipts()
 const toast = useToast()
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The two one-time imports, one entry in the settings strip.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Imports' })
 </script>
 

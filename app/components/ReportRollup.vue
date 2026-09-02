@@ -14,7 +14,9 @@ const props = withDefaults(defineProps<{
 }>(), { title: 'This year', compare: true })
 
 const supabase = useSupabaseClient()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const seeMoney = computed(() => can('see_money'))
+const seeAll = computed(() => can('see_all_time'))
 
 const args = computed(() => ({
   p_client: props.client || undefined,
@@ -47,7 +49,7 @@ const stats = computed<Stat[]>(() => {
   const then = data.value?.then ?? null
   const s = (label: string, k: keyof typeof now, fmt: (n: number) => string): Stat => ({ label, value: fmt(Number(now[k])), now: Number(now[k]), then: then ? Number(then[k]) : null })
   const base = [s('Hours', 'hours', hoursText), s('Billable hours', 'billable_hours', hoursText)]
-  if (!isAdmin.value) return base
+  if (!seeMoney.value) return base
   return [...base, s('Billable amount', 'billable_amount', money0), s('Uninvoiced', 'uninvoiced_amount', money0), s('Expenses', 'expenses', money0)]
 })
 function delta(st: Stat): { text: string, color: string } | null {
@@ -73,8 +75,8 @@ const reportLink = computed(() => ({
   <UCard v-if="stats.length" :ui="{ body: 'p-3 sm:p-4' }">
     <div class="flex items-baseline gap-3">
       <h2 class="font-semibold">{{ title }}</h2>
-      <span v-if="!isAdmin" class="text-xs text-muted">Your time</span>
-      <NuxtLink v-if="isAdmin" :to="reportLink" class="ml-auto text-xs text-muted hover:underline">Full report</NuxtLink>
+      <span v-if="!seeAll" class="text-xs text-muted">Your time</span>
+      <NuxtLink v-if="seeAll" :to="reportLink" class="ml-auto text-xs text-muted hover:underline">Full report</NuxtLink>
     </div>
     <div class="mt-3 grid gap-4" :class="stats.length > 2 ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2'">
       <div v-for="st in stats" :key="st.label">

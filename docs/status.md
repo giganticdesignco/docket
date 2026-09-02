@@ -1,5 +1,57 @@
 # Status
 
+## Phase 2, wave 2b: roles and permissions (2026-09-02)
+
+Item 8 of `docs/phase-2.md`. Migrations `roles_manager_contractor`
+(enum values), `permissions`, `budgets_hide_money`.
+
+- Roles are rows in `roles` (key, label, description, is_builtin,
+  position), not an enum; migration `custom_roles` converted
+  `profiles.role` and `permissions.role` to text with foreign keys and
+  dropped `user_role` (a 'contractor' value had been added and removed
+  in the same session; Luke: "we don't really have contractors").
+  Built-in: admin, manager, staff. Admins add their own roles on
+  /admin/permissions (New role, rename, delete when nobody has it;
+  `protect_roles` trigger guards built-ins and roles in use). A client
+  role will be added there with client logins.
+- `useRoles()` reads the table for the People form and the matrix. `permissions`
+  (role, key) holds what a role may do; admin needs no rows.
+  `has_permission(key)` is security definer; `is_admin()` stays the
+  short circuit. Keys and defaults are listed in schema.sql above the
+  table and in `PERMISSIONS` / `ROLES` in `shared/types/app.ts`.
+- Policies moved off is_admin(): reference data (manage_reference),
+  expense categories, statuses, invoice settings, reminders, audit
+  (manage_settings), batches, invoices, quotes, retainers, Harvest
+  history (manage_billing), profiles, availability, time off
+  (manage_people), other people's time and expenses (see_all_time),
+  calendar busy (see_capacity). Tasks, assignees, comments, and files
+  use `task_visible(id)`: see_all_tasks, or made it, or assigned.
+  Deleting any task or comment needs manage_tasks. With every offered
+  role holding see_all_tasks the task visibility rule is dormant until
+  someone unticks it.
+- Money: `time_detail.amount` is null without see_money, so the report
+  functions show 0 and the UI hides money; `project_budget(s)` return a
+  null amount. A person's own rate_snapshot stays readable on their rows
+  through the API (column level), noted on the page.
+- Billing RPCs (create_billing_batch, void_billing_batch,
+  create_invoice, void_invoice, create_quote) and the profile guard
+  now check has_permission instead of is_admin (rewritten in place via
+  pg_get_functiondef; schema.sql mirrors the result).
+- UI: `useCurrentUser().can(key)` from the permissions rows for the
+  person's role; `middleware/can.ts` with `definePageMeta({ middleware:
+  'can', permission })` on every gated page (the old `admin` middleware
+  remains for the matrix). Sidebar, search actions, shortcuts, settings
+  strip, ReportRollup, client and project pages, expenses, time off,
+  and task delete buttons all key off can(). People form offers all
+  four roles. `/admin/permissions` is the matrix (admins only).
+- Verified with SQL impersonation (set_config + set local role
+  authenticated, rolled back): staff sees own time only, all tasks, no
+  invoices, amounts visible; a role with nothing ticked (tested by
+  flipping a staff profile to the unused contractor value inside the
+  rolled-back transaction) sees own time, only the 7 tasks assigned, no
+  comments on others, no amounts, budget money null.
+
+
 ## Phase 2, wave 2a: feature walkthrough (2026-09-02)
 
 Item 3 of `docs/phase-2.md`. driver.js 1.8 (`npm install driver.js`).

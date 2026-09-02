@@ -5,7 +5,7 @@ import { STATUS_COLORS, type StatusColor } from '~~/shared/types/app'
 // The task status list: order, label, colour, and the flags the app relies
 // on. Keys never change once made; deleting is only possible while no task
 // uses the status (deactivate instead).
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Task statuses' })
 
 const supabase = useSupabaseClient()

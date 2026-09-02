@@ -3,7 +3,7 @@ import type { Tables } from '~~/shared/types/database'
 
 // People: roles, default rates, capacity, active flag. Accounts themselves
 // live in Supabase Auth (Authentication > Users); Google links by email.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_people' })
 useHead({ title: 'People' })
 
 const supabase = useSupabaseClient()

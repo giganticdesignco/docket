@@ -6,7 +6,7 @@ import type { CsvColumn } from '~/composables/useCsv'
 // Report builder for admins. Three sources, filters, grouping for the
 // monthly source, totals, and a CSV built from exactly the rows shown.
 // Saved reports store the configuration, not the output.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'see_all_time' })
 useHead({ title: 'Detailed report' })
 
 const supabase = useSupabaseClient()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Tables } from '~~/shared/types/database'
 
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Expense categories' })
 const supabase = useSupabaseClient()
 

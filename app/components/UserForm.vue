@@ -26,10 +26,8 @@ const state = reactive({
 })
 const saving = ref(false)
 
-const roleOptions = [
-  { label: 'Staff', value: 'staff' },
-  { label: 'Admin', value: 'admin' },
-]
+const { data: roles } = await useRoles()
+const roleOptions = computed(() => (roles.value ?? []).map(r => ({ label: r.label, value: r.key })))
 
 function num(v: string | number): number | null {
   const raw = String(v ?? '').trim()

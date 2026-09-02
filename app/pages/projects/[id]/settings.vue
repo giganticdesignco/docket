@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Which tasks are available on this project, with optional rate overrides.
 // Rate resolution is project_task -> project -> user default (resolve_rate()).
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_reference' })
 
 const route = useRoute()
 const id = route.params.id as string

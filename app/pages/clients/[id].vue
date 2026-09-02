@@ -7,7 +7,10 @@ type RetainerRow = Database['public']['Functions']['retainer_status']['Returns']
 const route = useRoute()
 const id = route.params.id as string
 const supabase = useSupabaseClient()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const isAdmin = computed(() => can('manage_reference'))
+const seeMoney = computed(() => can('see_money'))
+const canBill = computed(() => can('manage_billing'))
 
 const editing = ref(false)
 const creatingProject = ref(false)
@@ -151,7 +154,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
 
     <ReportRollup :from="`${year}-01-01`" :to="`${year}-12-31`" :client="client.name" />
 
-    <UCard v-if="isAdmin" :ui="{ body: 'p-3 sm:p-4' }">
+    <UCard v-if="canBill" :ui="{ body: 'p-3 sm:p-4' }">
       <div class="flex items-baseline gap-3">
         <h2 class="font-semibold">Billing</h2>
         <span class="text-xs text-muted">Docket and Harvest invoices together.</span>
@@ -191,7 +194,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
                 <span :class="usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.hours_used, p.budget_hours) }}%</span>
                 <span class="text-muted"> of {{ formatHours(p.budget_hours) }}</span>
               </template>
-              <template v-else-if="p.budget_amount && burn(p.id) && isAdmin">
+              <template v-else-if="p.budget_amount && burn(p.id) && seeMoney">
                 <span :class="usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.amount_used, p.budget_amount) }}%</span>
                 <span class="text-muted"> of {{ money(p.budget_amount) }}</span>
               </template>

@@ -2,7 +2,7 @@
 // Who has room, week by week. Available = weekly hours minus time off
 // (weekdays) minus meetings. Past weeks compare logged time to that;
 // coming weeks compare what tasks have due, estimates split by assignee.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'see_capacity' })
 useHead({ title: 'Capacity' })
 
 const supabase = useSupabaseClient()

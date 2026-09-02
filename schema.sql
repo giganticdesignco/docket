@@ -54,7 +54,6 @@
 -- 0. TYPES
 -- ============================================================
 
-create type user_role            as enum ('admin', 'staff');
 create type billing_method       as enum ('hourly', 'fixed', 'retainer', 'non_billable');
 create type retainer_basis       as enum ('hours', 'amount');
 create type quote_status         as enum ('draft', 'sent', 'accepted', 'declined', 'expired');
@@ -82,6 +81,33 @@ begin
     where id = auth.uid() and role = 'admin'
   );
 end;
+$$;
+
+-- What a role may do beyond its own rows. Admin has everything without
+-- rows in permissions; is_admin() stays the short circuit.
+create or replace function public.has_permission(p_key text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles pr
+    where pr.id = auth.uid()
+      and (pr.role = 'admin' or exists (select 1 from public.permissions p where p.role = pr.role and p.key = p_key))
+  );
+$$;
+
+-- A task is visible when you may see all tasks, made it, or are on it.
+-- Security definer so comment and file policies can ask without RLS
+-- recursing through work_items.
+create or replace function public.task_visible(p_item uuid)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select public.has_permission('see_all_tasks')
+      or exists (select 1 from public.work_items w where w.id = p_item and w.created_by = auth.uid())
+      or exists (select 1 from public.work_item_assignees a where a.work_item_id = p_item and a.user_id = auth.uid());
 $$;
 
 -- Create a profile row when a user is created in Supabase Auth.
@@ -126,7 +152,7 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if auth.uid() is not null and not public.is_admin() then
+  if auth.uid() is not null and not public.has_permission('manage_people') then
     if new.role         is distinct from old.role
     or new.default_rate is distinct from old.default_rate
     or new.is_active    is distinct from old.is_active
@@ -277,11 +303,41 @@ end $$;
 
 -- ---------- People ----------
 
+-- Roles are rows, not an enum, so Gigantic can add its own (and a client
+-- role later). Built-in ones cannot be deleted; admin is the one role
+-- is_admin() recognises and needs no permission rows.
+create table roles (
+  key         text primary key check (key ~ '^[a-z][a-z0-9_]{1,30}$'),
+  label       text not null,
+  description text,
+  is_builtin  boolean not null default false,
+  position    int not null default 0
+);
+insert into roles (key, label, description, is_builtin, position) values
+  ('admin',   'Admin',   'Everything.', true, 0),
+  ('manager', 'Manager', 'Everyone''s time, tasks, budgets, capacity. No billing or settings.', true, 1),
+  ('staff',   'Staff',   'Own time and expenses, all tasks.', true, 2);
+
+-- Nobody can delete a built-in role, and a role in use stays.
+create or replace function public.protect_roles()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.is_builtin then raise exception 'Built-in roles cannot be deleted'; end if;
+  if exists (select 1 from public.profiles where role = old.key) then
+    raise exception 'People still have this role. Move them first.';
+  end if;
+  return old;
+end $$;
+create trigger roles_protect before delete on roles for each row execute function public.protect_roles();
+
 create table profiles (
   id           uuid primary key references auth.users(id) on delete cascade,
   full_name    text not null,
   email        text not null unique,
-  role         user_role not null default 'staff',
+  role         text not null default 'staff' references roles(key) on update cascade on delete restrict,
   default_rate numeric(10,2),          -- fallback billable rate
   is_active    boolean not null default true,
   tours_seen   jsonb not null default '{}'::jsonb,   -- walkthroughs finished or skipped, by id
@@ -295,6 +351,29 @@ create trigger on_auth_user_created
 create trigger profiles_protect_columns
   before update on profiles
   for each row execute function public.protect_profile_columns();
+
+-- What each role may do, one row per (role, key). Keys:
+--   see_all_time     everyone's time and expenses, reports
+--   see_money        rates and amounts (contractors never)
+--   see_all_tasks    every task, not just assigned ones
+--   manage_tasks     delete any task or comment
+--   manage_reference clients, projects, task types, project rates
+--   manage_billing   batches, invoices, quotes, retainers, Harvest history
+--   manage_people    profiles, availability, everyone's time off
+--   manage_settings  statuses, categories, invoice settings, imports, audit
+--   see_capacity     the capacity page
+-- Defaults: manager gets see_all_time, see_money, see_all_tasks,
+-- manage_tasks, manage_reference, see_capacity; staff see_money and
+-- see_all_tasks. Roles and the matrix are edited on /admin/permissions.
+create table permissions (
+  role text not null references roles(key) on update cascade on delete cascade,
+  key  text not null,
+  primary key (role, key)
+);
+insert into permissions (role, key) values
+  ('manager', 'see_all_time'), ('manager', 'see_money'), ('manager', 'see_all_tasks'),
+  ('manager', 'manage_tasks'), ('manager', 'manage_reference'), ('manager', 'see_capacity'),
+  ('staff', 'see_money'), ('staff', 'see_all_tasks');
 
 -- ---------- Work structure ----------
 
@@ -912,7 +991,8 @@ select
   te.hours,
   te.is_billable,
   case when te.is_billable then te.hours else 0 end as billable_hours,
-  case when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end as amount,
+  case when not public.has_permission('see_money') then null
+       when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end as amount,
   te.notes,
   te.is_locked,
   te.batch_id
@@ -1114,7 +1194,8 @@ as $$
     from public.harvest_archive_monthly a
     where a.project_id = p_project_id
   )
-  select live.hours + arch.hours, live.billable_hours + arch.billable_hours, live.amount + arch.amount
+  select live.hours + arch.hours, live.billable_hours + arch.billable_hours,
+         case when public.has_permission('see_money') then live.amount + arch.amount end
   from live, arch;
 $$;
 
@@ -1141,7 +1222,7 @@ as $$
   select p.id,
          coalesce(live.hours, 0) + coalesce(arch.hours, 0),
          coalesce(live.billable_hours, 0) + coalesce(arch.billable_hours, 0),
-         coalesce(live.amount, 0) + coalesce(arch.amount, 0)
+         case when public.has_permission('see_money') then coalesce(live.amount, 0) + coalesce(arch.amount, 0) end
   from public.projects p
   left join live on live.project_id = p.id
   left join arch on arch.project_id = p.id;
@@ -1517,7 +1598,7 @@ declare
   v_time_amt  numeric;
   v_exp_amt   numeric;
 begin
-  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
   if v_want_time + v_want_exp = 0 then raise exception 'Pick at least one entry'; end if;
 
   insert into public.billing_batches (client_id, project_id, period_start, period_end, created_by)
@@ -1557,7 +1638,7 @@ create or replace function public.void_billing_batch(p_batch_id uuid) returns vo
 language plpgsql security definer set search_path = '' as $$
 declare v_status public.billing_batch_status;
 begin
-  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
   select status into v_status from public.billing_batches where id = p_batch_id for update;
   if v_status is null then raise exception 'Batch not found'; end if;
   if v_status not in ('draft', 'failed') then raise exception 'Only draft or failed batches can be voided'; end if;
@@ -1691,7 +1772,7 @@ declare
   v_hours  numeric;
   v_amount numeric;
 begin
-  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
   if p_detail not in ('task', 'project', 'summary') then raise exception 'Unknown detail level %', p_detail; end if;
   select * into s from public.invoice_settings where id;
   if p_batch_id is not null then
@@ -1802,7 +1883,7 @@ create or replace function public.void_invoice(p_invoice_id uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_status public.invoice_status; v_batch uuid; v_paid numeric;
 begin
-  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
   select status, batch_id, paid_amount into v_status, v_batch, v_paid
     from public.invoices where id = p_invoice_id for update;
   if v_status is null then raise exception 'Invoice not found'; end if;
@@ -1830,7 +1911,7 @@ create or replace function public.create_quote(p_client_id uuid, p_title text) r
 language plpgsql security definer set search_path = '' as $$
 declare v_id uuid; s record;
 begin
-  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
   if coalesce(trim(p_title), '') = '' then raise exception 'Give the quote a title'; end if;
   select * into s from public.invoice_settings where id;
   insert into public.quotes (client_id, number, title, terms, valid_until, created_by)
@@ -1891,6 +1972,8 @@ end $$;
 -- ============================================================
 
 alter table profiles               enable row level security;
+alter table roles       enable row level security;
+alter table permissions enable row level security;
 alter table clients                enable row level security;
 alter table projects               enable row level security;
 alter table tasks                  enable row level security;
@@ -1924,6 +2007,8 @@ alter table saved_reports          enable row level security;
 -- ---------- Reference data: everyone reads, admins write ----------
 
 create policy read_all on profiles           for select to authenticated using (true);
+create policy read_all on roles              for select to authenticated using (true);
+create policy read_all on permissions        for select to authenticated using (true);
 create policy read_all on clients            for select to authenticated using (true);
 create policy read_all on projects           for select to authenticated using (true);
 create policy read_all on tasks              for select to authenticated using (true);
@@ -1931,23 +2016,25 @@ create policy read_all on project_tasks      for select to authenticated using (
 create policy read_all on expense_categories for select to authenticated using (true);
 create policy read_all on retainers          for select to authenticated using (true);
 
-create policy admin_write on clients            for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on projects           for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on tasks              for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on project_tasks      for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on expense_categories for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on retainers          for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_write on roles              for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_write on permissions        for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_reference on clients       for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
+create policy manage_reference on projects      for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
+create policy manage_reference on tasks         for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
+create policy manage_reference on project_tasks for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
+create policy manage_settings on expense_categories for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy manage_billing on retainers       for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- Profiles: you edit yourself (full_name only, see trigger), admins edit anyone.
 -- No insert policy: rows come from the auth trigger.
 create policy own_profile on profiles for update to authenticated
-  using (id = auth.uid() or is_admin())
-  with check (id = auth.uid() or is_admin());
+  using (id = auth.uid() or has_permission('manage_people'))
+  with check (id = auth.uid() or has_permission('manage_people'));
 
 -- ---------- Time: own unlocked rows, admins everything ----------
 
 create policy own_time_select on time_entries for select to authenticated
-  using (user_id = auth.uid() or is_admin());
+  using (user_id = auth.uid() or has_permission('see_all_time'));
 
 create policy own_time_insert on time_entries for insert to authenticated
   with check (user_id = auth.uid() or is_admin());
@@ -1962,7 +2049,7 @@ create policy own_time_delete on time_entries for delete to authenticated
 -- ---------- Expenses: same shape ----------
 
 create policy own_exp_select on expenses for select to authenticated
-  using (user_id = auth.uid() or is_admin());
+  using (user_id = auth.uid() or has_permission('see_all_time'));
 
 create policy own_exp_insert on expenses for insert to authenticated
   with check (user_id = auth.uid() or is_admin());
@@ -1977,14 +2064,14 @@ create policy own_exp_delete on expenses for delete to authenticated
 -- ---------- Billing batches ----------
 
 create policy read_all    on billing_batches for select to authenticated using (true);
-create policy admin_write on billing_batches for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_billing on billing_batches for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Invoicing: admins only ----------
 
-create policy admin_all on invoice_settings for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_all on invoices         for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_all on invoice_lines    for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_all on invoice_payments for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_settings on invoice_settings for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy manage_billing on invoices         for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_billing on invoice_lines    for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_billing on invoice_payments for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Quoting ----------
 
@@ -1992,41 +2079,42 @@ create policy read_all on quotes              for select to authenticated using 
 create policy read_all on quote_line_items    for select to authenticated using (true);
 create policy read_all on quote_sitemap_nodes for select to authenticated using (true);
 
-create policy admin_write on quotes              for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on quote_line_items    for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on quote_sitemap_nodes for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_billing on quotes              for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_billing on quote_line_items    for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_billing on quote_sitemap_nodes for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Harvest archive ----------
 
 create policy read_all    on harvest_archive_monthly for select to authenticated using (true);
-create policy admin_write on harvest_archive_monthly for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_all   on harvest_invoices for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_billing on harvest_archive_monthly for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_billing on harvest_invoices for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Tasks: the whole team reads and writes ----------
 -- Deleting a task is the creator's or an admin's; comments and files are
 -- edited by their author or an admin.
 
 create policy read_all    on work_statuses for select to authenticated using (true);
-create policy admin_write on work_statuses for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_settings on work_statuses for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 
-create policy read_all     on work_items for select to authenticated using (true);
-create policy team_insert  on work_items for insert to authenticated with check (created_by = auth.uid());
-create policy team_update  on work_items for update to authenticated using (true) with check (true);
-create policy owner_delete on work_items for delete to authenticated using (created_by = auth.uid() or is_admin());
+-- Contractors see the tasks they are on or made; everyone else sees all.
+create policy visible_select on work_items for select to authenticated using (task_visible(id));
+create policy team_insert    on work_items for insert to authenticated with check (created_by = auth.uid());
+create policy visible_update on work_items for update to authenticated using (task_visible(id)) with check (task_visible(id));
+create policy owner_delete   on work_items for delete to authenticated using (created_by = auth.uid() or has_permission('manage_tasks'));
 
-create policy read_all on work_item_assignees for select to authenticated using (true);
-create policy team_all on work_item_assignees for all to authenticated using (true) with check (true);
+create policy visible_select on work_item_assignees for select to authenticated using (task_visible(work_item_id));
+create policy visible_write  on work_item_assignees for all to authenticated using (task_visible(work_item_id)) with check (task_visible(work_item_id));
 
-create policy read_all   on work_item_comments for select to authenticated using (true);
+create policy visible_select on work_item_comments for select to authenticated using (task_visible(work_item_id));
 create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid());
-create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or is_admin()) with check (author_id = auth.uid() or is_admin());
-create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or is_admin());
+create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or has_permission('manage_tasks')) with check (author_id = auth.uid() or has_permission('manage_tasks'));
+create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or has_permission('manage_tasks'));
 
-create policy read_all    on work_item_files for select to authenticated using (true);
+create policy visible_select on work_item_files for select to authenticated using (task_visible(work_item_id));
 create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid());
 -- Anyone on the team may turn a server link into a shareable uploaded copy.
-create policy team_update on work_item_files for update to authenticated using (true) with check (true);
-create policy own_delete  on work_item_files for delete to authenticated using (uploaded_by = auth.uid() or is_admin());
+create policy visible_update on work_item_files for update to authenticated using (task_visible(work_item_id)) with check (task_visible(work_item_id));
+create policy own_delete  on work_item_files for delete to authenticated using (uploaded_by = auth.uid() or has_permission('manage_tasks'));
 
 -- ---------- Time off, capacity ----------
 
@@ -2035,25 +2123,25 @@ create policy read_all on availability        for select to authenticated using 
 
 -- People log their own time off; admins manage holidays and everyone else.
 create policy own_time_off on time_off for all to authenticated
-  using (user_id = auth.uid() or is_admin())
-  with check (user_id = auth.uid() or is_admin());
+  using (user_id = auth.uid() or has_permission('manage_people'))
+  with check (user_id = auth.uid() or has_permission('manage_people'));
 
 -- Calendar detail is personal: own rows only.
 create policy own_calendar on calendar_busy for select to authenticated
-  using (user_id = auth.uid() or is_admin());
+  using (user_id = auth.uid() or has_permission('see_capacity'));
 
-create policy admin_write on availability        for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on calendar_busy       for all to authenticated using (is_admin()) with check (is_admin());
+create policy manage_people on availability      for all to authenticated using (has_permission('manage_people')) with check (has_permission('manage_people'));
+create policy manage_people on calendar_busy     for all to authenticated using (has_permission('manage_people')) with check (has_permission('manage_people'));
 
 -- ---------- Reminders ----------
 
 create policy own_reminders on reminder_log for select to authenticated
-  using (user_id = auth.uid() or is_admin());
-create policy admin_write   on reminder_log for all to authenticated using (is_admin()) with check (is_admin());
+  using (user_id = auth.uid() or has_permission('manage_settings'));
+create policy manage_settings on reminder_log for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 
 -- ---------- Audit log: admins read, nobody writes directly ----------
 
-create policy admin_read on audit_log for select to authenticated using (is_admin());
+create policy manage_settings on audit_log for select to authenticated using (has_permission('manage_settings'));
 
 -- ---------- Saved reports ----------
 
@@ -2085,6 +2173,8 @@ revoke execute on function public.create_quote(uuid, text)   from public, anon;
 revoke execute on function public.accept_quote(uuid, text, text)  from public, anon;
 revoke execute on function public.decline_quote(uuid, text, text) from public, anon;
 revoke execute on function public.is_admin()                 from public, anon;
+revoke execute on function public.has_permission(text)        from public, anon;
+revoke execute on function public.task_visible(uuid)          from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.project_budget(uuid)       from public, anon;
 revoke execute on function public.project_budgets()          from public, anon;

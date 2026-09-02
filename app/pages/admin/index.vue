@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Where the gear lands. One card per settings page.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
+const { isAdmin } = useCurrentUser()
 useHead({ title: 'Settings' })
 
 const cards = [
@@ -11,6 +12,7 @@ const cards = [
   { label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-tags', text: 'Categories for expenses and receipts.' },
   { label: 'Invoices and quotes', to: '/admin/invoice-settings', icon: 'i-lucide-file-text', text: 'Company block, payment instructions, numbering, terms, and overdue reminders.' },
   { label: 'Imports', to: '/admin/imports', icon: 'i-lucide-download', text: 'Bring history in from Harvest and ClickUp.' },
+  { label: 'Permissions', to: '/admin/permissions', icon: 'i-lucide-shield-check', text: 'What each role can see and do. Admins only.', admin: true },
 ]
 </script>
 
@@ -21,7 +23,7 @@ const cards = [
       <p class="text-sm text-muted">Reference data and how Docket behaves. Admins only.</p>
     </div>
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <NuxtLink v-for="c in cards" :key="c.to" :to="c.to" class="block">
+      <NuxtLink v-for="c in cards.filter(c => !c.admin || isAdmin)" :key="c.to" :to="c.to" class="block">
         <UCard class="h-full transition-colors hover:bg-elevated/50">
           <div class="flex items-start gap-3">
             <UIcon :name="c.icon" class="mt-0.5 size-5 shrink-0 text-primary" />

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The one-row invoice_settings table: what prints on every invoice, the
 // defaults for new ones, the number counter, and overdue reminders.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Invoice settings' })
 
 const supabase = useSupabaseClient()

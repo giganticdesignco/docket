@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Settings that apply to every project. Just the server folder template
 // for now. It shares the one-row invoice_settings table.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Project settings' })
 
 const supabase = useSupabaseClient()

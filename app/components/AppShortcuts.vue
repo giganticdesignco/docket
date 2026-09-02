@@ -2,7 +2,7 @@
 // The shortcuts that work on every page, and the "?" sheet that lists
 // everything registered right now, grouped by where it applies.
 const router = useRouter()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
 const searchOpen = useState('search-open', () => false)
 const timer = useTimer()
 const toast = useToast()
@@ -32,13 +32,9 @@ useShortcuts('Everywhere', {
   'g-p': { label: 'Go to Projects', handler: go('/projects') },
   'g-c': { label: 'Go to Clients', handler: go('/clients') },
   'g-e': { label: 'Go to Expenses', handler: go('/expenses') },
-  ...(isAdmin.value
-    ? {
-        'g-r': { label: 'Go to Reports', handler: go('/reports') },
-        'g-i': { label: 'Go to Invoices', handler: go('/invoices') },
-        'g-s': { label: 'Go to Settings', handler: go('/admin') },
-      }
-    : {}),
+  ...(can('see_all_time') ? { 'g-r': { label: 'Go to Reports', handler: go('/reports') } } : {}),
+  ...(can('manage_billing') ? { 'g-i': { label: 'Go to Invoices', handler: go('/invoices') } } : {}),
+  ...(can('manage_settings') ? { 'g-s': { label: 'Go to Settings', handler: go('/admin') } } : {}),
   '?': { label: 'This sheet', handler: () => { sheetOpen.value = !sheetOpen.value }, kbds: ['?'] },
 })
 

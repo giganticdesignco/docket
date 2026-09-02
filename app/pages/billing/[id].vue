@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One batch: what it locked, its totals, a CSV of the lines, and void
 // (draft or failed only), which releases the rows.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_billing' })
 
 const route = useRoute()
 const id = route.params.id as string

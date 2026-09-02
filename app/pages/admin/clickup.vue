@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One-time import of ClickUp's open tasks into Docket tasks, for the
 // cutover. Re-runnable: tasks are keyed on their ClickUp id.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'ClickUp import' })
 
 const supabase = useSupabaseClient()

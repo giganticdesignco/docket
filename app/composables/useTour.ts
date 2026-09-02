@@ -61,11 +61,11 @@ const TOURS: Tour[] = [
 export function useTour() {
   const route = useRoute()
   const supabase = useSupabaseClient()
-  const { profile, isAdmin } = useCurrentUser()
+  const { profile, can } = useCurrentUser()
   const running = useState<string | null>('tour-running', () => null)
 
   const seen = computed<Record<string, string>>(() => (profile.value?.tours_seen as Record<string, string> | null) ?? {})
-  const forPage = computed(() => TOURS.filter(t => t.match(route.path) && (!t.admin || isAdmin.value)))
+  const forPage = computed(() => TOURS.filter(t => t.match(route.path) && (!t.admin || can('manage_billing'))))
   const pageTour = computed(() => forPage.value.find(t => t.id !== 'around') ?? null)
 
   async function mark(id: string, how: 'done' | 'skipped') {

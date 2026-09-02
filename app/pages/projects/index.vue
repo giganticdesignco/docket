@@ -3,7 +3,8 @@ import { BILLING_METHODS } from '~~/shared/types/app'
 
 useHead({ title: 'Projects' })
 const supabase = useSupabaseClient()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const isAdmin = computed(() => can('manage_reference'))
 
 const showInactive = ref(false)
 const clientFilter = ref<string | undefined>()

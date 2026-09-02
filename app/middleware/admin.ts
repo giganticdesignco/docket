@@ -1,5 +1,5 @@
-// Admin-only pages. UI convenience only: RLS is what actually stops staff
-// from writing reference data. Non-admins land on the home page.
+// Admin-only pages (the permissions matrix). Everything else uses the
+// 'can' middleware with a permission key. UI convenience only; RLS enforces.
 export default defineNuxtRouteMiddleware(async () => {
   const { load, isAdmin } = useCurrentUser()
   await load()

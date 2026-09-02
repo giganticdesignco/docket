@@ -6,7 +6,7 @@ import type { CsvColumn } from '~/composables/useCsv'
 // narrows the filters and moves to the next tab, so Clients leads to a
 // client's projects, projects to their tasks and people. Everything
 // lives in the URL so a view can be bookmarked or sent around.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'see_all_time' })
 useHead({ title: 'Reports' })
 
 const supabase = useSupabaseClient()

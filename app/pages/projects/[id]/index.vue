@@ -4,7 +4,10 @@ import { BILLING_METHODS } from '~~/shared/types/app'
 const route = useRoute()
 const id = route.params.id as string
 const supabase = useSupabaseClient()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const isAdmin = computed(() => can('manage_reference'))
+const seeAll = computed(() => can('see_all_time'))
+const seeMoney = computed(() => can('see_money'))
 const editing = ref(false)
 
 const { data: project, refresh } = await useAsyncData(`project-${id}`, async () => {
@@ -128,9 +131,9 @@ async function copyFolder() {
       <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
         <div><dt class="text-muted">Job code</dt><dd>{{ project.code || 'None' }}</dd></div>
         <div><dt class="text-muted">Billing</dt><dd>{{ billingLabel(project.billing_method) }}</dd></div>
-        <div><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) }}</dd></div>
+        <div v-if="seeMoney"><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) }}</dd></div>
         <div><dt class="text-muted">Budget hours</dt><dd>{{ project.budget_hours ?? 'No budget' }}</dd></div>
-        <div><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
+        <div v-if="seeMoney"><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
       </dl>
     </UCard>
 
@@ -172,7 +175,7 @@ async function copyFolder() {
             <span v-if="budget.billable_hours !== budget.hours_used"> &middot; {{ formatHours(budget.billable_hours) }} billable</span>
           </p>
         </div>
-        <div class="space-y-2">
+        <div v-if="seeMoney && budget.amount_used != null" class="space-y-2">
           <div class="flex items-baseline justify-between text-sm">
             <span class="text-muted">Billable amount</span>
             <span class="tabular-nums">
@@ -194,7 +197,7 @@ async function copyFolder() {
     <UCard v-if="breakdown && (breakdown.byTask.length || breakdown.byPerson.length)">
       <template #header>
         <div class="flex items-baseline gap-3">
-          <h2 class="font-semibold">{{ isAdmin ? 'Where the time went' : 'Where your time went' }}</h2>
+          <h2 class="font-semibold">{{ seeAll ? 'Where the time went' : 'Where your time went' }}</h2>
           <span class="text-xs text-muted">Lifetime.<template v-if="recent?.length"> Last entry {{ shortDate(recent[0]!.spent_on!) }}.</template></span>
         </div>
       </template>
@@ -227,7 +230,7 @@ async function copyFolder() {
       <ul v-if="projectTasks?.length" class="divide-y divide-default text-sm">
         <li v-for="pt in projectTasks" :key="pt.tasks?.name" class="flex justify-between py-2">
           <span>{{ pt.tasks?.name }}</span>
-          <span class="tabular-nums text-muted">{{ pt.hourly_rate == null ? 'Project rate' : money(pt.hourly_rate) }}</span>
+          <span v-if="seeMoney" class="tabular-nums text-muted">{{ pt.hourly_rate == null ? 'Project rate' : money(pt.hourly_rate) }}</span>
         </li>
       </ul>
       <p v-else class="text-sm text-muted">
@@ -260,13 +263,13 @@ async function copyFolder() {
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <template #header>
-        <h2 class="font-semibold">{{ isAdmin ? 'Recent entries' : 'Your recent entries' }}</h2>
+        <h2 class="font-semibold">{{ seeAll ? 'Recent entries' : 'Your recent entries' }}</h2>
       </template>
       <table class="w-full text-sm">
         <thead class="text-left text-muted">
           <tr class="border-b border-default">
             <th class="px-4 py-2 font-medium">Date</th>
-            <th v-if="isAdmin" class="px-4 py-2 font-medium">Person</th>
+            <th v-if="seeAll" class="px-4 py-2 font-medium">Person</th>
             <th class="px-4 py-2 font-medium">Task</th>
             <th class="px-4 py-2 font-medium">Notes</th>
             <th class="px-4 py-2 text-right font-medium">Hours</th>
@@ -275,13 +278,13 @@ async function copyFolder() {
         <tbody>
           <tr v-for="e in recent" :key="e.id!" class="border-b border-default last:border-0">
             <td class="px-4 py-2 whitespace-nowrap tabular-nums">{{ shortDate(e.spent_on!) }}</td>
-            <td v-if="isAdmin" class="px-4 py-2">{{ e.user_name }}</td>
+            <td v-if="seeAll" class="px-4 py-2">{{ e.user_name }}</td>
             <td class="px-4 py-2">{{ e.task_name }}</td>
             <td class="px-4 py-2 max-w-md truncate text-muted">{{ e.notes }}</td>
             <td class="px-4 py-2 text-right tabular-nums">{{ formatHours(e.hours ?? 0) }}</td>
           </tr>
           <tr v-if="!recent?.length">
-            <td :colspan="isAdmin ? 5 : 4" class="px-4 py-6 text-center text-muted">No time logged yet.</td>
+            <td :colspan="seeAll ? 5 : 4" class="px-4 py-6 text-center text-muted">No time logged yet.</td>
           </tr>
         </tbody>
       </table>

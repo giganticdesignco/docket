@@ -3,7 +3,7 @@
 // this year's entries come in live. Each month is one call to the server
 // route so a long run shows progress and survives a Vercel timeout.
 // Expenses come in entry by entry for every year, receipts included.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Harvest import' })
 
 const supabase = useSupabaseClient()

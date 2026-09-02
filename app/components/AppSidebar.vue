@@ -2,7 +2,7 @@
 // Left rail, Supabase style: icons only until you hover, then it widens
 // over the page with labels and section headings. On phones it becomes a
 // top bar with a menu that slides in from the left.
-const { profile, isAdmin, signOut } = useCurrentUser()
+const { profile, isAdmin, can, signOut } = useCurrentUser()
 const route = useRoute()
 
 type Link = { label: string, to: string, icon: string }
@@ -19,7 +19,7 @@ const sections = computed<Section[]>(() => {
       { label: 'Tasks', to: '/tasks', icon: 'i-lucide-list-todo' },
       { label: 'Projects', to: '/projects', icon: 'i-lucide-folder-kanban' },
       { label: 'Clients', to: '/clients', icon: 'i-lucide-building-2' },
-      ...(isAdmin.value ? [{ label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' }] : []),
+      ...(can('see_all_time') ? [{ label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' }] : []),
     ],
   }
   const more: Section = {
@@ -27,10 +27,10 @@ const sections = computed<Section[]>(() => {
     links: [
       { label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' },
       { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
-      ...(isAdmin.value
+      ...(can('manage_billing') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
+      ...(can('see_capacity') ? [{ label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' }] : []),
+      ...(can('manage_billing')
         ? [
-            { label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' },
-            { label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' },
             { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },
             { label: 'Invoices', to: '/invoices', icon: 'i-lucide-file-text' },
           ]
@@ -40,6 +40,7 @@ const sections = computed<Section[]>(() => {
   return [daily, more]
 })
 const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
+const showSettings = computed(() => can('manage_settings') || can('manage_people'))
 const searchOpen = useState('search-open', () => false)
 const sheetOpen = useState('shortcut-sheet-open', () => false)
 const tour = useTour()
@@ -94,7 +95,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
 
     <div class="shrink-0 border-t border-default p-2">
       <NuxtLink
-        v-if="isAdmin" :to="settings.to" :title="settings.label"
+        v-if="showSettings" :to="settings.to" :title="settings.label"
         class="flex h-9 items-center gap-3 rounded-md px-2 text-sm transition-colors"
         :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
       >
@@ -141,7 +142,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
             <UIcon :name="l.icon" class="size-5" />{{ l.label }}
           </NuxtLink>
         </div>
-        <NuxtLink v-if="isAdmin" :to="settings.to" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted'">
+        <NuxtLink v-if="showSettings" :to="settings.to" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted'">
           <UIcon :name="settings.icon" class="size-5" />{{ settings.label }}
         </NuxtLink>
       </nav>

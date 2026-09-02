@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Quotes: what is out, what was won, what was lost. New ones start from
 // a client and a title; the rest is built on the quote page.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_billing' })
 useHead({ title: 'Quotes' })
 
 const supabase = useSupabaseClient()

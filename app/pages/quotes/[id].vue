@@ -4,7 +4,7 @@ import type { QuoteDoc } from '~~/shared/types/quote'
 // One quote. While draft or sent: edit the header, scope lines, and the
 // page sitemap; preview; send; accept or decline on the client's behalf.
 // Accepted quotes link to the project they made.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_billing' })
 
 const route = useRoute()
 const id = route.params.id as string

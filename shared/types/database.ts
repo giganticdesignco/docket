@@ -1084,6 +1084,21 @@ export type Database = {
           },
         ]
       }
+      permissions: {
+        Row: {
+          key: string
+          role: string
+        }
+        Insert: {
+          key: string
+          role: string
+        }
+        Update: {
+          key?: string
+          role?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1092,7 +1107,7 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
-          role: Database["public"]["Enums"]["user_role"]
+          role: string
           tours_seen: Json
         }
         Insert: {
@@ -1102,7 +1117,7 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: string
           tours_seen?: Json
         }
         Update: {
@@ -1112,7 +1127,7 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
-          role?: Database["public"]["Enums"]["user_role"]
+          role?: string
           tours_seen?: Json
         }
         Relationships: []
@@ -1665,6 +1680,30 @@ export type Database = {
             referencedColumns: ["project_id"]
           },
         ]
+      }
+      roles: {
+        Row: {
+          description: string | null
+          is_builtin: boolean
+          key: string
+          label: string
+          position: number
+        }
+        Insert: {
+          description?: string | null
+          is_builtin?: boolean
+          key: string
+          label: string
+          position?: number
+        }
+        Update: {
+          description?: string | null
+          is_builtin?: boolean
+          key?: string
+          label?: string
+          position?: number
+        }
+        Relationships: []
       }
       saved_reports: {
         Row: {
@@ -2599,6 +2638,8 @@ export type Database = {
         Args: { p_name: string; p_quote_id: string; p_reason?: string }
         Returns: undefined
       }
+      has_permission: { Args: { p_key: string }; Returns: boolean }
+      task_visible: { Args: { p_item: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       next_invoice_number: { Args: never; Returns: string }
       next_quote_number: { Args: never; Returns: string }
@@ -2796,7 +2837,6 @@ export type Database = {
       reminder_kind: "timer_left_running" | "missing_time" | "timesheet_nudge"
       retainer_basis: "hours" | "amount"
       time_off_kind: "pto" | "holiday" | "unpaid" | "sick"
-      user_role: "admin" | "staff"
       work_priority: "low" | "normal" | "high" | "urgent"
     }
     CompositeTypes: {
@@ -2940,7 +2980,6 @@ export const Constants = {
       reminder_kind: ["timer_left_running", "missing_time", "timesheet_nudge"],
       retainer_basis: ["hours", "amount"],
       time_off_kind: ["pto", "holiday", "unpaid", "sick"],
-      user_role: ["admin", "staff"],
       work_priority: ["low", "normal", "high", "urgent"],
     },
   },

@@ -8,7 +8,7 @@ import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 const open = useState('search-open', () => false)
 const supabase = useSupabaseClient()
 const router = useRouter()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
 
 
 const term = ref('')
@@ -74,15 +74,10 @@ const actions = computed<CommandPaletteItem[]>(() => {
     nav('Go to Projects', '/projects', 'i-lucide-folder-kanban'),
     nav('Go to Clients', '/clients', 'i-lucide-building-2'),
     nav('Go to Expenses', '/expenses', 'i-lucide-receipt'),
-    ...(isAdmin.value
-      ? [
-          nav('Go to Reports', '/reports', 'i-lucide-chart-column'),
-          nav('Go to Capacity', '/capacity', 'i-lucide-gauge'),
-          nav('Go to Quotes', '/quotes', 'i-lucide-file-signature'),
-          nav('Go to Invoices', '/invoices', 'i-lucide-file-text'),
-          nav('Go to Settings', '/admin', 'i-lucide-settings'),
-        ]
-      : []),
+    ...(can('see_all_time') ? [nav('Go to Reports', '/reports', 'i-lucide-chart-column')] : []),
+    ...(can('see_capacity') ? [nav('Go to Capacity', '/capacity', 'i-lucide-gauge')] : []),
+    ...(can('manage_billing') ? [nav('Go to Quotes', '/quotes', 'i-lucide-file-signature'), nav('Go to Invoices', '/invoices', 'i-lucide-file-text')] : []),
+    ...(can('manage_settings') ? [nav('Go to Settings', '/admin', 'i-lucide-settings')] : []),
   ]
 })
 

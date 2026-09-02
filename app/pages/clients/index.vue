@@ -3,7 +3,8 @@ import type { Tables } from '~~/shared/types/database'
 
 useHead({ title: 'Clients' })
 const supabase = useSupabaseClient()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const isAdmin = computed(() => can('manage_reference'))
 
 const showInactive = ref(false)
 const creating = ref(false)

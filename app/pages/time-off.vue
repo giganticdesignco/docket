@@ -7,7 +7,8 @@ useHead({ title: 'Time off' })
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
-const { isAdmin } = useCurrentUser()
+const { can } = useCurrentUser()
+const isAdmin = computed(() => can('manage_people'))
 const toast = useToast()
 
 const everyone = ref(false)

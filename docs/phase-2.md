@@ -225,7 +225,8 @@ How:
   people without `see_money`, so contractors never see dollars.
 
 Depends on: nothing; unlocks client logins and contractors. Size: 5 to
-6 days, most of it re-checking every policy.
+6 days, most of it re-checking every policy. Built 2026-09-02 without a
+client role yet; that arrives with client logins.
 
 ## 9. Power user shortcuts
 

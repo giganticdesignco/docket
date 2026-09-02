@@ -2,7 +2,7 @@
 // Billing: what is unbilled per client, and the batches made so far.
 // A batch is a draft-and-lock grouping until the invoicing decision
 // (see TODO 1 in schema.sql) says where it goes next.
-definePageMeta({ middleware: 'admin' })
+definePageMeta({ middleware: 'can', permission: 'manage_billing' })
 useHead({ title: 'Billing' })
 
 const supabase = useSupabaseClient()
