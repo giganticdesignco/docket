@@ -1433,3 +1433,9 @@ client / project, dates, estimate, and people; the left column's names
 show the same card only when the column cut them off. Replaces the
 native title tooltips. `tipBar`, `tipIfCut`, and a teleported card in
 `app/pages/schedule.vue`.
+
+Update, later on 2026-09-02: Luke enabled the OAuth server, set the
+Authorization Path, turned on dynamic registration, and set Site URL to
+the live site. Discovery answers, and dynamic registration was checked
+with a throwaway client (then deleted with the admin API). The consent
+round trip with a real Claude client is Luke's to run; not seen yet.
