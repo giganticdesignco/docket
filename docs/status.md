@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-01, local session, step 3 built and verified against Harvest.
+Last updated: 2026-09-01, local session, step 4 built and verified.
 
 ## Where things stand
 
@@ -71,6 +71,34 @@ no rounding.
   no New client, New project, Edit, or Tasks buttons; no Tasks header link;
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
+
+## Step 4: expenses + receipts
+
+- `/expenses`: the signed-in user's expenses for one year, newest first,
+  with a total. Admins get an "Everyone" switch. New/edit through
+  `ExpenseForm` (project, category, date, amount, notes, billable,
+  reimbursable, receipt). Delete asks first and removes the receipt file.
+- Receipts: private Storage bucket `receipts`, path
+  `<user_id>/<uuid>.<ext>`, 10 MB, images and PDF. Policies: owner reads
+  and writes own folder, admins read and delete any. Viewing uses a
+  5-minute signed URL opened in a new tab (`useReceipts`). Migration
+  `receipts_storage`, mirrored as section 5 of schema.sql; the local
+  check stub now includes a storage schema.
+- `/admin/expense-categories`: same shape as tasks. 24 categories were
+  seeded from Harvest's list (trailing space trimmed on "GDCO - Apparel").
+- Header: admin pages moved into an Admin dropdown (Tasks, Expense
+  categories, Harvest import) so the bar stays short.
+
+Verified in Chrome as luke@: added an expense with a PNG receipt, the
+object landed at `receipts/<luke>/<uuid>.png` with owner set, the
+paperclip opened the signed URL, delete removed row and file. RLS checked
+in SQL by switching to the authenticated role with each user's JWT claims:
+Sean sees 0 expenses and 0 receipt objects, Luke (admin) sees 1 and 1.
+Not exercised in the browser: editing an expense and replacing its
+receipt, though the code path is the same upload plus a best-effort delete
+of the old file.
+
+Next is step 5: retainers + budget views.
 
 ## Step 3: Harvest import
 
