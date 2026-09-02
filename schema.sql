@@ -877,3 +877,18 @@ create policy own_or_shared on saved_reports for select to authenticated
 create policy own_reports on saved_reports for all to authenticated
   using (owner_id = auth.uid() or is_admin())
   with check (owner_id = auth.uid() or is_admin());
+
+-- ============================================================
+-- 5. FUNCTION GRANTS
+-- Supabase exposes every public function over /rest/v1/rpc by default.
+-- Trigger functions run as the table owner and never need caller
+-- EXECUTE. is_admin() must stay callable by authenticated because RLS
+-- policies evaluate it as the querying user.
+-- ============================================================
+
+revoke execute on function public.handle_new_user()          from public, anon, authenticated;
+revoke execute on function public.write_audit_log()          from public, anon, authenticated;
+revoke execute on function public.protect_profile_columns()  from public, anon, authenticated;
+revoke execute on function public.set_rate_snapshot()        from public, anon, authenticated;
+revoke execute on function public.is_admin()                 from public, anon;
+revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
