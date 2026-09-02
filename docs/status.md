@@ -154,9 +154,17 @@ deleted a report.
 Not built: capacity_weekly and project_budget_status as report sources,
 relative date ranges ("this month"), scheduled or emailed reports.
 
-Next is step 8: QuickBooks push. Needs QBO Online confirmed, an app in
-the Intuit developer portal (client id/secret), and the OAuth callback
-URL, before anything can be verified.
+Next is step 8: QuickBooks push. Waiting on Sean or Tom (2026-09-03) for:
+QBO Online confirmed, an Intuit developer app's client id and secret
+(go in .env as NUXT_QBO_CLIENT_ID / NUXT_QBO_CLIENT_SECRET), and whether
+to build against the QBO sandbox company first. The OAuth callback will
+be /api/qbo/callback on whatever host the app runs on; local dev uses
+http://localhost:3000/api/qbo/callback, which the Intuit app must list.
+
+Things step 8 can do before the credentials arrive: the billing_batches
+UI (pick a client and period, see unbilled time and expenses, build a
+draft batch, lock the rows) is pure Supabase and needs no QBO. Only the
+push itself and the customer mapping need the app.
 
 ## Step 6: reminders + email
 
