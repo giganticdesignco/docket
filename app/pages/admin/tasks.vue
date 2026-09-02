@@ -2,7 +2,7 @@
 import type { Tables } from '~~/shared/types/database'
 
 definePageMeta({ middleware: 'admin' })
-useHead({ title: 'Tasks' })
+useHead({ title: 'Task types' })
 const supabase = useSupabaseClient()
 
 const showInactive = ref(false)
@@ -28,7 +28,7 @@ function done() {
   <div class="space-y-4">
     <div class="flex items-center gap-4">
       <div>
-        <h1 class="text-2xl font-semibold">Tasks</h1>
+        <h1 class="text-2xl font-semibold">Task types</h1>
         <p class="text-sm text-muted">Global list. Assign them to projects from each project's settings.</p>
       </div>
       <USwitch v-model="showInactive" label="Show inactive" size="sm" class="ml-auto" />

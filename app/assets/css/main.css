@@ -7,3 +7,9 @@
   body { background: white !important; }
   .invoice-page { min-height: 0 !important; }
 }
+
+/* The sidebar and mobile bar never print; the content loses its offset. */
+@media print {
+  aside { display: none !important; }
+  .app-shell { padding-left: 0 !important; }
+}

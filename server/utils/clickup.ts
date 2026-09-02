@@ -6,6 +6,9 @@ export type ClickUpTask = {
   id: string
   name: string
   status: { status: string } | null
+  priority: { priority: string } | null
+  description: string | null
+  text_content: string | null
   date_created: string | null
   start_date: string | null   // epoch ms as a string
   due_date: string | null     // epoch ms as a string

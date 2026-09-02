@@ -60,6 +60,8 @@ create type quote_status         as enum ('draft', 'sent', 'accepted', 'declined
 create type time_off_kind        as enum ('pto', 'holiday', 'unpaid', 'sick');
 create type reminder_kind        as enum ('timer_left_running', 'missing_time', 'timesheet_nudge');
 create type invoice_status       as enum ('draft', 'sent', 'paid', 'void');
+create type work_status          as enum ('new', 'ready_to_start', 'in_progress', 'internal_review', 'client_review', 'back_in_our_court', 'sent_to_print', 'on_hold', 'completed');
+create type work_priority        as enum ('low', 'normal', 'high', 'urgent');
 create type audit_action         as enum ('insert', 'update', 'delete');
 create type billing_batch_status as enum ('draft', 'pushing', 'pushed', 'failed', 'void', 'invoiced');
 
@@ -217,6 +219,23 @@ begin
 end;
 $$;
 
+-- work_items: updated_at and completed_at look after themselves.
+create or replace function public.work_item_touch() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'completed' then new.completed_at := now(); end if;
+    return new;
+  end if;
+  new.updated_at := now();
+  if new.status = 'completed' and old.status <> 'completed' then
+    new.completed_at := now();
+  elsif new.status <> 'completed' then
+    new.completed_at := null;
+  end if;
+  return new;
+end $$;
+
 -- ============================================================
 -- 2. TABLES
 -- Ordered so every foreign key points at a table above it.
@@ -286,6 +305,73 @@ create table project_tasks (
   primary key (project_id, task_id)
 );
 
+-- ---------- Tasks (step 10; ClickUp is being cancelled) ----------
+-- work_items live under projects; several people can be assigned; comments
+-- and files hang off them. Comments allow a null author with a typed name
+-- so a client review link (step 11) can post without an account.
+
+create table work_items (
+  id             uuid primary key default gen_random_uuid(),
+  project_id     uuid not null references projects(id) on delete restrict,
+  title          text not null,
+  description    text,
+  status         work_status not null default 'new',
+  priority       work_priority not null default 'normal',
+  start_on       date,
+  due_on         date,
+  estimate_hours numeric(6,2),
+  position       int not null default 0,
+  public_token   text not null unique
+                 default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  clickup_id     text unique,           -- set by the one-time ClickUp import
+  created_by     uuid not null references profiles(id) on delete restrict,
+  completed_at   timestamptz,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index work_items_project_status on work_items (project_id, status);
+create index work_items_due on work_items (due_on);
+create trigger work_items_touch before insert or update on work_items
+  for each row execute function public.work_item_touch();
+
+create table work_item_assignees (
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  user_id      uuid not null references profiles(id) on delete cascade,
+  primary key (work_item_id, user_id)
+);
+create index work_item_assignees_user on work_item_assignees (user_id);
+
+create table work_item_comments (
+  id           uuid primary key default gen_random_uuid(),
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  author_id    uuid references profiles(id) on delete set null,  -- null = a client, via review link
+  author_name  text,                                             -- what the client typed
+  body         text not null,
+  created_at   timestamptz not null default now()
+);
+create index work_item_comments_item on work_item_comments (work_item_id, created_at);
+
+-- A file is either an uploaded copy in Storage or a link to where it already
+-- lives on the office server (smb:// or a path), so nothing is stored twice.
+-- Links cannot be opened from outside the office or from a client review
+-- link; uploads can. A link can later be turned into an upload (kind flips,
+-- path is set, link is kept so the server location is still known).
+create table work_item_files (
+  id           uuid primary key default gen_random_uuid(),
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  kind         text not null default 'upload' check (kind in ('upload', 'link')),
+  path         text unique,             -- object path in the work-files bucket (uploads)
+  link         text,                    -- server path or URL (links)
+  file_name    text not null,
+  content_type text,
+  size_bytes   bigint,
+  uploaded_by  uuid references profiles(id) on delete set null,
+  created_at   timestamptz not null default now(),
+  constraint work_item_files_kind_shape
+    check ((kind = 'upload' and path is not null) or (kind = 'link' and link is not null))
+);
+create index work_item_files_item on work_item_files (work_item_id);
+
 -- ---------- QuickBooks handoff ----------
 -- Defined before time_entries/expenses because they reference it.
 -- A batch groups unbilled time + expenses and locks them. The QBO push
@@ -333,6 +419,7 @@ create table time_entries (
   is_locked     boolean not null default false,   -- true once claimed by a batch
   batch_id      uuid references billing_batches(id) on delete set null,
   harvest_id    bigint unique,          -- Harvest entry id, set by the import
+  work_item_id  uuid references work_items(id) on delete set null,  -- started from a task
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   check (ended_at is null or ended_at > started_at)
@@ -354,6 +441,7 @@ create unique index one_running_timer_per_user
 create index time_entries_user_date    on time_entries (user_id, spent_on desc);
 create index time_entries_project_date on time_entries (project_id, spent_on);
 create index time_entries_batch        on time_entries (batch_id);
+create index time_entries_work_item    on time_entries (work_item_id);
 
 -- ---------- Retainers ----------
 
@@ -621,7 +709,7 @@ create index time_off_user_range on time_off (user_id, starts_on, ends_on);
 
 -- ---------- Capacity ----------
 -- Availability = weekly hours - time off - meetings.
--- Booked hours come from ClickUp (cached below), not owned here.
+-- Booked hours come from work_items due that week.
 
 create table availability (
   id             uuid primary key default gen_random_uuid(),
@@ -631,29 +719,6 @@ create table availability (
   effective_to   date,                  -- null = current
   unique (user_id, effective_from)
 );
-
--- Read-only mirror of ClickUp, one row per task and assignee (tasks there
--- usually have several people on them; the estimate is split between the
--- Docket people). Replaced whole by /api/clickup/sync, daily from a Vercel
--- cron or by hand from the capacity page; never edited here.
-create table clickup_assignments (
-  id              text not null,        -- ClickUp task id
-  user_id         uuid references profiles(id) on delete set null,
-  clickup_user_id text not null,
-  project_id      uuid references projects(id) on delete set null,
-  clickup_list_id text,
-  list_name       text,                 -- ClickUp lists are named after clients
-  title           text not null,
-  status          text,
-  estimate_hours  numeric(8,2),
-  start_on        date,
-  due_on          date,
-  url             text,
-  synced_at       timestamptz not null default now(),
-  primary key (id, clickup_user_id)
-);
-
-create index clickup_assignments_user_due on clickup_assignments (user_id, due_on);
 
 -- Cached calendar busy time, so meetings subtract from capacity.
 create table calendar_busy (
@@ -842,17 +907,26 @@ select
       and cb.starts_at >= w.week_start
       and cb.starts_at <  w.week_start + 7
   ), 0) as meeting_hours,
+  -- Estimates split evenly across a task's assignees; done and on-hold
+  -- tasks do not book time.
   coalesce((
-    select sum(ca.estimate_hours) from clickup_assignments ca
-    where ca.user_id = pr.id
-      and ca.due_on >= w.week_start
-      and ca.due_on <  w.week_start + 7
+    select sum(coalesce(wi.estimate_hours, 0)
+               / greatest((select count(*) from work_item_assignees a2 where a2.work_item_id = wi.id), 1))
+    from work_items wi
+    join work_item_assignees a on a.work_item_id = wi.id
+    where a.user_id = pr.id
+      and wi.status not in ('completed', 'on_hold')
+      and wi.due_on >= w.week_start
+      and wi.due_on <  w.week_start + 7
   ), 0) as booked_hours,
   coalesce((
-    select count(*) from clickup_assignments ca
-    where ca.user_id = pr.id
-      and ca.due_on >= w.week_start
-      and ca.due_on <  w.week_start + 7
+    select count(*)
+    from work_items wi
+    join work_item_assignees a on a.work_item_id = wi.id
+    where a.user_id = pr.id
+      and wi.status not in ('completed', 'on_hold')
+      and wi.due_on >= w.week_start
+      and wi.due_on <  w.week_start + 7
   ), 0) as booked_tasks,
   coalesce((
     select sum(td.hours) from time_detail td
@@ -1372,7 +1446,10 @@ alter table invoice_lines          enable row level security;
 alter table invoice_payments       enable row level security;
 alter table time_off               enable row level security;
 alter table availability           enable row level security;
-alter table clickup_assignments    enable row level security;
+alter table work_items             enable row level security;
+alter table work_item_assignees    enable row level security;
+alter table work_item_comments     enable row level security;
+alter table work_item_files        enable row level security;
 alter table calendar_busy          enable row level security;
 alter table reminder_log           enable row level security;
 alter table audit_log              enable row level security;
@@ -1459,11 +1536,33 @@ create policy read_all    on harvest_archive_monthly for select to authenticated
 create policy admin_write on harvest_archive_monthly for all to authenticated using (is_admin()) with check (is_admin());
 create policy admin_all   on harvest_invoices for all to authenticated using (is_admin()) with check (is_admin());
 
+-- ---------- Tasks: the whole team reads and writes ----------
+-- Deleting a task is the creator's or an admin's; comments and files are
+-- edited by their author or an admin.
+
+create policy read_all     on work_items for select to authenticated using (true);
+create policy team_insert  on work_items for insert to authenticated with check (created_by = auth.uid());
+create policy team_update  on work_items for update to authenticated using (true) with check (true);
+create policy owner_delete on work_items for delete to authenticated using (created_by = auth.uid() or is_admin());
+
+create policy read_all on work_item_assignees for select to authenticated using (true);
+create policy team_all on work_item_assignees for all to authenticated using (true) with check (true);
+
+create policy read_all   on work_item_comments for select to authenticated using (true);
+create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid());
+create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or is_admin()) with check (author_id = auth.uid() or is_admin());
+create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or is_admin());
+
+create policy read_all    on work_item_files for select to authenticated using (true);
+create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid());
+-- Anyone on the team may turn a server link into a shareable uploaded copy.
+create policy team_update on work_item_files for update to authenticated using (true) with check (true);
+create policy own_delete  on work_item_files for delete to authenticated using (uploaded_by = auth.uid() or is_admin());
+
 -- ---------- Time off, capacity ----------
 
 create policy read_all on time_off            for select to authenticated using (true);
 create policy read_all on availability        for select to authenticated using (true);
-create policy read_all on clickup_assignments for select to authenticated using (true);
 
 -- People log their own time off; admins manage holidays and everyone else.
 create policy own_time_off on time_off for all to authenticated
@@ -1475,7 +1574,6 @@ create policy own_calendar on calendar_busy for select to authenticated
   using (user_id = auth.uid() or is_admin());
 
 create policy admin_write on availability        for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on clickup_assignments for all to authenticated using (is_admin()) with check (is_admin());
 create policy admin_write on calendar_busy       for all to authenticated using (is_admin()) with check (is_admin());
 
 -- ---------- Reminders ----------
@@ -1509,6 +1607,7 @@ revoke execute on function public.handle_new_user()          from public, anon, 
 revoke execute on function public.write_audit_log()          from public, anon, authenticated;
 revoke execute on function public.protect_profile_columns()  from public, anon, authenticated;
 revoke execute on function public.set_rate_snapshot()        from public, anon, authenticated;
+revoke execute on function public.work_item_touch()          from public, anon, authenticated;
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.project_budget(uuid)       from public, anon;
@@ -1557,6 +1656,19 @@ create policy receipts_update on storage.objects for update to authenticated
 create policy receipts_delete on storage.objects for delete to authenticated
   using (bucket_id = 'receipts'
          and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+-- Files on tasks (work_item_files): private bucket, whole team reads and
+-- uploads, uploader or admin deletes. Paths are <work_item_id>/<uuid>.<ext>.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('work-files', 'work-files', false, 26214400)
+on conflict (id) do nothing;
+
+create policy work_files_read on storage.objects for select to authenticated
+  using (bucket_id = 'work-files');
+create policy work_files_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'work-files');
+create policy work_files_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'work-files' and (owner = auth.uid() or public.is_admin()));
 
 -- ============================================================
 -- 7. REMINDERS

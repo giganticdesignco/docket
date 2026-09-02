@@ -70,12 +70,23 @@ const runningElsewhere = computed(() => running.value && running.value.spent_on 
 
 const creating = ref(false)
 const editing = ref<Row | null>(null)
+
+// /time?item=<task id> from a task page: open the new-entry form on it.
+const { data: workItem } = await useAsyncData('time-work-item', async () => {
+  const itemId = typeof route.query.item === 'string' ? route.query.item : null
+  if (!itemId) return null
+  const { data, error } = await supabase.from('work_items').select('id, title, project_id').eq('id', itemId).maybeSingle()
+  if (error) throw error
+  return data
+}, { ...fresh, watch: [() => route.query.item] })
+watch(workItem, (w) => { if (w) creating.value = true }, { immediate: true })
 const deleting = ref<Row | null>(null)
 const busy = ref<string | null>(null) // entry id with an action in flight
 
 function saved() {
   creating.value = false
   editing.value = null
+  if (route.query.item) router.replace({ query: { ...route.query, item: undefined } })
   refresh()
 }
 
@@ -182,7 +193,7 @@ async function confirmDelete() {
 
     <UModal v-model:open="creating" :title="`New entry for ${longDate(selected)}`">
       <template #body>
-        <TimeEntryForm :date="selected" :projects="projects ?? []" :project-tasks="projectTasks ?? []" @saved="saved" @cancel="creating = false" />
+        <TimeEntryForm :date="selected" :projects="projects ?? []" :project-tasks="projectTasks ?? []" :work-item="workItem ?? undefined" @saved="saved" @cancel="creating = false" />
       </template>
     </UModal>
 

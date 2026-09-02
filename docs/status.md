@@ -112,6 +112,94 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Step 10: task management (2026-09-02)
+
+Luke reframed the scope: ClickUp is being cancelled, so Docket takes over
+tasks. Client review links are step 11 (a link is enough, but clients
+may comment). Migrations `work_items` and `work_item_file_links`,
+mirrored in schema.sql.
+
+Data:
+
+- `work_items` under projects: title, description, status (`work_status`:
+  new, ready_to_start, in_progress, internal_review, client_review,
+  back_in_our_court, sent_to_print, on_hold, completed, the flow the
+  ClickUp workspace used), priority, start, due, estimate_hours,
+  public_token (for step 11), clickup_id, created_by, completed_at
+  (trigger `work_item_touch` keeps it and updated_at).
+- `work_item_assignees` (many per task), `work_item_comments`
+  (author_id nullable plus author_name, so a client can post from a
+  review link later), `work_item_files`.
+- Files are either `kind = 'upload'` (a copy in the private `work-files`
+  bucket, 25 MB, path <task id>/<uuid>.<ext>) or `kind = 'link'` (a path
+  or smb:// link to the file on the office server, nothing copied). A
+  co-worker asked for the link option so files are not stored twice;
+  links cannot be opened from outside the office or from a review link,
+  uploads can. The attach dialog offers both, link first (Luke's ask).
+  A link row has an "Upload a copy to share" action: pick the file, the
+  row flips to an upload (path, size, type set) and keeps the server path,
+  shown as "Shareable copy, also on the server: ...". Anyone on the team
+  may do that (`team_update` policy, migration
+  `work_item_files_team_update`). Verified: linked convert-me.pdf, then
+  converted it with a real upload; the object landed in the bucket and
+  the row kept the smb:// link.
+- `time_entries.work_item_id`: an entry can be logged against a task.
+- `capacity_weekly` books from work_items due that week (estimate split
+  across assignees, completed and on_hold excluded) and
+  `clickup_assignments` is dropped.
+- RLS: the whole team reads and writes tasks and assignees; delete is the
+  creator's or an admin's; comments and files are edited by their author
+  or an admin. Storage: team reads and uploads, uploader or admin deletes.
+- Labels live in `shared/types/app.ts` (WORK_STATUSES, WORK_PRIORITIES,
+  workStatusLabel, workStatusColor).
+
+App:
+
+- `/tasks`: mine by default, Everyone switch, Completed switch, status
+  filter, search; grouped Overdue, This week, Later, No due date; inline
+  status select per row; New task.
+- `/tasks/[id]`, laid out like ClickUp at Luke's request: breadcrumb
+  (client, project) and Log time / Delete up top; status select; the
+  title as an inline input; a property grid edited in place (assignees
+  multi-select with initials, priority, start and due dates, estimate,
+  logged, created) that saves on change; description as an inline
+  textarea saving on blur; files (Attach: link to server file or upload a
+  copy; open, copy path, upload a copy to share, remove); and an Activity
+  column on the right with comments and a composer pinned at the bottom
+  (Cmd+Enter posts). No edit modal; WorkItemForm is only for creating.
+- Project page: Tasks card (open count, Show completed, New task). The
+  billing task-type card and button are now labelled "Task types".
+- Capacity: drill-down lists the person's tasks due that week with the
+  split estimate; no ClickUp button.
+- `/admin/clickup` + `server/api/clickup/import.post.ts`: one-time import
+  of ClickUp's open tasks into work_items (dry run first). List -> client,
+  task name -> the client's project (else a "ClickUp import" project is
+  made for the client), assignees by email, statuses mapped. Keyed on
+  clickup_id so it can be re-run. Untested with real data: no token.
+- `WorkItemForm.vue` is the task form; `TaskForm.vue` stays the billing
+  task-type form. Time entry form takes an optional workItem prop.
+
+Navigation is now a Supabase-style sidebar (`AppSidebar.vue`, replaces
+AppHeader): an icon rail that widens on hover with sections Work,
+Accounts, Manage, Settings; theme toggle and sign out at the bottom; a
+top bar with a slide-in menu on phones. `app.vue` offsets the page by the
+rail width; print CSS hides the rail.
+
+Verified as luke@: created a task on a Dupaco project from /tasks (title,
+project, assignee, due, estimate, description), landed on it, changed
+status to In progress, posted a comment, attached an smb:// server link
+(shown as "On the server: ..." with copy), Log time opened /time with the
+project and notes prefilled and the saved entry carried work_item_id,
+capacity booked 3:00 for that week, the project page listed the task;
+ClickUp import page reports the missing token cleanly. Test task and
+entry deleted. Sidebar checked collapsed, expanded, dark, and on a
+390px viewport.
+
+Not built (step 11 material): client review link page under
+/r/<token> with comments as a named client, email notifications on
+status change or comment, task templates, subtasks, drag ordering
+(`position` exists), calendar sync.
+
 ## Step 9: capacity + ClickUp sync (2026-09-02)
 
 Built the same day as step 8. Migration `capacity_clickup`, mirrored in
@@ -152,18 +240,11 @@ token fails with a clear message; adding two days of PTO on /time-off
 showed 16:00 and dropped that week's available hours to 24:00 on
 /capacity; the entry was deleted afterwards.
 
-ON HOLD (Luke, 2026-09-02: "we might hold on clickup"). The sync route
-and the Sync ClickUp button stay, but vercel.json with the daily cron was
-removed so nothing fails every morning. To switch it on later: create a
-ClickUp personal API token (ClickUp > Settings > Apps), add
-NUXT_CLICKUP_TOKEN and NUXT_CLICKUP_TEAM_ID=8666791 to .env and Vercel,
-press Sync ClickUp, and check the counts (withoutEstimate, unmatched
-lists, project mapping). For the daily run, restore vercel.json with
-`{ "crons": [{ "path": "/api/clickup/sync", "schedule": "0 11 * * *" }] }`
-and set CRON_SECRET plus NUXT_CRON_SECRET (same value) on Vercel. Until
-then the capacity page shows availability and logged hours only; the
-"booked" columns stay at zero. Meetings (calendar_busy) are scaffolding
-only.
+SUPERSEDED by step 10: ClickUp is being cancelled, so the sync and the
+clickup_assignments mirror are gone; capacity books from Docket tasks.
+What remains of ClickUp is the one-time import on /admin/clickup, which
+needs NUXT_CLICKUP_TOKEN and NUXT_CLICKUP_TEAM_ID=8666791 once, before
+the account closes. Meetings (calendar_busy) are scaffolding only.
 
 ## Step 8: invoicing, Docket owns it (2026-09-02)
 

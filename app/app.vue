@@ -10,9 +10,11 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
 
 <template>
   <UApp>
-    <AppHeader v-if="profile" />
-    <UContainer class="py-6">
-      <NuxtPage />
-    </UContainer>
+    <AppSidebar v-if="profile" />
+    <div class="app-shell" :class="profile ? 'md:pl-14' : ''">
+      <UContainer class="py-6">
+        <NuxtPage />
+      </UContainer>
+    </div>
   </UApp>
 </template>

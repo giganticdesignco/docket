@@ -331,111 +331,6 @@ export type Database = {
           },
         ]
       }
-      clickup_assignments: {
-        Row: {
-          clickup_list_id: string | null
-          clickup_user_id: string
-          due_on: string | null
-          estimate_hours: number | null
-          id: string
-          list_name: string | null
-          project_id: string | null
-          start_on: string | null
-          status: string | null
-          synced_at: string
-          title: string
-          url: string | null
-          user_id: string | null
-        }
-        Insert: {
-          clickup_list_id?: string | null
-          clickup_user_id: string
-          due_on?: string | null
-          estimate_hours?: number | null
-          id: string
-          list_name?: string | null
-          project_id?: string | null
-          start_on?: string | null
-          status?: string | null
-          synced_at?: string
-          title: string
-          url?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          clickup_list_id?: string | null
-          clickup_user_id?: string
-          due_on?: string | null
-          estimate_hours?: number | null
-          id?: string
-          list_name?: string | null
-          project_id?: string | null
-          start_on?: string | null
-          status?: string | null
-          synced_at?: string
-          title?: string
-          url?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "clickup_assignments_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "time_detail"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "unbilled_time"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "capacity_weekly"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "time_detail"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "clickup_assignments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "unbilled_time"
-            referencedColumns: ["user_id"]
-          },
-        ]
-      }
       clients: {
         Row: {
           created_at: string
@@ -1839,6 +1734,7 @@ export type Database = {
           task_id: string
           updated_at: string
           user_id: string
+          work_item_id: string | null
         }
         Insert: {
           batch_id?: string | null
@@ -1857,6 +1753,7 @@ export type Database = {
           task_id: string
           updated_at?: string
           user_id: string
+          work_item_id?: string | null
         }
         Update: {
           batch_id?: string | null
@@ -1875,6 +1772,7 @@ export type Database = {
           task_id?: string
           updated_at?: string
           user_id?: string
+          work_item_id?: string | null
         }
         Relationships: [
           {
@@ -1947,6 +1845,13 @@ export type Database = {
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
           },
+          {
+            foreignKeyName: "time_entries_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
         ]
       }
       time_off: {
@@ -2008,6 +1913,309 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      work_item_assignees: {
+        Row: {
+          user_id: string
+          work_item_id: string
+        }
+        Insert: {
+          user_id: string
+          work_item_id: string
+        }
+        Update: {
+          user_id?: string
+          work_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_item_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_assignees_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_item_comments: {
+        Row: {
+          author_id: string | null
+          author_name: string | null
+          body: string
+          created_at: string
+          id: string
+          work_item_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          work_item_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          work_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_item_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_item_files: {
+        Row: {
+          content_type: string | null
+          created_at: string
+          file_name: string
+          id: string
+          kind: string
+          link: string | null
+          path: string | null
+          size_bytes: number | null
+          uploaded_by: string | null
+          work_item_id: string
+        }
+        Insert: {
+          content_type?: string | null
+          created_at?: string
+          file_name: string
+          id?: string
+          kind?: string
+          link?: string | null
+          path?: string | null
+          size_bytes?: number | null
+          uploaded_by?: string | null
+          work_item_id: string
+        }
+        Update: {
+          content_type?: string | null
+          created_at?: string
+          file_name?: string
+          id?: string
+          kind?: string
+          link?: string | null
+          path?: string | null
+          size_bytes?: number | null
+          uploaded_by?: string | null
+          work_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_item_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_files_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_items: {
+        Row: {
+          clickup_id: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_on: string | null
+          estimate_hours: number | null
+          id: string
+          position: number
+          priority: Database["public"]["Enums"]["work_priority"]
+          project_id: string
+          public_token: string
+          start_on: string | null
+          status: Database["public"]["Enums"]["work_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          clickup_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_on?: string | null
+          estimate_hours?: number | null
+          id?: string
+          position?: number
+          priority?: Database["public"]["Enums"]["work_priority"]
+          project_id: string
+          public_token?: string
+          start_on?: string | null
+          status?: Database["public"]["Enums"]["work_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          clickup_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_on?: string | null
+          estimate_hours?: number | null
+          id?: string
+          position?: number
+          priority?: Database["public"]["Enums"]["work_priority"]
+          project_id?: string
+          public_token?: string
+          start_on?: string | null
+          status?: Database["public"]["Enums"]["work_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_budget_status"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "work_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["project_id"]
           },
         ]
       }
@@ -2409,6 +2617,17 @@ export type Database = {
       retainer_basis: "hours" | "amount"
       time_off_kind: "pto" | "holiday" | "unpaid" | "sick"
       user_role: "admin" | "staff"
+      work_priority: "low" | "normal" | "high" | "urgent"
+      work_status:
+        | "new"
+        | "ready_to_start"
+        | "in_progress"
+        | "internal_review"
+        | "client_review"
+        | "back_in_our_court"
+        | "sent_to_print"
+        | "on_hold"
+        | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2552,6 +2771,18 @@ export const Constants = {
       retainer_basis: ["hours", "amount"],
       time_off_kind: ["pto", "holiday", "unpaid", "sick"],
       user_role: ["admin", "staff"],
+      work_priority: ["low", "normal", "high", "urgent"],
+      work_status: [
+        "new",
+        "ready_to_start",
+        "in_progress",
+        "internal_review",
+        "client_review",
+        "back_in_our_court",
+        "sent_to_print",
+        "on_hold",
+        "completed",
+      ],
     },
   },
 } as const

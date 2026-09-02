@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BILLING_METHODS } from '~~/shared/types/app'
+import { BILLING_METHODS, workStatusColor, workStatusLabel } from '~~/shared/types/app'
 
 const route = useRoute()
 const id = route.params.id as string
@@ -24,6 +24,30 @@ const { data: clients } = await useAsyncData('clients-for-projects', async () =>
   if (error) throw error
   return data
 }, fresh)
+
+// Tasks on this project, newest due first among the open ones.
+const { data: workItems, refresh: refreshItems } = await useAsyncData(`project-${id}-work-items`, async () => {
+  const { data, error } = await supabase
+    .from('work_items')
+    .select('id, title, status, due_on, work_item_assignees(user_id, profiles(full_name))')
+    .eq('project_id', id)
+    .order('due_on', { ascending: true, nullsFirst: false })
+  if (error) throw error
+  return data
+}, fresh)
+const { data: people } = await useAsyncData('people-for-tasks', async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+const showDone = ref(false)
+const openItems = computed(() => (workItems.value ?? []).filter(i => i.status !== 'completed'))
+const visibleItems = computed(() => (showDone.value ? workItems.value ?? [] : openItems.value))
+const creatingTask = ref(false)
+function taskCreated() {
+  creatingTask.value = false
+  refreshItems()
+}
 
 // Lifetime burn across everyone's time plus linked Harvest history.
 // Security definer function, so staff see the real total.
@@ -64,7 +88,7 @@ const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'pr
       <UBadge v-if="!project.is_active" color="neutral" variant="subtle">Inactive</UBadge>
       <div v-if="isAdmin" class="ml-auto flex gap-2">
         <UButton variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
-        <UButton :to="`/projects/${id}/settings`" variant="outline" icon="i-lucide-settings">Tasks</UButton>
+        <UButton :to="`/projects/${id}/settings`" variant="outline" icon="i-lucide-settings">Task types</UButton>
       </div>
     </div>
 
@@ -120,7 +144,7 @@ const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'pr
 
     <UCard>
       <template #header>
-        <h2 class="font-semibold">Tasks</h2>
+        <h2 class="font-semibold">Task types and rates</h2>
       </template>
       <ul v-if="projectTasks?.length" class="divide-y divide-default text-sm">
         <li v-for="pt in projectTasks" :key="pt.tasks?.name" class="flex justify-between py-2">
@@ -130,9 +154,30 @@ const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'pr
       </ul>
       <p v-else class="text-sm text-muted">
         No tasks assigned yet.
-        <span v-if="isAdmin">Use the Tasks button above to add some.</span>
+        <span v-if="isAdmin">Use the Task types button above to add some.</span>
         <span v-else>Ask an admin to add some before logging time.</span>
       </p>
+    </UCard>
+
+    <UCard :ui="{ body: 'p-0 sm:p-0' }">
+      <template #header>
+        <div class="flex items-center gap-4">
+          <h2 class="font-semibold">Tasks <span class="text-sm font-normal text-muted">{{ openItems.length }} open</span></h2>
+          <USwitch v-model="showDone" label="Show completed" size="sm" class="ml-auto" />
+          <UButton size="sm" icon="i-lucide-plus" @click="creatingTask = true;">New task</UButton>
+        </div>
+      </template>
+      <ul v-if="visibleItems.length" class="divide-y divide-default text-sm">
+        <li v-for="i in visibleItems" :key="i.id" class="flex items-center gap-3 px-4 py-2">
+          <div class="min-w-0 flex-1">
+            <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
+            <div class="truncate text-muted">{{ i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Unassigned' }}</div>
+          </div>
+          <span class="w-16 text-right tabular-nums" :class="i.due_on && i.due_on < todayString() && i.status !== 'completed' ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
+          <UBadge :color="workStatusColor(i.status)" variant="subtle" size="sm">{{ workStatusLabel(i.status) }}</UBadge>
+        </li>
+      </ul>
+      <p v-else class="px-4 py-6 text-center text-sm text-muted">No tasks on this project yet.</p>
     </UCard>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
@@ -163,6 +208,12 @@ const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'pr
         </tbody>
       </table>
     </UCard>
+
+    <UModal v-model:open="creatingTask" title="New task">
+      <template #body>
+        <WorkItemForm v-if="project" :projects="[{ id: project.id, name: project.name, clients: project.clients ? { name: project.clients.name } : null }]" :people="people ?? []" :default-project-id="project.id" @saved="taskCreated" @cancel="creatingTask = false;" />
+      </template>
+    </UModal>
 
     <UModal v-model:open="editing" title="Edit project">
       <template #body>

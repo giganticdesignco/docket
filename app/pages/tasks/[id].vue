@@ -1,0 +1,437 @@
+<script setup lang="ts">
+import type { Database } from '~~/shared/types/database'
+import { WORK_STATUSES, workStatusColor, WORK_PRIORITIES } from '~~/shared/types/app'
+
+// One task, laid out like ClickUp: breadcrumb and an inline title up top,
+// a property grid edited in place, description and files below, and the
+// activity (comments) in a column on the right with the composer at the
+// bottom. Everything saves on change; there is no edit modal.
+const route = useRoute()
+const id = route.params.id as string
+const supabase = useSupabaseClient()
+const user = useSupabaseUser()
+const { isAdmin } = useCurrentUser()
+const files = useWorkFiles()
+const toast = useToast()
+
+const { data: item, refresh } = await useAsyncData(`task-${id}`, async () => {
+  const { data, error } = await supabase
+    .from('work_items')
+    .select('*, projects(id, name, clients(id, name)), profiles!work_items_created_by_fkey(full_name), work_item_assignees(user_id, profiles(full_name))')
+    .eq('id', id)
+    .single()
+  if (error) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
+  return data
+}, fresh)
+
+const { data: comments, refresh: refreshComments } = await useAsyncData(`task-${id}-comments`, async () => {
+  const { data, error } = await supabase.from('work_item_comments').select('*, profiles(full_name)').eq('work_item_id', id).order('created_at')
+  if (error) throw error
+  return data
+}, fresh)
+
+const { data: attachments, refresh: refreshFiles } = await useAsyncData(`task-${id}-files`, async () => {
+  const { data, error } = await supabase.from('work_item_files').select('*, profiles(full_name)').eq('work_item_id', id).order('created_at')
+  if (error) throw error
+  return data
+}, fresh)
+
+// time_entries under RLS: admins see everyone's, staff their own.
+const { data: timeLogged } = await useAsyncData(`task-${id}-time`, async () => {
+  const { data, error } = await supabase.from('time_entries').select('hours').eq('work_item_id', id)
+  if (error) throw error
+  return (data ?? []).reduce((s, r) => s + r.hours, 0)
+}, fresh)
+
+const { data: people } = await useAsyncData('people-for-tasks', async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+
+useHead({ title: () => item.value?.title ?? 'Task' })
+
+type Item = NonNullable<typeof item.value>
+const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+const canDelete = computed(() => isAdmin.value || item.value?.created_by === user.value?.sub)
+const overdue = computed(() => !!item.value?.due_on && item.value.due_on < todayString() && item.value.status !== 'completed')
+
+// ---------- inline editing ----------
+
+const draft = reactive({ title: '', description: '', start_on: '', due_on: '', estimate_hours: '' as string | number, assignees: [] as string[] })
+function loadDraft() {
+  const i = item.value
+  if (!i) return
+  draft.title = i.title
+  draft.description = i.description ?? ''
+  draft.start_on = i.start_on ?? ''
+  draft.due_on = i.due_on ?? ''
+  draft.estimate_hours = i.estimate_hours ?? ''
+  draft.assignees = i.work_item_assignees.map(a => a.user_id)
+}
+loadDraft()
+watch(item, loadDraft)
+
+async function patch(values: Database['public']['Tables']['work_items']['Update']) {
+  const { error } = await supabase.from('work_items').update(values).eq('id', id)
+  if (error) {
+    toast.add({ title: 'Not saved', description: error.message, color: 'error' })
+    loadDraft()
+    return
+  }
+  await refresh()
+}
+const saveTitle = () => {
+  const t = draft.title.trim()
+  if (!t) {
+    draft.title = item.value!.title
+    return
+  }
+  if (t !== item.value?.title) patch({ title: t })
+}
+const saveDescription = () => {
+  const d = draft.description.trim() || null
+  if (d !== (item.value?.description ?? null)) patch({ description: d })
+}
+const saveDates = () => {
+  if (draft.start_on && draft.due_on && draft.due_on < draft.start_on) {
+    toast.add({ title: 'Due date is before the start', color: 'error' })
+    loadDraft()
+    return
+  }
+  patch({ start_on: draft.start_on || null, due_on: draft.due_on || null })
+}
+const saveEstimate = () => {
+  const n = draft.estimate_hours === '' ? null : Number(draft.estimate_hours)
+  if (n !== item.value?.estimate_hours) patch({ estimate_hours: n })
+}
+const setStatus = (status: string) => patch({ status: status as Item['status'] })
+const setPriority = (priority: string) => patch({ priority: priority as Item['priority'] })
+
+async function saveAssignees(ids: string[]) {
+  const before = new Set(item.value?.work_item_assignees.map(a => a.user_id) ?? [])
+  const after = new Set(ids)
+  const add = [...after].filter(x => !before.has(x))
+  const drop = [...before].filter(x => !after.has(x))
+  try {
+    if (drop.length) {
+      const { error } = await supabase.from('work_item_assignees').delete().eq('work_item_id', id).in('user_id', drop)
+      if (error) throw error
+    }
+    if (add.length) {
+      const { error } = await supabase.from('work_item_assignees').insert(add.map(user_id => ({ work_item_id: id, user_id })))
+      if (error) throw error
+    }
+    await refresh()
+  } catch (e) {
+    toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' })
+    loadDraft()
+  }
+}
+const peopleOptions = computed(() => (people.value ?? []).map(p => ({ label: p.full_name, value: p.id })))
+const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+// ---------- comments ----------
+
+const commentBody = ref('')
+const commenting = ref(false)
+async function addComment() {
+  if (!commentBody.value.trim()) return
+  commenting.value = true
+  try {
+    const { error } = await supabase.from('work_item_comments').insert({ work_item_id: id, author_id: user.value!.sub, body: commentBody.value.trim() })
+    if (error) throw error
+    commentBody.value = ''
+    await refreshComments()
+  } catch (e) {
+    toast.add({ title: 'Could not comment', description: (e as Error).message, color: 'error' })
+  } finally {
+    commenting.value = false
+  }
+}
+async function deleteComment(commentId: string) {
+  const { error } = await supabase.from('work_item_comments').delete().eq('id', commentId)
+  if (error) toast.add({ title: 'Could not remove', description: error.message, color: 'error' })
+  else await refreshComments()
+}
+
+// ---------- files ----------
+
+type Attachment = NonNullable<typeof attachments.value>[number]
+const attachOpen = ref(false)
+const attachKind = ref<'upload' | 'link'>('link')
+const linkPath = ref('')
+const linkName = ref('')
+const fileInput = ref<HTMLInputElement | null>(null)
+const attaching = ref(false)
+
+async function attachLink() {
+  const link = linkPath.value.trim()
+  if (!link) return
+  attaching.value = true
+  try {
+    const name = linkName.value.trim() || link.split(/[\\/]/).filter(Boolean).pop() || link
+    const { error } = await supabase.from('work_item_files').insert({ work_item_id: id, kind: 'link', link, file_name: name, uploaded_by: user.value!.sub })
+    if (error) throw error
+    linkPath.value = ''
+    linkName.value = ''
+    attachOpen.value = false
+    await refreshFiles()
+  } catch (e) {
+    toast.add({ title: 'Could not add the link', description: (e as Error).message, color: 'error' })
+  } finally {
+    attaching.value = false
+  }
+}
+async function attachUpload(e: Event) {
+  const list = (e.target as HTMLInputElement).files
+  if (!list?.length) return
+  attaching.value = true
+  try {
+    for (const f of Array.from(list)) {
+      const path = await files.upload(id, f)
+      const { error } = await supabase.from('work_item_files').insert({ work_item_id: id, kind: 'upload', path, file_name: f.name, content_type: f.type || null, size_bytes: f.size, uploaded_by: user.value!.sub })
+      if (error) throw error
+    }
+    attachOpen.value = false
+    await refreshFiles()
+  } catch (err) {
+    toast.add({ title: 'Upload failed', description: (err as Error).message, color: 'error' })
+  } finally {
+    attaching.value = false
+    if (fileInput.value) fileInput.value.value = ''
+  }
+}
+async function openFile(f: Attachment) {
+  try {
+    await files.open(f.path!)
+  } catch (e) {
+    toast.add({ title: 'Could not open the file', description: (e as Error).message, color: 'error' })
+  }
+}
+async function copyLink(f: Attachment) {
+  await navigator.clipboard.writeText(f.link ?? '')
+  toast.add({ title: 'Path copied', color: 'success' })
+}
+const linkHref = (f: Attachment) => (f.link && /^(smb|afp|https?|file):\/\//i.test(f.link) ? f.link : null)
+async function removeFile(f: Attachment) {
+  try {
+    const { error } = await supabase.from('work_item_files').delete().eq('id', f.id)
+    if (error) throw error
+    if (f.kind === 'upload' && f.path) await files.remove(f.path).catch(() => {})
+    await refreshFiles()
+  } catch (e) {
+    toast.add({ title: 'Could not remove', description: (e as Error).message, color: 'error' })
+  }
+}
+const size = (n: number | null) => (n == null ? '' : n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`)
+
+// Turn a server link into a shareable copy: upload the file, flip the row
+// to an upload, keep the link so the server location is not lost.
+const convertInput = ref<HTMLInputElement | null>(null)
+const converting = ref<Attachment | null>(null)
+function startConvert(f: Attachment) {
+  converting.value = f
+  convertInput.value?.click()
+}
+async function convertUpload(e: Event) {
+  const f = converting.value
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!f || !file) return
+  attaching.value = true
+  try {
+    const path = await files.upload(id, file)
+    const { error } = await supabase.from('work_item_files')
+      .update({ kind: 'upload', path, file_name: file.name, content_type: file.type || null, size_bytes: file.size })
+      .eq('id', f.id)
+    if (error) throw error
+    toast.add({ title: 'Copy uploaded', description: 'Anyone with access can open it now, including on a review link.', color: 'success' })
+    await refreshFiles()
+  } catch (err) {
+    toast.add({ title: 'Upload failed', description: (err as Error).message, color: 'error' })
+  } finally {
+    attaching.value = false
+    converting.value = null
+    if (convertInput.value) convertInput.value.value = ''
+  }
+}
+
+// ---------- delete ----------
+
+const deleting = ref(false)
+async function deleteTask() {
+  const { error } = await supabase.from('work_items').delete().eq('id', id)
+  if (error) toast.add({ title: 'Could not delete', description: error.message, color: 'error' })
+  else await navigateTo('/tasks')
+}
+</script>
+
+<template>
+  <div v-if="item" class="-my-6 flex flex-col lg:h-screen">
+    <!-- Top bar: breadcrumb, actions -->
+    <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-default py-3 text-sm">
+      <UButton to="/tasks" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
+      <NuxtLink :to="`/clients/${item.projects?.clients?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.clients?.name }}</NuxtLink>
+      <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
+      <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name }}</NuxtLink>
+      <div class="ml-auto flex items-center gap-2">
+        <UButton :to="`/time?item=${item.id}`" variant="outline" size="sm" icon="i-lucide-timer">Log time</UButton>
+        <UButton v-if="canDelete" variant="ghost" color="neutral" size="sm" icon="i-lucide-trash-2" aria-label="Delete task" @click="deleting = true;" />
+      </div>
+    </div>
+
+    <div class="grid min-h-0 flex-1 lg:grid-cols-5">
+      <!-- Left: the task -->
+      <div class="min-h-0 space-y-6 overflow-y-auto py-6 lg:col-span-3 lg:pr-8">
+        <div class="flex flex-wrap items-center gap-3">
+          <USelect :model-value="item.status" :items="[...WORK_STATUSES]" :color="workStatusColor(item.status)" variant="subtle" size="sm" class="w-44" @update:model-value="setStatus($event as string)" />
+          <span v-if="item.completed_at" class="text-xs text-muted">Completed {{ stamp(item.completed_at) }}</span>
+        </div>
+
+        <UInput v-model="draft.title" variant="none" size="xl" class="w-full" :ui="{ base: 'text-2xl font-semibold px-0' }" placeholder="Task title" @blur="saveTitle" @keydown.enter.prevent="($event.target as HTMLInputElement).blur()" />
+
+        <dl class="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+          <div class="flex items-center gap-3">
+            <dt class="w-24 shrink-0 text-muted">Assignees</dt>
+            <dd class="min-w-0 flex-1">
+              <USelectMenu v-model="draft.assignees" :items="peopleOptions" value-key="value" multiple variant="ghost" size="sm" class="w-full" placeholder="Nobody yet" @update:model-value="saveAssignees(draft.assignees)">
+                <template #default>
+                  <span v-if="item.work_item_assignees.length" class="flex items-center gap-1">
+                    <span v-for="a in item.work_item_assignees" :key="a.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium" :title="a.profiles?.full_name ?? ''">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                    <span class="ml-1 truncate">{{ item.work_item_assignees.map(a => a.profiles?.full_name).join(', ') }}</span>
+                  </span>
+                  <span v-else class="text-muted">Nobody yet</span>
+                </template>
+              </USelectMenu>
+            </dd>
+          </div>
+          <div class="flex items-center gap-3">
+            <dt class="w-24 shrink-0 text-muted">Priority</dt>
+            <dd class="min-w-0 flex-1">
+              <USelect :model-value="item.priority" :items="[...WORK_PRIORITIES]" variant="ghost" size="sm" class="w-40" @update:model-value="setPriority($event as string)" />
+            </dd>
+          </div>
+          <div class="flex items-center gap-3 sm:col-span-2">
+            <dt class="w-24 shrink-0 text-muted">Dates</dt>
+            <dd class="flex min-w-0 flex-1 items-center gap-2">
+              <UInput v-model="draft.start_on" type="date" variant="ghost" size="sm" @change="saveDates" />
+              <UIcon name="i-lucide-arrow-right" class="size-4 text-dimmed" />
+              <UInput v-model="draft.due_on" type="date" variant="ghost" size="sm" :color="overdue ? 'error' : undefined" @change="saveDates" />
+            </dd>
+          </div>
+          <div class="flex items-center gap-3 sm:col-span-2">
+            <dt class="w-24 shrink-0 text-muted">Estimate</dt>
+            <dd class="flex min-w-0 flex-1 items-center gap-3">
+              <UInput v-model="draft.estimate_hours" type="number" step="0.25" :min="0" variant="ghost" size="sm" class="w-24" placeholder="hours" @change="saveEstimate" />
+              <span class="text-muted">Logged <span class="text-default tabular-nums">{{ formatHours(timeLogged ?? 0) }}</span></span>
+            </dd>
+          </div>
+          <div class="flex items-center gap-3 sm:col-span-2">
+            <dt class="w-24 shrink-0 text-muted">Created</dt>
+            <dd class="text-muted">{{ item.profiles?.full_name }}, {{ stamp(item.created_at) }}</dd>
+          </div>
+        </dl>
+
+        <div>
+          <h2 class="mb-1 text-xs font-semibold uppercase tracking-wider text-dimmed">Description</h2>
+          <UTextarea v-model="draft.description" variant="none" autoresize :rows="3" class="w-full" :ui="{ base: 'px-0' }" placeholder="Add a description" @blur="saveDescription" />
+        </div>
+
+        <div>
+          <div class="mb-2 flex items-center gap-4">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-dimmed">Files <span class="font-normal">{{ attachments?.length ?? 0 }}</span></h2>
+            <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-paperclip" class="ml-auto" @click="attachOpen = true;">Attach</UButton>
+          </div>
+          <UCard :ui="{ body: 'p-0 sm:p-0' }">
+            <ul v-if="attachments?.length" class="divide-y divide-default text-sm">
+              <li v-for="f in attachments" :key="f.id" class="flex items-center gap-3 px-4 py-2">
+                <UIcon :name="f.kind === 'link' ? 'i-lucide-folder-symlink' : 'i-lucide-file'" class="shrink-0 text-muted" />
+                <div class="min-w-0 flex-1">
+                  <button v-if="f.kind === 'upload'" type="button" class="font-medium hover:underline" @click="openFile(f)">{{ f.file_name }}</button>
+                  <a v-else-if="linkHref(f)" :href="linkHref(f)!" class="font-medium hover:underline">{{ f.file_name }}</a>
+                  <span v-else class="font-medium">{{ f.file_name }}</span>
+                  <div class="truncate text-xs text-muted">
+                    <template v-if="f.kind === 'link'">On the server: {{ f.link }}</template>
+                    <template v-else>Shareable copy{{ f.size_bytes ? `, ${size(f.size_bytes)}` : '' }}<template v-if="f.link">, also on the server: {{ f.link }}</template></template>
+                    <span> &middot; {{ f.profiles?.full_name }}, {{ stamp(f.created_at) }}</span>
+                  </div>
+                </div>
+                <UButton v-if="f.link" icon="i-lucide-copy" variant="ghost" color="neutral" size="xs" aria-label="Copy server path" title="Copy server path" @click="copyLink(f)" />
+                <UButton v-if="f.kind === 'link'" icon="i-lucide-cloud-upload" variant="ghost" color="neutral" size="xs" aria-label="Upload a copy to share" title="Upload a copy to share" :loading="attaching && converting?.id === f.id" @click="startConvert(f)" />
+                <UButton v-if="isAdmin || f.uploaded_by === user?.sub" icon="i-lucide-x" variant="ghost" color="neutral" size="xs" aria-label="Remove" @click="removeFile(f)" />
+              </li>
+            </ul>
+            <p v-else class="px-4 py-6 text-center text-sm text-muted">No files. Link to the file on the server, or upload a copy for anyone outside the office.</p>
+          </UCard>
+          <input ref="convertInput" type="file" class="hidden" @change="convertUpload">
+        </div>
+      </div>
+
+      <!-- Right: activity -->
+      <div class="flex min-h-0 flex-col border-t border-default lg:col-span-2 lg:border-l lg:border-t-0 lg:pl-6">
+        <h2 class="shrink-0 py-4 text-xs font-semibold uppercase tracking-wider text-dimmed">Activity <span class="font-normal">{{ comments?.length ?? 0 }}</span></h2>
+        <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+          <ul v-if="comments?.length" class="space-y-4 text-sm">
+            <li v-for="c in comments" :key="c.id" class="flex gap-3">
+              <span class="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(c.author_id ? (c.profiles?.full_name ?? '?') : (c.author_name ?? 'C')) }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-baseline gap-2 text-xs text-muted">
+                  <span class="font-medium text-default">{{ c.author_id ? c.profiles?.full_name : `${c.author_name ?? 'Client'} (client)` }}</span>
+                  <span>{{ stamp(c.created_at) }}</span>
+                  <UButton v-if="isAdmin || c.author_id === user?.sub" icon="i-lucide-x" variant="ghost" color="neutral" size="xs" class="-my-1 ml-auto" aria-label="Remove comment" @click="deleteComment(c.id)" />
+                </div>
+                <p class="mt-0.5 whitespace-pre-line">{{ c.body }}</p>
+              </div>
+            </li>
+          </ul>
+          <p v-else class="text-sm text-muted">No comments yet.</p>
+        </div>
+        <div class="shrink-0 border-t border-default py-4">
+          <UTextarea v-model="commentBody" :rows="2" class="w-full" placeholder="Write a comment. Cmd+Enter to post." autoresize @keydown.meta.enter="addComment" @keydown.ctrl.enter="addComment" />
+          <div class="mt-2 flex justify-end">
+            <UButton size="sm" :loading="commenting" :disabled="!commentBody.trim()" @click="addComment">Comment</UButton>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <UModal v-model:open="attachOpen" title="Attach a file">
+      <template #body>
+        <div class="space-y-4">
+          <div class="flex gap-1">
+            <UButton size="sm" :variant="attachKind === 'link' ? 'solid' : 'ghost'" :color="attachKind === 'link' ? 'primary' : 'neutral'" icon="i-lucide-folder-symlink" @click="attachKind = 'link';">Link to server file</UButton>
+            <UButton size="sm" :variant="attachKind === 'upload' ? 'solid' : 'ghost'" :color="attachKind === 'upload' ? 'primary' : 'neutral'" icon="i-lucide-upload" @click="attachKind = 'upload';">Upload a copy</UButton>
+          </div>
+          <template v-if="attachKind === 'link'">
+            <UFormField label="Path on the server" help="Paste the path or an smb:// link. Nothing is copied; people outside the office cannot open it.">
+              <UInput v-model="linkPath" class="w-full" placeholder="smb://server/Jobs/Client/file.indd" />
+            </UFormField>
+            <UFormField label="Name" help="Optional. Defaults to the file name in the path.">
+              <UInput v-model="linkName" class="w-full" />
+            </UFormField>
+            <div class="flex justify-end">
+              <UButton :loading="attaching" :disabled="!linkPath.trim()" @click="attachLink">Add link</UButton>
+            </div>
+          </template>
+          <template v-else>
+            <p class="text-sm text-muted">Stores a copy in Docket (25 MB max) that anyone can open, including a client on a review link.</p>
+            <input ref="fileInput" type="file" multiple class="block w-full text-sm" @change="attachUpload">
+            <p v-if="attaching" class="text-sm text-muted">Uploading</p>
+          </template>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="deleting" title="Delete this task?">
+      <template #body>
+        <p class="text-sm">Comments and files go with it. Time logged against it stays, just unlinked.</p>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="deleting = false;">Cancel</UButton>
+          <UButton color="error" @click="deleteTask">Delete</UButton>
+        </div>
+      </template>
+    </UModal>
+  </div>
+</template>

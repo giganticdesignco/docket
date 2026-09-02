@@ -15,6 +15,9 @@ const props = defineProps<{
   date: string
   projects: ProjectOption[]
   projectTasks: ProjectTaskOption[]
+  // Logging time against a task: prefills the project and notes and links
+  // the entry to it.
+  workItem?: { id: string, title: string, project_id: string }
 }>()
 const emit = defineEmits<{ saved: [entry: Entry]; cancel: [] }>()
 
@@ -26,9 +29,9 @@ const toast = useToast()
 const running = computed(() => !!props.entry && timer.isRunning(props.entry))
 
 const state = reactive({
-  project_id: props.entry?.project_id as string | undefined,
+  project_id: (props.entry?.project_id ?? props.workItem?.project_id) as string | undefined,
   task_id: props.entry?.task_id as string | undefined,
-  notes: props.entry?.notes ?? '',
+  notes: props.entry?.notes ?? props.workItem?.title ?? '',
   hours: props.entry ? formatHours(props.entry.hours) : '',
   is_billable: props.entry?.is_billable ?? true,
 })
@@ -84,6 +87,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     spent_on: props.entry?.spent_on ?? props.date,
     notes: state.notes.trim() || null,
     is_billable: state.is_billable,
+    work_item_id: props.workItem?.id ?? props.entry?.work_item_id ?? null,
     // A running entry's hours are owned by the timer; leave them alone.
     ...(running.value ? {} : { hours: parseHours(state.hours) ?? 0 }),
   }
