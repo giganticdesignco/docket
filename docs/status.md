@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-01, local session, step 4 built and verified.
+Last updated: 2026-09-02, local session, step 5 built and verified.
 
 ## Where things stand
 
@@ -71,6 +71,44 @@ no rounding.
   no New client, New project, Edit, or Tasks buttons; no Tasks header link;
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
+
+## Step 5: retainers + budget views
+
+- The schema's `project_budget_status` and `retainer_burndown` views run
+  as the caller, so staff would see burn counting only their own hours.
+  The app reads two security definer functions instead, which return
+  totals only: `project_budget(p_project_id)` and `retainer_status()`.
+  Both count everyone's time, skip running timers, and include the
+  Harvest archive where its rows are linked to a Docket project/client.
+  Migration `budget_functions`, mirrored in schema.sql after the views.
+- Rollover (schema TODO 3, now resolved): retainer periods chain when they
+  share client, project, and name and one starts the day after the
+  previous ends. Leftover carries forward when the earlier period has
+  rollover on, capped by its rollover_cap. Archive months count when the
+  first of the month falls inside the period.
+- `relink_harvest_archive()` points archive rows at clients, projects,
+  and people that now exist (matching on name). The live Harvest import
+  calls it after creating projects, so history feeds budgets after the
+  2026 sync runs.
+- Project page: Budget card (hours and billable amount used vs budget,
+  progress bars, colour at 80% and 100%) and Recent entries (last 10 from
+  time_detail; staff see their own). Client page: Retainers card with
+  used / available, carried in, left or over, progress bar, and admin
+  New / Edit / Delete through `RetainerForm`.
+
+Verified: seeded two chained 10 h retainers on Cinc (Aug with 3 billable
+hours, Sep with 3.5 billable and 1 non-billable) and a $1,000 Sep retainer
+on Website. `retainer_status()` returned Aug 3.00 used / 7.00 left, Sep
+carried_in 7.00, available 17.00, used 3.50, remaining 13.50, dollars
+$490 used / $510 left, matching the hand calculation ($140 x 3.5). Both
+pages showed the same numbers; the project page showed 7:30 of 265:00
+and $910 billable. Created and deleted a retainer through the form. Test
+rows deleted afterwards.
+
+Not done: a cross-client retainers overview page (the client page is the
+only place), and client YTD hours (reports, step 7).
+
+Next is step 6: reminders + email.
 
 ## Step 4: expenses + receipts
 

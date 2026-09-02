@@ -23,6 +23,15 @@ export function addDays(s: string, n: number): string {
   return toDateString(d)
 }
 
+// First and last day of the month containing `s`.
+export function startOfMonth(s: string): string {
+  return s.slice(0, 8) + '01'
+}
+export function endOfMonth(s: string): string {
+  const d = parseDateString(s)
+  return toDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0))
+}
+
 // Monday through Sunday of the week containing `s`.
 export function weekDays(s: string): string[] {
   const offset = (parseDateString(s).getDay() + 6) % 7

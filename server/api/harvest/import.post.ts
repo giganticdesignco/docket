@@ -280,5 +280,13 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
     }
   }
 
-  return { imported: rows.length, deleted, fixedRates, skippedUsers: [...skippedUsers.values()], created }
+  // Archive rows were loaded before these clients and projects existed.
+  let relinked = 0
+  if (!dryRun) {
+    const { data, error } = await supabase.rpc('relink_harvest_archive')
+    fail(error)
+    relinked = data ?? 0
+  }
+
+  return { imported: rows.length, deleted, fixedRates, relinked, skippedUsers: [...skippedUsers.values()], created }
 }

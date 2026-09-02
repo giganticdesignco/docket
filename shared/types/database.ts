@@ -1819,9 +1819,37 @@ export type Database = {
     }
     Functions: {
       is_admin: { Args: never; Returns: boolean }
+      project_budget: {
+        Args: { p_project_id: string }
+        Returns: {
+          amount_used: number
+          billable_hours: number
+          hours_used: number
+        }[]
+      }
+      relink_harvest_archive: { Args: never; Returns: number }
       resolve_rate: {
         Args: { p_project_id: string; p_task_id: string; p_user_id: string }
         Returns: number
+      }
+      retainer_status: {
+        Args: never
+        Returns: {
+          allotted: number
+          available: number
+          basis: Database["public"]["Enums"]["retainer_basis"]
+          carried_in: number
+          client_id: string
+          name: string
+          period_end: string
+          period_start: string
+          project_id: string
+          remaining: number
+          retainer_id: string
+          rollover: boolean
+          rollover_cap: number
+          used: number
+        }[]
       }
     }
     Enums: {

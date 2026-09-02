@@ -26,7 +26,9 @@
 --         so, that moves to QBO Payments too.
 -- 2. E-signature on quotes: not handled. accepted_by is a typed name.
 --    Keep PandaDoc if legally signable docs are required.
--- 3. Retainer rollover columns exist but no logic consumes them yet.
+-- 3. RESOLVED in step 5: retainer_status() chains contiguous periods
+--    (same client, project, name) and carries leftover forward when the
+--    earlier period has rollover on, capped by its rollover_cap.
 -- 4. No invoice tables by design (see 1). CSV export is app-side;
 --    saved_reports stores definitions, not output.
 -- 5. capacity_weekly counts time off across all 7 days of a week.
@@ -35,7 +37,7 @@
 -- 6. quotes.public_token (for the /q/[token] public zone) is not here
 --    yet. Add it in step 10.
 -- 7. RESOLVED in step 4: receipts bucket + storage policies are in
---    section 5 at the bottom. Local check stubs the storage schema.
+--    section 6 at the bottom. Local check stubs the storage schema.
 -- 8. Auth setup in the Supabase dashboard (not expressible in SQL):
 --    Google provider on, "Allow new users to sign up" OFF, users are
 --    added via Authentication > Users > Invite. Google Workspace domain
@@ -633,6 +635,8 @@ select period_month, client_name, project_name, user_name, task_name,
 from harvest_archive_monthly;
 
 -- Budget burn per project.
+-- Admin-only. Runs as the caller, so staff would see only their own
+-- hours. The app reads project_budget() instead.
 create view project_budget_status with (security_invoker = true) as
 select
   p.id as project_id,
@@ -652,6 +656,8 @@ left join time_detail td on td.project_id = p.id
 group by p.id, p.name, c.name, p.billing_method, p.budget_hours, p.budget_amount;
 
 -- Retainer burn-down = sum of billable time in the window, against allotted.
+-- Admin-only, same caveat. The app reads retainer_status() instead,
+-- which also handles rollover.
 create view retainer_burndown with (security_invoker = true) as
 select
   r.id as retainer_id,
@@ -758,6 +764,138 @@ select extract(year from period_month)::int as year,
        max(period_month)  as last_month
 from harvest_archive_monthly
 group by 1;
+
+-- ---------- Aggregates the app reads ----------
+-- The views above run as the caller, so a staff member would see budget
+-- burn and retainer use counting only their own hours. These are security
+-- definer, return totals only, count everyone's time, and include the
+-- Harvest archive where it is linked to a Docket client or project.
+
+-- Lifetime burn for one project. Running timers are left out.
+create or replace function public.project_budget(p_project_id uuid)
+returns table (hours_used numeric, billable_hours numeric, amount_used numeric)
+language sql stable security definer
+set search_path = ''
+as $$
+  with live as (
+    select coalesce(sum(te.hours), 0) as hours,
+           coalesce(sum(case when te.is_billable then te.hours else 0 end), 0) as billable_hours,
+           coalesce(sum(case when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end), 0) as amount
+    from public.time_entries te
+    where te.project_id = p_project_id
+      and (te.ended_at is not null or te.started_at is null)
+  ), arch as (
+    select coalesce(sum(a.hours), 0) as hours,
+           coalesce(sum(a.billable_hours), 0) as billable_hours,
+           coalesce(sum(a.amount), 0) as amount
+    from public.harvest_archive_monthly a
+    where a.project_id = p_project_id
+  )
+  select live.hours + arch.hours, live.billable_hours + arch.billable_hours, live.amount + arch.amount
+  from live, arch;
+$$;
+
+-- Every retainer with use and rollover worked out. Periods chain when they
+-- share client, project, and name and one starts the day after the previous
+-- ends. A period's leftover carries into the next when the earlier period
+-- has rollover on, capped by its rollover_cap (null = uncapped). Archive
+-- months count when their first day falls inside the period.
+create or replace function public.retainer_status()
+returns table (
+  retainer_id uuid, client_id uuid, project_id uuid, name text,
+  basis public.retainer_basis, period_start date, period_end date,
+  allotted numeric, rollover boolean, rollover_cap numeric,
+  carried_in numeric, used numeric, available numeric, remaining numeric
+)
+language plpgsql stable security definer
+set search_path = ''
+as $$
+declare
+  r record;
+  prev_chain text := null;
+  prev_end date := null;
+  prev_leftover numeric := 0;
+begin
+  for r in
+    select x.id, x.client_id, x.project_id, x.name, x.basis, x.period_start, x.period_end,
+           x.allotted, x.rollover, x.rollover_cap,
+           x.client_id::text || '|' || coalesce(x.project_id::text, '') || '|' || lower(x.name) as chain,
+           coalesce((
+             select sum(case when x.basis = 'hours' then te.hours else te.hours * coalesce(te.rate_snapshot, 0) end)
+             from public.time_entries te
+             join public.projects p on p.id = te.project_id
+             where p.client_id = x.client_id
+               and (x.project_id is null or p.id = x.project_id)
+               and te.is_billable
+               and te.spent_on between x.period_start and x.period_end
+               and (te.ended_at is not null or te.started_at is null)
+           ), 0)
+           + coalesce((
+             select sum(case when x.basis = 'hours' then a.billable_hours else a.amount end)
+             from public.harvest_archive_monthly a
+             where a.client_id = x.client_id
+               and (x.project_id is null or a.project_id = x.project_id)
+               and a.period_month between x.period_start and x.period_end
+           ), 0) as used_total
+    from public.retainers x
+    order by chain, x.period_start
+  loop
+    if r.chain is distinct from prev_chain or prev_end is null or r.period_start <> prev_end + 1 then
+      prev_leftover := 0;
+    end if;
+    retainer_id := r.id;
+    client_id := r.client_id;
+    project_id := r.project_id;
+    name := r.name;
+    basis := r.basis;
+    period_start := r.period_start;
+    period_end := r.period_end;
+    allotted := r.allotted;
+    rollover := r.rollover;
+    rollover_cap := r.rollover_cap;
+    carried_in := prev_leftover;
+    used := r.used_total;
+    available := r.allotted + carried_in;
+    remaining := available - used;
+    return next;
+    prev_chain := r.chain;
+    prev_end := r.period_end;
+    prev_leftover := case when r.rollover
+                          then least(greatest(remaining, 0), coalesce(r.rollover_cap, remaining))
+                          else 0 end;
+  end loop;
+end;
+$$;
+
+-- Point archive rows at Docket clients, projects, and people that exist
+-- now (the live Harvest import creates them after the archive was loaded).
+-- Runs as the caller; only admins can update the archive.
+create or replace function public.relink_harvest_archive()
+returns integer
+language plpgsql
+set search_path = ''
+as $$
+declare
+  n integer := 0;
+  m integer;
+begin
+  update public.harvest_archive_monthly a set client_id = c.id
+    from public.clients c
+   where a.client_id is null and lower(a.client_name) = lower(c.name);
+  get diagnostics m = row_count; n := n + m;
+  update public.harvest_archive_monthly a set project_id = p.id
+    from public.projects p join public.clients c on c.id = p.client_id
+   where a.project_id is null
+     and lower(a.project_name) = lower(p.name)
+     and lower(a.client_name) = lower(c.name);
+  get diagnostics m = row_count; n := n + m;
+  update public.harvest_archive_monthly a set user_id = pr.id
+    from public.profiles pr
+   where a.user_id is null and lower(a.user_name) = lower(pr.full_name);
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end;
+$$;
 
 -- ============================================================
 -- 4. ROW LEVEL SECURITY
@@ -910,9 +1048,12 @@ revoke execute on function public.protect_profile_columns()  from public, anon, 
 revoke execute on function public.set_rate_snapshot()        from public, anon, authenticated;
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
+revoke execute on function public.project_budget(uuid)       from public, anon;
+revoke execute on function public.retainer_status()          from public, anon;
+revoke execute on function public.relink_harvest_archive()   from public, anon;
 
 -- ============================================================
--- 5. STORAGE
+-- 6. STORAGE
 -- Receipts live in the private `receipts` bucket, one folder per person:
 --   receipts/<user_id>/<uuid>.<ext>
 -- Owners read and write their own folder; admins read and delete any.
