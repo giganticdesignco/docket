@@ -15,11 +15,12 @@ export default defineNuxtConfig({
     '/time': { ssr: false },
   },
   supabase: {
-    // Public quote links (/q/[token]) must never bounce to the login screen.
+    // Public quote (/q/[token]) and invoice (/i/[token]) links must never
+    // bounce to the login screen.
     redirectOptions: {
       login: '/login',
       callback: '/callback',
-      exclude: ['/q/**', '/login', '/callback'],
+      exclude: ['/q/**', '/i/**', '/login', '/callback'],
     },
     types: '~~/shared/types/database.ts',
   },

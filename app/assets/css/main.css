@@ -1,2 +1,9 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* Printing an invoice (/i/[token] or the admin preview): just the sheet. */
+@media print {
+  header { display: none !important; }
+  body { background: white !important; }
+  .invoice-page { min-height: 0 !important; }
+}

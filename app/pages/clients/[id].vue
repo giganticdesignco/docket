@@ -36,7 +36,19 @@ const { data: retainers, refresh: refreshRetainers } = await useAsyncData(`clien
   return data.filter(r => r.client_id === id).sort((a, b) => b.period_start.localeCompare(a.period_start))
 }, fresh)
 
-// Harvest invoice history. RLS gives staff nothing, so no admin check here.
+// Docket invoices, then Harvest history. RLS gives staff nothing for
+// either, so no admin check on the queries.
+const { data: docketInvoices } = await useAsyncData(`client-${id}-docket-invoices`, async () => {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('id, number, subject, status, issue_date, due_date, total, due_amount')
+    .eq('client_id', id)
+    .order('issue_date', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data
+}, fresh)
+
 const { data: invoices } = await useAsyncData(`client-${id}-invoices`, async () => {
   const { data, error } = await supabase
     .from('harvest_invoices')
@@ -84,10 +96,16 @@ async function confirmDeleteRetainer() {
 }
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
-const invoiceColor = (inv: { state: string, due_date: string | null }) =>
-  inv.state === 'paid' ? 'success' : inv.state === 'open' ? (inv.due_date && inv.due_date < todayString() ? 'error' : 'warning') : 'neutral'
-const invoiceLabel = (inv: { state: string, due_date: string | null }) =>
-  inv.state === 'open' && inv.due_date && inv.due_date < todayString() ? 'overdue' : inv.state
+// Harvest uses open/paid/closed, Docket uses draft/sent/paid/void; both get
+// an "overdue" badge when open past the due date.
+type InvoiceLike = { state?: string, status?: string, due_date: string | null }
+const isOpen = (inv: InvoiceLike) => (inv.state ?? inv.status) === 'open' || (inv.state ?? inv.status) === 'sent'
+const invoiceColor = (inv: InvoiceLike) => {
+  const st = inv.state ?? inv.status
+  return st === 'paid' ? 'success' : isOpen(inv) ? (inv.due_date && inv.due_date < todayString() ? 'error' : 'warning') : 'neutral'
+}
+const invoiceLabel = (inv: InvoiceLike) =>
+  isOpen(inv) && inv.due_date && inv.due_date < todayString() ? 'overdue' : (inv.state ?? inv.status ?? '')
 </script>
 
 <template>
@@ -167,6 +185,38 @@ const invoiceLabel = (inv: { state: string, due_date: string | null }) =>
     </UCard>
 
     <template v-if="isAdmin">
+      <div class="flex items-center gap-4">
+        <h2 class="text-lg font-semibold">Invoices</h2>
+        <UButton :to="`/billing/new?client=${id}`" class="ml-auto" size="sm" variant="outline" icon="i-lucide-plus">New batch</UButton>
+      </div>
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <table v-if="docketInvoices?.length" class="w-full text-sm">
+          <thead class="text-left text-muted">
+            <tr class="border-b border-default">
+              <th class="px-4 py-2 font-medium">Number</th>
+              <th class="px-2 py-2 font-medium">Subject</th>
+              <th class="px-2 py-2 font-medium">Issued</th>
+              <th class="px-2 py-2 font-medium">Due</th>
+              <th class="px-2 py-2 text-right font-medium">Total</th>
+              <th class="px-2 py-2 text-right font-medium">Outstanding</th>
+              <th class="px-4 py-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inv in docketInvoices" :key="inv.id" class="border-b border-default last:border-0">
+              <td class="px-4 py-2 font-medium tabular-nums"><NuxtLink :to="`/invoices/${inv.id}`" class="hover:underline">{{ inv.number }}</NuxtLink></td>
+              <td class="max-w-sm truncate px-2 py-2 text-muted" :title="inv.subject ?? ''">{{ inv.subject }}</td>
+              <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.issue_date) }}</td>
+              <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.due_date) }}</td>
+              <td class="px-2 py-2 text-right tabular-nums">{{ money(inv.total) }}</td>
+              <td class="px-2 py-2 text-right tabular-nums">{{ inv.status === 'sent' ? money(inv.due_amount) : '' }}</td>
+              <td class="px-4 py-2"><UBadge :color="invoiceColor(inv)" variant="subtle" size="sm">{{ invoiceLabel(inv) }}</UBadge></td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No Docket invoices yet. Make a batch, then create the invoice from it.</p>
+      </UCard>
+
       <h2 class="text-lg font-semibold">Harvest invoices</h2>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <table v-if="invoices?.length" class="w-full text-sm">

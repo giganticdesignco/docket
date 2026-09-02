@@ -88,6 +88,85 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Step 8: invoicing, Docket owns it (2026-09-02)
+
+Luke picked option 1: Docket invoices end to end. Built and verified the
+same day. Migrations `billing_batch_invoiced_status` (enum value) and
+`invoicing`, mirrored in schema.sql (type in section 0, tables after
+Expenses, functions before section 4, policies in 4, grants in 5, the
+reminder function and cron in 7). CLAUDE.md's "we do NOT invoice" is
+rewritten.
+
+Data:
+
+- `invoice_settings` (one row): company block, payment instructions,
+  default terms and tax rate, default notes, `next_invoice_number`,
+  `remind_overdue`, `remind_every_days`. Admin page
+  `/admin/invoice-settings` (Admin menu). Set the next number once so
+  numbering continues from Harvest's last invoice.
+- `invoices`: number (text, unique, editable while draft), client,
+  optional `batch_id` (a batch has one live invoice; a voided one can be
+  redone), status draft / sent / paid / void, subject, notes, dates, tax
+  rate, subtotal / tax / total / paid / due (maintained by
+  `recalc_invoice()` from triggers on lines, payments, and tax rate),
+  `public_token` (64 hex chars), sent_at, sent_to[], last_reminded_at,
+  paid_at.
+- `invoice_lines` (kind service / expense / other, quantity, unit price,
+  generated amount, taxable, project) and `invoice_payments` (date,
+  amount, method, reference, notes).
+- `create_invoice(client, batch default null)`: numbers the draft from the
+  settings counter, and from a draft batch makes one line per project,
+  task, and rate (hours x rate) plus one per project and expense
+  category, then marks the batch `invoiced`. `void_invoice()` refuses if
+  payments exist, otherwise voids and puts the batch back to draft.
+- RLS: all four tables admin only. Staff see nothing.
+
+App:
+
+- `/invoices`: outstanding, overdue, and draft counts; filters; blank
+  invoice for a client (fixed fees, deposits).
+- `/invoices/[id]`: draft editor (number, dates, tax rate, subject, notes,
+  lines with add and remove; Save rewrites the lines), Preview (public
+  page), Copy link, Send, Mark as sent, Void. Once sent: the document,
+  payments (record and remove), Send again, Send reminder, Void. Paid:
+  document and payments only.
+- Batch page: Create invoice (draft batches) or a link to its invoice.
+  Client page: Docket invoices card above the Harvest one.
+- Public page `/i/<token>` (excluded from the auth redirect, service role
+  route `server/api/i/[token].get.ts` that returns only that invoice):
+  white printable sheet from `InvoiceDocument.vue` with a Download PDF
+  button that calls the browser's print. The batch detail (every time
+  entry and expense) prints after the totals.
+- Email: `server/api/invoices/send.post.ts`, admin only, reads
+  `resend_api_key` and `resend_from` from Vault through `vault_secret()`
+  (now granted to service_role), sends text plus HTML with a View invoice
+  button, links to the request origin so local and live both work,
+  reply-to is the company email. First send flips draft to sent and
+  records sent_to; a reminder stamps last_reminded_at. Resend's test
+  sender only delivers to luke@ until the domain is verified.
+- Overdue reminders: `run_invoice_reminders(dry_run, force)` on a second
+  pg_cron job (`docket-invoice-reminders`, :10 hourly, acts in the 9am
+  Central hour) when `remind_overdue` is on; emails each sent, unpaid,
+  past-due invoice's recipients every `remind_every_days` with the public
+  link and payment instructions.
+
+Verified as luke@ in Chrome: saved settings; batch for Dupaco, Create
+invoice gave draft #1 with two lines from the batch ($37.50 time at
+$150/h, $6.00 expense), subject saved and shown in the preview; Send to
+luke@ returned Resend 200 and the invoice went to sent with sent_to; the
+public page loaded with no session (curl 200, bad token 404, signed-out
+send route 403); recorded a $43.50 check and the invoice went to paid
+with paid_at; removed the payment and it went back to sent (overdue,
+since the dates were pushed back for the reminder test); the reminder
+dry run listed invoice 1 for luke@; Void put the batch back to draft; the
+invoices list and the client card showed it as void. Test invoice and
+batch deleted, counter reset to 1, reminders left off.
+
+Not built: online card or ACH payment, attaching the PDF to the email
+(the link is the PDF), a Harvest-style client portal listing all their
+invoices, per-line tax rates, credit notes. Harvest invoice history is
+still waiting on an administrator token.
+
 ## Billing batches UI and Harvest invoice import (added 2026-09-02)
 
 Built after Luke learned billing runs through Harvest (see step 7's
@@ -248,12 +327,10 @@ deleted a report.
 Not built: capacity_weekly and project_budget_status as report sources,
 relative date ranges ("this month"), scheduled or emailed reports.
 
-Step 8 needs a decision first (2026-09-02). Luke learned that Gigantic
-does all billing through Harvest, invoices and payment follow-up
-included, not QuickBooks. CLAUDE.md's "we do NOT invoice, QBO owns
-invoice numbers, AR, and payment status" was the wrong premise, so a
-QBO push alone would not let Harvest be cancelled. Options, for Luke to
-pick:
+Step 8 (2026-09-02): Luke learned that Gigantic does all billing through
+Harvest, invoices and payment follow-up included, not QuickBooks, and
+chose option 1 below. See "Step 8: invoicing, Docket owns it" above. The
+options as they were put to him:
 
 1. Docket owns invoicing: invoice numbers, line items from a batch, PDF,
    email through Resend, sent/paid/overdue status, and overdue reminders

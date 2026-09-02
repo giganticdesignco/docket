@@ -37,8 +37,11 @@ writing queries. Key things that are not obvious:
   timer UI must handle that conflict, not prevent it optimistically.
 - `time_monthly_all` unions live data with `harvest_archive_monthly` so
   year-over-year reporting works across the cutover.
-- We do NOT invoice. `billing_batches` groups unbilled work and pushes to
-  QuickBooks Online. QBO owns invoice numbers, AR, and payment status.
+- Docket invoices (decided 2026-09-02; Gigantic billed through Harvest,
+  not QuickBooks). `billing_batches` groups and locks unbilled work;
+  `create_invoice()` turns a batch into an `invoices` row with lines.
+  Money columns on invoices come from `recalc_invoice()` triggers, never
+  app code. The public invoice page is `/i/<public_token>`.
 
 ## Roles
 
@@ -73,16 +76,16 @@ Currently on step 1. Do not skip ahead.
 5. Retainers + budget views
 6. Reminders + email
 7. Reports + CSV
-8. QuickBooks push  ← Harvest can be cancelled after this
+8. Invoicing in Docket  ← Harvest can be cancelled after this
 9. Capacity + ClickUp sync
 10. Quoting
 
 ## Gotchas
 
-- `redirectOptions.exclude: ['/q/**', '/login', '/callback']` in the
-  Supabase module config. Without it, client-facing quote links bounce to
-  a login screen.
+- `redirectOptions.exclude: ['/q/**', '/i/**', '/login', '/callback']` in
+  the Supabase module config. Without it, client-facing quote and invoice
+  links bounce to a login screen.
 - QuickBooks OAuth refresh tokens expire every 100 days. Handle re-auth
   and alert on failure, or the push dies silently.
-- Assume QuickBooks Online. If it turns out to be Desktop, step 8 is a
-  CSV/IIF import instead.
+- QuickBooks is not in the billing path any more. The `qbo_*` columns on
+  clients, tasks, and billing_batches are unused scaffolding.

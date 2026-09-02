@@ -25,7 +25,7 @@ const { data: batches } = await useAsyncData('billing-batches', async () => {
 const unbilledTotal = computed(() => (unbilled.value ?? []).reduce((sum, r) => sum + r.time_amount + r.expense_amount, 0))
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const statusColor: Record<string, 'neutral' | 'warning' | 'success' | 'error'> = {
-  draft: 'neutral', pushing: 'warning', pushed: 'success', failed: 'error', void: 'neutral',
+  draft: 'neutral', pushing: 'warning', pushed: 'success', failed: 'error', void: 'neutral', invoiced: 'success',
 }
 </script>
 

@@ -40,6 +40,13 @@ const { data: expenses, refresh: refreshExpenses } = await useAsyncData(`batch-$
   return data
 }, fresh)
 
+// The live invoice made from this batch, if any.
+const { data: invoice, refresh: refreshInvoice } = await useAsyncData(`batch-${id}-invoice`, async () => {
+  const { data, error } = await supabase.from('invoices').select('id, number, status').eq('batch_id', id).neq('status', 'void').maybeSingle()
+  if (error) throw error
+  return data
+}, fresh)
+
 useHead({ title: () => (batch.value ? `Batch for ${batch.value.clients?.name ?? 'client'}` : 'Batch') })
 
 const hours = computed(() => (time.value ?? []).reduce((s, r) => s + (r.hours ?? 0), 0))
@@ -47,9 +54,26 @@ const timeAmount = computed(() => (time.value ?? []).reduce((s, r) => s + (r.amo
 const expenseAmount = computed(() => (expenses.value ?? []).reduce((s, r) => s + r.amount, 0))
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const statusColor: Record<string, 'neutral' | 'warning' | 'success' | 'error'> = {
-  draft: 'neutral', pushing: 'warning', pushed: 'success', failed: 'error', void: 'neutral',
+  draft: 'neutral', pushing: 'warning', pushed: 'success', failed: 'error', void: 'neutral', invoiced: 'success',
 }
 const canVoid = computed(() => batch.value?.status === 'draft' || batch.value?.status === 'failed')
+
+const invoicing = ref(false)
+async function createInvoice() {
+  const b = batch.value
+  if (!b) return
+  invoicing.value = true
+  try {
+    const { data, error } = await supabase.rpc('create_invoice', { p_client_id: b.client_id, p_batch_id: b.id })
+    if (error) throw error
+    await navigateTo(`/invoices/${data}`)
+  } catch (e) {
+    toast.add({ title: 'Could not create the invoice', description: (e as Error).message, color: 'error' })
+    await Promise.all([refresh(), refreshInvoice()])
+  } finally {
+    invoicing.value = false
+  }
+}
 
 function exportCsv() {
   const b = batch.value
@@ -100,6 +124,8 @@ async function voidBatch() {
       </h1>
       <UBadge :color="statusColor[batch.status]" variant="subtle">{{ batch.status }}</UBadge>
       <div class="ml-auto flex gap-2">
+        <UButton v-if="invoice" :to="`/invoices/${invoice.id}`" variant="outline" icon="i-lucide-file-text">Invoice {{ invoice.number }}</UButton>
+        <UButton v-else-if="batch.status === 'draft'" icon="i-lucide-file-plus" :loading="invoicing" @click="createInvoice">Create invoice</UButton>
         <UButton variant="outline" color="neutral" icon="i-lucide-download" :disabled="!time?.length && !expenses?.length" @click="exportCsv">Export CSV</UButton>
         <UButton v-if="canVoid" variant="outline" color="error" icon="i-lucide-undo-2" @click="confirmingVoid = true;">Void batch</UButton>
       </div>
@@ -129,6 +155,7 @@ async function voidBatch() {
         <span v-if="batch.qbo_doc_number">QuickBooks invoice {{ batch.qbo_doc_number }}.</span>
         <span v-if="batch.qbo_error" class="text-error">Last push failed: {{ batch.qbo_error }}</span>
         <span v-if="batch.status === 'void'">Voided; the rows below were released.</span>
+        <span v-if="batch.status === 'invoiced'">Invoiced; void the invoice first to change anything here.</span>
       </p>
     </UCard>
 

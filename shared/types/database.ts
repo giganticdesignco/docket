@@ -840,6 +840,340 @@ export type Database = {
           },
         ]
       }
+      invoice_lines: {
+        Row: {
+          amount: number | null
+          description: string
+          id: string
+          invoice_id: string
+          kind: string
+          position: number
+          project_id: string | null
+          quantity: number
+          taxable: boolean
+          unit_price: number
+        }
+        Insert: {
+          amount?: number | null
+          description: string
+          id?: string
+          invoice_id: string
+          kind?: string
+          position?: number
+          project_id?: string | null
+          quantity?: number
+          taxable?: boolean
+          unit_price?: number
+        }
+        Update: {
+          amount?: number | null
+          description?: string
+          id?: string
+          invoice_id?: string
+          kind?: string
+          position?: number
+          project_id?: string | null
+          quantity?: number
+          taxable?: boolean
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_budget_status"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
+      invoice_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string
+          id: string
+          invoice_id: string
+          method: string | null
+          notes: string | null
+          paid_on: string
+          reference: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by: string
+          id?: string
+          invoice_id: string
+          method?: string | null
+          notes?: string | null
+          paid_on?: string
+          reference?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string
+          id?: string
+          invoice_id?: string
+          method?: string | null
+          notes?: string | null
+          paid_on?: string
+          reference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_settings: {
+        Row: {
+          company_address: string | null
+          company_email: string | null
+          company_name: string
+          company_phone: string | null
+          default_notes: string | null
+          default_tax_rate: number
+          default_terms_days: number
+          id: boolean
+          next_invoice_number: number
+          payment_instructions: string | null
+          remind_every_days: number
+          remind_overdue: boolean
+        }
+        Insert: {
+          company_address?: string | null
+          company_email?: string | null
+          company_name?: string
+          company_phone?: string | null
+          default_notes?: string | null
+          default_tax_rate?: number
+          default_terms_days?: number
+          id?: boolean
+          next_invoice_number?: number
+          payment_instructions?: string | null
+          remind_every_days?: number
+          remind_overdue?: boolean
+        }
+        Update: {
+          company_address?: string | null
+          company_email?: string | null
+          company_name?: string
+          company_phone?: string | null
+          default_notes?: string | null
+          default_tax_rate?: number
+          default_terms_days?: number
+          id?: boolean
+          next_invoice_number?: number
+          payment_instructions?: string | null
+          remind_every_days?: number
+          remind_overdue?: boolean
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          batch_id: string | null
+          client_id: string
+          created_at: string
+          created_by: string
+          due_amount: number
+          due_date: string
+          id: string
+          issue_date: string
+          last_reminded_at: string | null
+          notes: string | null
+          number: string
+          paid_amount: number
+          paid_at: string | null
+          public_token: string
+          sent_at: string | null
+          sent_to: string[] | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subject: string | null
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          batch_id?: string | null
+          client_id: string
+          created_at?: string
+          created_by: string
+          due_amount?: number
+          due_date: string
+          id?: string
+          issue_date?: string
+          last_reminded_at?: string | null
+          notes?: string | null
+          number: string
+          paid_amount?: number
+          paid_at?: string | null
+          public_token?: string
+          sent_at?: string | null
+          sent_to?: string[] | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subject?: string | null
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_id?: string | null
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          due_amount?: number
+          due_date?: string
+          id?: string
+          issue_date?: string
+          last_reminded_at?: string | null
+          notes?: string | null
+          number?: string
+          paid_amount?: number
+          paid_at?: string | null
+          public_token?: string
+          sent_at?: string | null
+          sent_to?: string[] | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subject?: string | null
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "billing_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_expenses"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1940,7 +2274,12 @@ export type Database = {
         }
         Returns: string
       }
+      create_invoice: {
+        Args: { p_batch_id?: string; p_client_id: string }
+        Returns: string
+      }
       is_admin: { Args: never; Returns: boolean }
+      next_invoice_number: { Args: never; Returns: string }
       project_budget: {
         Args: { p_project_id: string }
         Returns: {
@@ -1958,6 +2297,7 @@ export type Database = {
           project_id: string
         }[]
       }
+      recalc_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
       relink_harvest_archive: { Args: never; Returns: number }
       report_time_monthly: {
         Args: {
@@ -2002,6 +2342,14 @@ export type Database = {
           used: number
         }[]
       }
+      run_invoice_reminders: {
+        Args: { p_dry_run?: boolean; p_force?: boolean }
+        Returns: {
+          invoice_number: string
+          sent: boolean
+          to_emails: string[]
+        }[]
+      }
       run_reminders: {
         Args: { p_dry_run?: boolean }
         Returns: {
@@ -2039,11 +2387,19 @@ export type Database = {
         Returns: string
       }
       void_billing_batch: { Args: { p_batch_id: string }; Returns: undefined }
+      void_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
     }
     Enums: {
       audit_action: "insert" | "update" | "delete"
-      billing_batch_status: "draft" | "pushing" | "pushed" | "failed" | "void"
+      billing_batch_status:
+        | "draft"
+        | "pushing"
+        | "pushed"
+        | "failed"
+        | "void"
+        | "invoiced"
       billing_method: "hourly" | "fixed" | "retainer" | "non_billable"
+      invoice_status: "draft" | "sent" | "paid" | "void"
       quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
       reminder_kind: "timer_left_running" | "missing_time" | "timesheet_nudge"
       retainer_basis: "hours" | "amount"
@@ -2177,8 +2533,16 @@ export const Constants = {
   public: {
     Enums: {
       audit_action: ["insert", "update", "delete"],
-      billing_batch_status: ["draft", "pushing", "pushed", "failed", "void"],
+      billing_batch_status: [
+        "draft",
+        "pushing",
+        "pushed",
+        "failed",
+        "void",
+        "invoiced",
+      ],
       billing_method: ["hourly", "fixed", "retainer", "non_billable"],
+      invoice_status: ["draft", "sent", "paid", "void"],
       quote_status: ["draft", "sent", "accepted", "declined", "expired"],
       reminder_kind: ["timer_left_running", "missing_time", "timesheet_nudge"],
       retainer_basis: ["hours", "amount"],

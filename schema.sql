@@ -60,8 +60,9 @@ create type retainer_basis       as enum ('hours', 'amount');
 create type quote_status         as enum ('draft', 'sent', 'accepted', 'declined', 'expired');
 create type time_off_kind        as enum ('pto', 'holiday', 'unpaid', 'sick');
 create type reminder_kind        as enum ('timer_left_running', 'missing_time', 'timesheet_nudge');
+create type invoice_status       as enum ('draft', 'sent', 'paid', 'void');
 create type audit_action         as enum ('insert', 'update', 'delete');
-create type billing_batch_status as enum ('draft', 'pushing', 'pushed', 'failed', 'void');
+create type billing_batch_status as enum ('draft', 'pushing', 'pushed', 'failed', 'void', 'invoiced');
 
 -- ============================================================
 -- 1. FUNCTIONS
@@ -406,6 +407,88 @@ create trigger expenses_audit
 
 create index expenses_project_date on expenses (project_id, spent_on);
 create index expenses_batch        on expenses (batch_id);
+
+-- ---------- Invoicing ----------
+-- Docket owns invoicing (decided 2026-09-02, see TODO 1). An invoice is
+-- usually made from a billing batch (lines grouped from its time and
+-- expenses) but can also be built by hand. Totals are kept by
+-- recalc_invoice() whenever lines, payments, or the tax rate change.
+-- The public page /i/<public_token> is the "PDF"; the browser prints it.
+
+create table invoice_settings (
+  id                   boolean primary key default true check (id),   -- one row
+  company_name         text not null default 'Gigantic Design Co.',
+  company_address      text,                 -- printed as typed, line breaks kept
+  company_email        text,
+  company_phone        text,
+  payment_instructions text,                 -- printed on every invoice and reminder
+  default_terms_days   int not null default 30,
+  default_notes        text,
+  default_tax_rate     numeric(5,2) not null default 0,
+  next_invoice_number  int not null default 1, -- set to continue Harvest's sequence
+  remind_overdue       boolean not null default false,
+  remind_every_days    int not null default 7 check (remind_every_days > 0)
+);
+insert into invoice_settings (id) values (true) on conflict do nothing;
+
+create table invoices (
+  id               uuid primary key default gen_random_uuid(),
+  number           text not null unique,
+  client_id        uuid not null references clients(id) on delete restrict,
+  batch_id         uuid references billing_batches(id) on delete set null,
+  status           invoice_status not null default 'draft',
+  subject          text,
+  notes            text,
+  issue_date       date not null default current_date,
+  due_date         date not null,
+  tax_rate         numeric(5,2) not null default 0,
+  subtotal         numeric(12,2) not null default 0,
+  tax_amount       numeric(12,2) not null default 0,
+  total            numeric(12,2) not null default 0,
+  paid_amount      numeric(12,2) not null default 0,
+  due_amount       numeric(12,2) not null default 0,
+  public_token     text not null unique
+                   default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  sent_at          timestamptz,
+  sent_to          text[],
+  last_reminded_at timestamptz,
+  paid_at          timestamptz,
+  created_by       uuid not null references profiles(id) on delete restrict,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  check (due_date >= issue_date)
+);
+create index invoices_client on invoices (client_id, issue_date desc);
+create index invoices_status on invoices (status, due_date);
+-- A batch has at most one live invoice; a voided one may be redone.
+create unique index invoices_batch on invoices (batch_id) where batch_id is not null and status <> 'void';
+
+create table invoice_lines (
+  id          uuid primary key default gen_random_uuid(),
+  invoice_id  uuid not null references invoices(id) on delete cascade,
+  position    int not null default 0,
+  kind        text not null default 'service' check (kind in ('service', 'expense', 'other')),
+  description text not null,
+  quantity    numeric(10,2) not null default 1,
+  unit_price  numeric(12,2) not null default 0,
+  amount      numeric(12,2) generated always as (round(quantity * unit_price, 2)) stored,
+  taxable     boolean not null default false,
+  project_id  uuid references projects(id) on delete set null
+);
+create index invoice_lines_invoice on invoice_lines (invoice_id, position);
+
+create table invoice_payments (
+  id          uuid primary key default gen_random_uuid(),
+  invoice_id  uuid not null references invoices(id) on delete cascade,
+  paid_on     date not null default current_date,
+  amount      numeric(12,2) not null check (amount > 0),
+  method      text,                          -- check, ach, card, other
+  reference   text,                          -- check number, transaction id
+  notes       text,
+  created_by  uuid not null references profiles(id) on delete restrict,
+  created_at  timestamptz not null default now()
+);
+create index invoice_payments_invoice on invoice_payments (invoice_id, paid_on);
 
 -- ---------- Quoting (phase 3 scaffolding) ----------
 -- Replaces PandaDoc. A quote is accepted -> it becomes a project,
@@ -1100,6 +1183,158 @@ language sql security definer set search_path = '' stable as $$
   order by coalesce(t.amount, 0) + coalesce(e.amount, 0) desc
 $$;
 
+-- ---------- Invoicing ----------
+
+-- Recompute one invoice's money columns from its lines and payments. A
+-- sent invoice becomes paid when payments cover the total, and goes back
+-- to sent if a payment is removed.
+create or replace function public.recalc_invoice(p_invoice_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_sub     numeric := 0;
+  v_taxable numeric := 0;
+  v_paid    numeric := 0;
+  v_rate    numeric;
+  v_status  public.invoice_status;
+  v_tax     numeric;
+  v_total   numeric;
+begin
+  select tax_rate, status into v_rate, v_status from public.invoices where id = p_invoice_id;
+  if v_rate is null then return; end if;
+  select coalesce(sum(amount), 0), coalesce(sum(amount) filter (where taxable), 0)
+    into v_sub, v_taxable from public.invoice_lines where invoice_id = p_invoice_id;
+  select coalesce(sum(amount), 0) into v_paid from public.invoice_payments where invoice_id = p_invoice_id;
+  v_tax := round(v_taxable * v_rate / 100, 2);
+  v_total := v_sub + v_tax;
+  update public.invoices set
+    subtotal    = v_sub,
+    tax_amount  = v_tax,
+    total       = v_total,
+    paid_amount = v_paid,
+    due_amount  = v_total - v_paid,
+    status      = case when v_status = 'sent' and v_paid > 0 and v_paid >= v_total then 'paid'
+                       when v_status = 'paid' and v_paid < v_total then 'sent'
+                       else v_status end,
+    paid_at     = case when v_paid > 0 and v_paid >= v_total then coalesce(paid_at, now()) else null end,
+    updated_at  = now()
+  where id = p_invoice_id;
+end $$;
+
+create or replace function public.invoice_children_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op in ('DELETE', 'UPDATE') then perform public.recalc_invoice(old.invoice_id); end if;
+  if tg_op = 'INSERT' or (tg_op = 'UPDATE' and new.invoice_id is distinct from old.invoice_id) then
+    perform public.recalc_invoice(new.invoice_id);
+  end if;
+  return null;
+end $$;
+
+create or replace function public.invoice_tax_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.recalc_invoice(new.id);
+  return null;
+end $$;
+
+create trigger invoice_lines_recalc
+  after insert or update or delete on invoice_lines
+  for each row execute function public.invoice_children_changed();
+create trigger invoice_payments_recalc
+  after insert or update or delete on invoice_payments
+  for each row execute function public.invoice_children_changed();
+create trigger invoices_tax_recalc
+  after update of tax_rate on invoices
+  for each row when (old.tax_rate is distinct from new.tax_rate)
+  execute function public.invoice_tax_changed();
+
+-- Hand out the next number and bump the counter, under the row lock.
+create or replace function public.next_invoice_number() returns text
+language plpgsql security definer set search_path = '' as $$
+declare v int;
+begin
+  update public.invoice_settings set next_invoice_number = next_invoice_number + 1
+   where id returning next_invoice_number - 1 into v;
+  return v::text;
+end $$;
+
+-- New draft invoice for a client. With a draft batch, its time becomes one
+-- line per project, task, and rate, its expenses one line per project and
+-- category, and the batch is marked invoiced.
+create or replace function public.create_invoice(p_client_id uuid, p_batch_id uuid default null) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_id    uuid;
+  s       record;
+  b       record;
+  r       record;
+  v_pos   int := 0;
+begin
+  if not public.is_admin() then raise exception 'Admins only'; end if;
+  select * into s from public.invoice_settings where id;
+  if p_batch_id is not null then
+    select * into b from public.billing_batches where id = p_batch_id for update;
+    if b.id is null then raise exception 'Batch not found'; end if;
+    if b.status <> 'draft' then raise exception 'Only a draft batch can be invoiced'; end if;
+    if b.client_id <> p_client_id then raise exception 'That batch belongs to another client'; end if;
+  end if;
+
+  insert into public.invoices (number, client_id, batch_id, issue_date, due_date, tax_rate, notes, created_by)
+  values (public.next_invoice_number(), p_client_id, p_batch_id, current_date,
+          current_date + s.default_terms_days, s.default_tax_rate, s.default_notes, auth.uid())
+  returning id into v_id;
+
+  if p_batch_id is not null then
+    for r in
+      select p.id as project_id, p.name as project_name, t.name as task_name,
+             coalesce(te.rate_snapshot, 0) as rate, sum(te.hours) as hours
+      from public.time_entries te
+      join public.projects p on p.id = te.project_id
+      join public.tasks    t on t.id = te.task_id
+      where te.batch_id = p_batch_id
+      group by p.id, p.name, t.name, coalesce(te.rate_snapshot, 0)
+      order by p.name, t.name, 4 desc
+    loop
+      v_pos := v_pos + 1;
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      values (v_id, v_pos, 'service', r.project_name || ' / ' || r.task_name, r.hours, r.rate, r.project_id);
+    end loop;
+    for r in
+      select p.id as project_id, p.name as project_name, c.name as category_name, sum(e.amount) as amount
+      from public.expenses e
+      join public.projects p on p.id = e.project_id
+      join public.expense_categories c on c.id = e.category_id
+      where e.batch_id = p_batch_id
+      group by p.id, p.name, c.name
+      order by p.name, c.name
+    loop
+      v_pos := v_pos + 1;
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      values (v_id, v_pos, 'expense', r.project_name || ' / ' || r.category_name, 1, r.amount, r.project_id);
+    end loop;
+    update public.billing_batches set status = 'invoiced' where id = p_batch_id;
+  end if;
+  return v_id;
+end $$;
+
+-- Void an unpaid invoice. Its batch (if any) goes back to draft so the
+-- work can be invoiced again or the batch voided to release the rows.
+create or replace function public.void_invoice(p_invoice_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_status public.invoice_status; v_batch uuid; v_paid numeric;
+begin
+  if not public.is_admin() then raise exception 'Admins only'; end if;
+  select status, batch_id, paid_amount into v_status, v_batch, v_paid
+    from public.invoices where id = p_invoice_id for update;
+  if v_status is null then raise exception 'Invoice not found'; end if;
+  if v_status = 'void' then return; end if;
+  if v_paid > 0 then raise exception 'This invoice has payments recorded. Remove them first.'; end if;
+  update public.invoices set status = 'void', updated_at = now() where id = p_invoice_id;
+  if v_batch is not null then
+    update public.billing_batches set status = 'draft' where id = v_batch and status = 'invoiced';
+  end if;
+end $$;
+
 -- ============================================================
 -- 4. ROW LEVEL SECURITY
 -- ============================================================
@@ -1119,6 +1354,10 @@ alter table quote_line_items       enable row level security;
 alter table quote_sitemap_nodes    enable row level security;
 alter table harvest_archive_monthly enable row level security;
 alter table harvest_invoices       enable row level security;
+alter table invoice_settings       enable row level security;
+alter table invoices               enable row level security;
+alter table invoice_lines          enable row level security;
+alter table invoice_payments       enable row level security;
 alter table time_off               enable row level security;
 alter table availability           enable row level security;
 alter table clickup_assignments    enable row level security;
@@ -1184,6 +1423,13 @@ create policy own_exp_delete on expenses for delete to authenticated
 
 create policy read_all    on billing_batches for select to authenticated using (true);
 create policy admin_write on billing_batches for all to authenticated using (is_admin()) with check (is_admin());
+
+-- ---------- Invoicing: admins only ----------
+
+create policy admin_all on invoice_settings for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_all on invoices         for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_all on invoice_lines    for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_all on invoice_payments for all to authenticated using (is_admin()) with check (is_admin());
 
 -- ---------- Quoting ----------
 
@@ -1261,6 +1507,12 @@ revoke execute on function public.report_time_monthly(date, date, text, text, te
 revoke execute on function public.create_billing_batch(uuid, date, date, uuid[], uuid[], uuid) from public, anon;
 revoke execute on function public.void_billing_batch(uuid)  from public, anon;
 revoke execute on function public.unbilled_summary()        from public, anon;
+revoke execute on function public.recalc_invoice(uuid)       from public, anon, authenticated;
+revoke execute on function public.invoice_children_changed() from public, anon, authenticated;
+revoke execute on function public.invoice_tax_changed()      from public, anon, authenticated;
+revoke execute on function public.next_invoice_number()      from public, anon, authenticated;
+revoke execute on function public.create_invoice(uuid, uuid) from public, anon;
+revoke execute on function public.void_invoice(uuid)         from public, anon;
 
 -- ============================================================
 -- 6. STORAGE
@@ -1465,4 +1717,82 @@ do $$ begin
   perform cron.schedule('docket-reminders', '5 * * * *', 'select public.run_reminders()');
 exception when others then
   raise notice 'pg_cron not available here, reminders not scheduled: %', sqlerrm;
+end $$;
+
+-- Overdue invoice reminders. Off until invoice_settings.remind_overdue is
+-- on. Emails the invoice's recipients every remind_every_days, in the 9am
+-- hour Central. Admins can dry-run it over the API.
+create or replace function public.run_invoice_reminders(p_dry_run boolean default false, p_force boolean default false)
+returns table (invoice_number text, to_emails text[], sent boolean)
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_local   timestamp := now() at time zone 'America/Chicago';
+  v_today   date := v_local::date;
+  s         record;
+  r         record;
+  v_key     text;
+  v_from    text;
+  v_app     text;
+  v_subject text;
+  v_body    text;
+begin
+  if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
+  select * into s from public.invoice_settings where id;
+  if not s.remind_overdue then return; end if;
+  if not p_force and not p_dry_run and extract(hour from v_local) <> 9 then return; end if;
+
+  v_key  := public.vault_secret('resend_api_key');
+  v_from := public.vault_secret('resend_from', 'Docket <onboarding@resend.dev>');
+  v_app  := public.vault_secret('app_url', 'https://docket.giganticdesign.com');
+
+  for r in
+    select i.id, i.number, i.due_date, i.due_amount, i.sent_to, i.public_token, c.name as client_name
+    from public.invoices i
+    join public.clients c on c.id = i.client_id
+    where i.status = 'sent' and i.due_amount > 0 and i.due_date < v_today
+      and i.sent_to is not null and cardinality(i.sent_to) > 0
+      and (i.last_reminded_at is null or i.last_reminded_at < now() - make_interval(days => s.remind_every_days))
+    order by i.due_date
+  loop
+    invoice_number := r.number;
+    to_emails := r.sent_to;
+    sent := false;
+    if p_dry_run then
+      sent := v_key is not null;
+      return next;
+      continue;
+    end if;
+    if v_key is null then
+      raise warning 'invoice reminders: resend_api_key is not in Vault, not sending for invoice %', r.number;
+      return next;
+      continue;
+    end if;
+    v_subject := format('Reminder: invoice %s from %s is past due', r.number, s.company_name);
+    v_body := format(
+      E'Hello,\n\nInvoice %s for %s was due on %s. $%s is still outstanding.\n\nView or download it here: %s/i/%s\n\n%s\n\nThank you,\n%s',
+      r.number, r.client_name, to_char(r.due_date, 'FMMonth FMDD, YYYY'),
+      to_char(r.due_amount, 'FM999,999,990.00'), v_app, r.public_token,
+      coalesce(s.payment_instructions, ''), s.company_name);
+    perform net.http_post(
+      url     := 'https://api.resend.com/emails',
+      body    := jsonb_build_object('from', v_from, 'to', to_jsonb(r.sent_to), 'subject', v_subject, 'text', v_body),
+      headers := jsonb_build_object('Authorization', 'Bearer ' || v_key, 'Content-Type', 'application/json')
+    );
+    update public.invoices set last_reminded_at = now() where id = r.id;
+    sent := true;
+    return next;
+  end loop;
+end;
+$$;
+
+revoke execute on function public.run_invoice_reminders(boolean, boolean) from public, anon;
+-- The invoice email route reads the Resend key through this, server side only.
+grant execute on function public.vault_secret(text, text) to service_role;
+
+do $$ begin
+  perform cron.schedule('docket-invoice-reminders', '10 * * * *', 'select public.run_invoice_reminders()');
+exception when others then
+  raise notice 'pg_cron not available here, invoice reminders not scheduled: %', sqlerrm;
 end $$;
