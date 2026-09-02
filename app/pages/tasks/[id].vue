@@ -651,7 +651,7 @@ function startResize(e: PointerEvent) {
       </div>
     </div>
 
-    <UModal v-model:open="shareOpen" title="Share for review">
+    <AppDrawer v-model:open="shareOpen" title="Share for review">
       <template #body>
         <div class="space-y-4">
           <UFormField label="Review link" help="Anyone with the link sees the title, description, uploaded files (not server links), and comments marked visible to client. They can comment, approve, or request changes without signing in.">
@@ -675,7 +675,7 @@ function startResize(e: PointerEvent) {
           <UButton :loading="sharing" :disabled="!shareTo.trim()" icon="i-lucide-send" @click="shareByEmail">Send</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal v-model:open="attachOpen" title="Attach a file">
       <template #body>

@@ -65,16 +65,16 @@ function done() {
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="New task">
+    <AppDrawer v-model:open="creating" title="New task">
       <template #body>
         <TaskForm @saved="done" @cancel="creating = false;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal :open="!!editing" title="Edit task" @update:open="(v) => { if (!v) editing = null }">
+    <AppDrawer :open="!!editing" title="Edit task" @update:open="(v) => { if (!v) editing = null }">
       <template #body>
         <TaskForm v-if="editing" :task="editing" @saved="done" @cancel="editing = null;" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

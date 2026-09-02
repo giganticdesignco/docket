@@ -388,7 +388,7 @@ async function voidInvoice() {
     <h2 class="text-lg font-semibold">{{ isDraft ? 'Preview' : 'Invoice' }}</h2>
     <InvoiceDocument v-if="doc" :doc="doc" />
 
-    <UModal v-model:open="sendOpen" :title="sendKind === 'reminder' ? 'Send a reminder' : 'Send invoice'">
+    <AppDrawer v-model:open="sendOpen" :title="sendKind === 'reminder' ? 'Send a reminder' : 'Send invoice'">
       <template #body>
         <div class="space-y-4">
           <UFormField label="To" help="Comma separated.">
@@ -405,9 +405,9 @@ async function voidInvoice() {
           <UButton :loading="sending" :disabled="!sendTo.trim()" icon="i-lucide-send" @click="send">{{ sendKind === 'reminder' ? 'Send reminder' : 'Send' }}</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal v-model:open="payOpen" title="Record a payment">
+    <AppDrawer v-model:open="payOpen" title="Record a payment">
       <template #body>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField label="Date">
@@ -433,7 +433,7 @@ async function voidInvoice() {
           <UButton :loading="paying" @click="recordPayment">Record payment</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal v-model:open="voidOpen" title="Void this invoice?">
       <template #body>

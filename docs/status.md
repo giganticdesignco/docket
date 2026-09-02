@@ -1364,3 +1364,16 @@ Verified in the dev browser with the dev-only hook
 keeps it hidden for that version. Not verified inside the real shell;
 the version read uses `window.__TAURI__.app.getVersion`, which
 `core:default` allows. In-place auto-update waits for Apple signing.
+
+## Phase 3: modals to drawers (2026-09-02)
+
+Forms open in a drawer from the right so the page behind stays in view.
+`app/components/AppDrawer.vue` wraps `USlideover` with the same title,
+description, open, `#body` and `#footer` API as `UModal`, a `wide` prop
+for bigger forms, and a `dirty` prop that asks before an accidental
+close (mechanism only; no form sets it yet). 32 modals became drawers
+by tag swap; 15 stay modals: every delete and void confirm, Save report,
+accept or decline for the client, the create-invoice line choice,
+Attach a file, Keyboard shortcuts, Search. The Assistant uses AppDrawer
+too. Verified in the dev browser: New task, Edit client, Invite a
+contact, and the Assistant open as drawers and close on Escape.

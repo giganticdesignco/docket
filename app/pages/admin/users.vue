@@ -130,7 +130,7 @@ function done() {
       </table>
     </UCard>
 
-    <UModal v-model:open="adding" title="Add person">
+    <AppDrawer v-model:open="adding" title="Add person">
       <template #body>
         <form class="space-y-4" @submit.prevent="addPerson">
           <UFormField label="Full name" required>
@@ -149,12 +149,12 @@ function done() {
           </div>
         </form>
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal :open="!!editing" :title="editing?.full_name ?? 'Edit person'" @update:open="(v) => { if (!v) editing = null }">
+    <AppDrawer :open="!!editing" :title="editing?.full_name ?? 'Edit person'" @update:open="(v) => { if (!v) editing = null }">
       <template #body>
         <UserForm v-if="editing" :profile="editing" :hours-per-week="hoursFor(editing.id)" :is-self="editing.id === user?.sub" @saved="done" @cancel="editing = null;" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

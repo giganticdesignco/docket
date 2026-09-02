@@ -118,7 +118,7 @@ async function create() {
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="New quote">
+    <AppDrawer v-model:open="creating" title="New quote">
       <template #body>
         <div class="space-y-4">
           <UFormField label="Client">
@@ -135,6 +135,6 @@ async function create() {
           <UButton :loading="busy" :disabled="!newClientId || !newTitle.trim()" @click="create">Create draft</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

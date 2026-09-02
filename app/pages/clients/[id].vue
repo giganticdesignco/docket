@@ -380,17 +380,17 @@ const invoiceLabel = (inv: InvoiceLike) =>
       </UCard>
     </template>
 
-    <UModal v-model:open="creatingRetainer" title="New retainer">
+    <AppDrawer v-model:open="creatingRetainer" title="New retainer">
       <template #body>
         <RetainerForm :client-id="id" :projects="projects ?? []" @saved="retainerSaved" @cancel="creatingRetainer = false;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal :open="!!editingRetainer" title="Edit retainer" @update:open="(v) => { if (!v) editingRetainer = null }">
+    <AppDrawer :open="!!editingRetainer" title="Edit retainer" @update:open="(v) => { if (!v) editingRetainer = null }">
       <template #body>
         <RetainerForm v-if="editingRetainer" :retainer="editingRetainer" :client-id="id" :projects="projects ?? []" @saved="retainerSaved" @cancel="editingRetainer = null;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal :open="!!deletingRetainer" title="Delete retainer?" @update:open="(v) => { if (!v) deletingRetainer = null }">
       <template #body>
@@ -404,7 +404,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
       </template>
     </UModal>
 
-    <UModal v-model:open="inviting" title="Invite a contact" description="They get an email from Docket with a sign-in link. No password.">
+    <AppDrawer v-model:open="inviting" title="Invite a contact" description="They get an email from Docket with a sign-in link. No password.">
       <template #body>
         <form class="space-y-4" @submit.prevent="sendInvite()">
           <UFormField label="Name">
@@ -419,18 +419,18 @@ const invoiceLabel = (inv: InvoiceLike) =>
           </div>
         </form>
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal v-model:open="editing" title="Edit client">
+    <AppDrawer v-model:open="editing" title="Edit client">
       <template #body>
         <ClientForm :client="client" @saved="editing = false; refresh()" @cancel="editing = false" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal v-model:open="creatingProject" title="New project">
+    <AppDrawer v-model:open="creatingProject" title="New project">
       <template #body>
         <ProjectForm :clients="[client]" :default-client-id="client.id" @saved="creatingProject = false; refreshProjects()" @cancel="creatingProject = false" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

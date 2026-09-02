@@ -132,7 +132,7 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
       Weekly hours are set per person on the People page; time off on the Time off page. A task's estimate is split evenly between its assignees and counted in the week it is due; completed and on-hold tasks do not count. Tasks with no estimate show in the list at zero hours. Meetings are not synced yet.
     </p>
 
-    <UModal :open="!!open" :title="open ? `${openName}, week of ${shortDate(open.week)}` : ''" @update:open="(v) => { if (!v) open = null }">
+    <AppDrawer :open="!!open" :title="open ? `${openName}, week of ${shortDate(open.week)}` : ''" @update:open="(v) => { if (!v) open = null }">
       <template #body>
         <ul v-if="tasks?.length" class="divide-y divide-default text-sm">
           <li v-for="t in tasks" :key="t.id" class="flex items-start gap-3 py-2">
@@ -148,6 +148,6 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
         </ul>
         <p v-else class="text-sm text-muted">{{ tasksStatus === 'pending' ? 'Loading' : 'No tasks due this week.' }}</p>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

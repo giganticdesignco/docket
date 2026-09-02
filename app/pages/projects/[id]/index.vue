@@ -301,16 +301,16 @@ async function copyFolder() {
       </table>
     </UCard>
 
-    <UModal v-model:open="creatingTask" title="New task">
+    <AppDrawer v-model:open="creatingTask" title="New task">
       <template #body>
         <WorkItemForm v-if="project" :projects="[{ id: project.id, name: project.name, clients: project.clients ? { name: project.clients.name } : null }]" :people="people ?? []" :default-project-id="project.id" @saved="taskCreated" @cancel="creatingTask = false;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal v-model:open="editing" title="Edit project">
+    <AppDrawer v-model:open="editing" title="Edit project">
       <template #body>
         <ProjectForm :project="project" :clients="clients ?? []" @saved="editing = false; refresh(); refreshBudget()" @cancel="editing = false" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

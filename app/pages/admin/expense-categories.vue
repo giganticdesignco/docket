@@ -61,16 +61,16 @@ function done() {
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="New category">
+    <AppDrawer v-model:open="creating" title="New category">
       <template #body>
         <ExpenseCategoryForm @saved="done" @cancel="creating = false;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal :open="!!editing" title="Edit category" @update:open="(v) => { if (!v) editing = null }">
+    <AppDrawer :open="!!editing" title="Edit category" @update:open="(v) => { if (!v) editing = null }">
       <template #body>
         <ExpenseCategoryForm v-if="editing" :category="editing" @saved="done" @cancel="editing = null;" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

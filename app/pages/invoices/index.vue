@@ -137,7 +137,7 @@ async function createBlank() {
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="Blank invoice">
+    <AppDrawer v-model:open="creating" title="Blank invoice">
       <template #body>
         <UFormField label="Client" help="For a fixed fee, a deposit, or anything not built from tracked time.">
           <USelectMenu v-model="newClientId" :items="clientOptions" value-key="value" class="w-full" placeholder="Pick a client" />
@@ -149,6 +149,6 @@ async function createBlank() {
           <UButton :loading="busy" :disabled="!newClientId" @click="createBlank">Create draft</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

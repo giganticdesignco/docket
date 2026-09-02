@@ -241,17 +241,17 @@ async function confirmDelete() {
       </ul>
     </UCard>
 
-    <UModal v-model:open="creating" :title="`New entry for ${longDate(selected)}`">
+    <AppDrawer v-model:open="creating" :title="`New entry for ${longDate(selected)}`">
       <template #body>
         <TimeEntryForm :date="selected" :projects="projects ?? []" :project-tasks="projectTasks ?? []" :work-item="workItem ?? undefined" @saved="saved" @cancel="creating = false" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal :open="!!editing" title="Edit entry" @update:open="(v) => { if (!v) editing = null }">
+    <AppDrawer :open="!!editing" title="Edit entry" @update:open="(v) => { if (!v) editing = null }">
       <template #body>
         <TimeEntryForm v-if="editing" :entry="editing" :date="editing.spent_on" :projects="projects ?? []" :project-tasks="projectTasks ?? []" @saved="saved" @cancel="editing = null" />
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal :open="!!deleting" title="Delete entry?" @update:open="(v) => { if (!v) deleting = null }">
       <template #body>

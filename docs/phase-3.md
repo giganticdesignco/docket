@@ -12,7 +12,7 @@ commit on "commit push").
 | --- | --- | --- | --- |
 | 1 | View persistence | Small, touches every screen people use daily, no outside setup | 1.5 days |
 | 2 | Desktop update notice | Small, but needs a home for the DMG before it means anything | 1 day |
-| 3 | Modals become drawers | Mechanical, one component then 35 tag swaps | 1 day |
+| 3 | Modals become drawers | Mechanical, one component then 32 tag swaps | 1 day |
 | 4 | MCP server | Biggest piece; needs the OAuth server switched on in Supabase first | 3 days |
 
 About a week and a half in total.
@@ -127,15 +127,15 @@ task detail already do) instead of a centred modal, so you can still see
 the list or page you came from while you fill it in. Modals stay only
 where a short answer is the whole point.
 
-Inventory, 49 modals today:
+Inventory, 47 modals today:
 
-Stay modal (14): every "Delete ...?" and "Void this ...?" confirm (time
+Stay modal (15): every "Delete ...?" and "Void this ...?" confirm (time
 entry, expense, task, tasks in bulk, retainer, quote draft, invoice,
 batch, role), "Save report" (one name field), "Accept or decline on the
 client's behalf", "Create invoice" (one choice about line summarising),
 "Attach a file", Keyboard shortcuts, Search.
 
-Become drawers (35): new and edit time entry, add time off, new task
+Become drawers (32): new and edit time entry, add time off, new task
 (tasks list, project page, admin), share for review, new quote, send
 quote, draft scope lines, new and edit project, blank invoice, send
 invoice or reminder, record a payment, new and edit expense, new and edit
@@ -153,8 +153,7 @@ How:
 - Escape and clicking outside close the drawer as they do the modal
   today; a drawer with unsaved edits asks first, which the modals do not
   do now.
-- The task page's own slideover and the Assistant move to `AppDrawer`
-  too, so there is one look.
+- The Assistant moves to `AppDrawer` too, so there is one look.
 
 Depends on: nothing. Size: 1 day, verified by opening each drawer in the
 browser.

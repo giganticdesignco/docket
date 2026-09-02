@@ -143,7 +143,7 @@ async function deleteRole() {
       <p class="mt-4 text-xs text-muted">A new role starts with nothing ticked: own time and expenses, and the tasks the person made or is on. Turning off "See rates and amounts" hides money everywhere in Docket for that role, though a person's own entries still carry their rate in the database. A client role will live here too once clients can sign in.</p>
     </UCard>
 
-    <UModal :open="adding || !!editing" :title="editing ? `Edit ${editing.label}` : 'New role'" @update:open="(v) => { if (!v) { adding = false; editing = null } }">
+    <AppDrawer :open="adding || !!editing" :title="editing ? `Edit ${editing.label}` : 'New role'" @update:open="(v) => { if (!v) { adding = false; editing = null } }">
       <template #body>
         <div class="space-y-4">
           <UFormField label="Name" required :help="editing ? undefined : `Key: ${slug(form.label) || '...'}`">
@@ -161,7 +161,7 @@ async function deleteRole() {
           <UButton :loading="saving" :disabled="!form.label.trim()" @click="saveRole">{{ editing ? 'Save' : 'Create role' }}</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal :open="!!deleting" :title="`Delete ${deleting?.label}?`" @update:open="(v) => { if (!v) deleting = null }">
       <template #body>

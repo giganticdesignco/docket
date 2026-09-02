@@ -72,10 +72,10 @@ function onSaved(_c: Tables<'clients'>) {
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="New client">
+    <AppDrawer v-model:open="creating" title="New client">
       <template #body>
         <ClientForm @saved="onSaved" @cancel="creating = false" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

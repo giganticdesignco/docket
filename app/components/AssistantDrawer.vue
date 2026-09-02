@@ -85,7 +85,7 @@ function go(to: string) { open.value = false; router.push(to) }
 </script>
 
 <template>
-  <USlideover v-model:open="open" title="Assistant" description="Ask about time, tasks, budgets, and clients, or start a message with log: to record time." :ui="{ content: 'sm:max-w-md' }">
+  <AppDrawer v-model:open="open" title="Assistant" description="Ask about time, tasks, budgets, and clients, or start a message with log: to record time.">
     <template #body>
       <div class="flex h-full flex-col gap-3">
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto text-sm">
@@ -127,5 +127,5 @@ function go(to: string) { open.value = false; router.push(to) }
         </form>
       </div>
     </template>
-  </USlideover>
+  </AppDrawer>
 </template>

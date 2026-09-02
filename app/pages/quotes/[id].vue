@@ -406,7 +406,7 @@ async function deleteQuote() {
     <h2 class="text-lg font-semibold">{{ editable ? 'Preview' : 'Quote' }}</h2>
     <QuoteDocument v-if="doc" :doc="doc" />
 
-    <UModal v-model:open="sendOpen" title="Send quote">
+    <AppDrawer v-model:open="sendOpen" title="Send quote">
       <template #body>
         <div class="space-y-4">
           <UFormField label="To" help="Comma separated.">
@@ -423,7 +423,7 @@ async function deleteQuote() {
           <UButton :loading="sending" :disabled="!sendTo.trim()" icon="i-lucide-send" @click="send">Send</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal :open="!!decideOpen" :title="decideOpen === 'accept' ? 'Accept on the client\'s behalf' : 'Decline this quote'" @update:open="(v) => { if (!v) decideOpen = null }">
       <template #body>
@@ -455,7 +455,7 @@ async function deleteQuote() {
       </template>
     </UModal>
 
-    <UModal v-model:open="briefOpen" title="Draft scope lines" description="Describe the project in a few sentences. The assistant proposes lines with hours based on this client's history; you edit and save.">
+    <AppDrawer v-model:open="briefOpen" title="Draft scope lines" description="Describe the project in a few sentences. The assistant proposes lines with hours based on this client's history; you edit and save.">
       <template #body>
         <div class="space-y-3">
           <UTextarea v-model="brief" :rows="5" class="w-full" placeholder="A five-page marketing site on WordPress with a blog, two landing pages, and a contact form, plus a logo refresh. Photography is theirs." autofocus />
@@ -468,6 +468,6 @@ async function deleteQuote() {
           <UButton icon="i-lucide-sparkles" :loading="drafting === 'lines'" :disabled="!brief.trim()" @click="draftLinesFromBrief">Propose lines</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

@@ -467,10 +467,10 @@ function created(id: string) {
       </div>
     </Teleport>
 
-    <UModal v-model:open="creating" title="New task">
+    <AppDrawer v-model:open="creating" title="New task">
       <template #body>
         <WorkItemForm :projects="projects ?? []" :people="people ?? []" @saved="created" @cancel="creating = false;" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

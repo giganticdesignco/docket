@@ -132,7 +132,7 @@ const perSqFt = (m: Row) => money(m.cost / (m.width_in * m.length_in) * 144)
       <div class="mt-3 flex justify-end"><UButton :loading="savingSettings" @click="saveSettings">Save rules</UButton></div>
     </UCard>
 
-    <UModal :open="adding || !!editing" :title="editing ? 'Edit material' : 'New material'" @update:open="(v) => { if (!v) { adding = false; editing = null } }">
+    <AppDrawer :open="adding || !!editing" :title="editing ? 'Edit material' : 'New material'" @update:open="(v) => { if (!v) { adding = false; editing = null } }">
       <template #body>
         <div class="space-y-4">
           <UFormField label="Name" required><UInput v-model="form.name" class="w-full" placeholder="Stickers / White / Gloss / Alpha Calendared Permanent Vinyl - 6 mil" /></UFormField>
@@ -157,6 +157,6 @@ const perSqFt = (m: Row) => money(m.cost / (m.width_in * m.length_in) * 144)
           <UButton :loading="saving" @click="save">{{ editing ? 'Save' : 'Add material' }}</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

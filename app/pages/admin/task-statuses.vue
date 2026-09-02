@@ -138,7 +138,7 @@ const flags = (s: Status) => [s.is_done && 'done', s.is_paused && 'paused', s.is
     </UCard>
     <p class="text-xs text-muted">Exactly one status should be flagged done, one paused, one client review, and one changes requested. A status in use cannot be deleted; deactivate it to hide it from menus.</p>
 
-    <UModal :open="creating || !!editing" :title="editing ? 'Edit status' : 'New status'" @update:open="(v) => { if (!v) { creating = false; editing = null } }">
+    <AppDrawer :open="creating || !!editing" :title="editing ? 'Edit status' : 'New status'" @update:open="(v) => { if (!v) { creating = false; editing = null } }">
       <template #body>
         <div class="space-y-4">
           <UFormField label="Label">
@@ -162,6 +162,6 @@ const flags = (s: Status) => [s.is_done && 'done', s.is_paused && 'paused', s.is
           <UButton :loading="saving" @click="save">{{ editing ? 'Save' : 'Create' }}</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

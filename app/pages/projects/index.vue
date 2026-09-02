@@ -118,10 +118,10 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="New project">
+    <AppDrawer v-model:open="creating" title="New project">
       <template #body>
         <ProjectForm :clients="clients ?? []" @saved="creating = false; refresh()" @cancel="creating = false" />
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>

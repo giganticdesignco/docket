@@ -151,17 +151,17 @@ async function confirmDelete() {
       </table>
     </UCard>
 
-    <UModal v-model:open="creating" title="New expense">
+    <AppDrawer v-model:open="creating" title="New expense">
       <template #body>
         <ExpenseForm :projects="projects ?? []" :categories="categories ?? []" @saved="saved" @cancel="creating = false;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
-    <UModal :open="!!editing" title="Edit expense" @update:open="(v) => { if (!v) editing = null }">
+    <AppDrawer :open="!!editing" title="Edit expense" @update:open="(v) => { if (!v) editing = null }">
       <template #body>
         <ExpenseForm v-if="editing" :expense="editing" :projects="projects ?? []" :categories="categories ?? []" @saved="saved" @cancel="editing = null;" />
       </template>
-    </UModal>
+    </AppDrawer>
 
     <UModal :open="!!deleting" title="Delete expense?" @update:open="(v) => { if (!v) deleting = null }">
       <template #body>

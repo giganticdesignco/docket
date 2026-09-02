@@ -136,7 +136,7 @@ const canEdit = (e: { user_id: string | null }) => isAdmin.value || e.user_id ==
       </table>
     </UCard>
 
-    <UModal v-model:open="adding" title="Add time off">
+    <AppDrawer v-model:open="adding" title="Add time off">
       <template #body>
         <div class="grid gap-4 sm:grid-cols-2">
           <UFormField v-if="isAdmin" label="Who" class="sm:col-span-2">
@@ -165,6 +165,6 @@ const canEdit = (e: { user_id: string | null }) => isAdmin.value || e.user_id ==
           <UButton :loading="saving" @click="save">Save</UButton>
         </div>
       </template>
-    </UModal>
+    </AppDrawer>
   </div>
 </template>
