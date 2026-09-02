@@ -65,3 +65,9 @@ select become('00000000-0000-0000-0000-00000000000a');
 select 'admin sees time_entries (expect 2): ' || count(*) from time_entries;
 select 'admin sees audit_log rows (expect 2 inserts): ' || count(*) from audit_log;
 reset role;
+
+-- Domain restriction on the auth trigger.
+do $$ begin
+  insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000000c', 'outsider@gmail.com');
+  raise exception 'FAIL: non-agency email got a profile';
+exception when raise_exception then raise notice 'PASS: non-agency email rejected (%)', sqlerrm; end $$;

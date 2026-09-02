@@ -36,7 +36,11 @@
 --    yet. Add it in step 10.
 -- 7. Receipt storage bucket + storage policies are not here yet. Add in
 --    step 4.
--- 8. First admin: profiles are created as 'staff' by the auth trigger.
+-- 8. Auth setup in the Supabase dashboard (not expressible in SQL):
+--    Google provider on, "Allow new users to sign up" OFF, users are
+--    added via Authentication > Users > Invite. Google Workspace domain
+--    restriction is enforced here by handle_new_user() as a backstop.
+-- 9. First admin: profiles are created as 'staff' by the auth trigger.
 --    Promote the first admin by hand in the SQL editor:
 --      update profiles set role = 'admin' where email = '...';
 
@@ -81,6 +85,14 @@ language plpgsql security definer
 set search_path = ''
 as $$
 begin
+  -- Sign-in is Google only, restricted to the agency domain. Supabase
+  -- Auth is configured with signups off and admin invites, and the
+  -- Google provider is limited to the Workspace domain; this is the
+  -- last line of defence if either setting drifts.
+  if lower(split_part(new.email, '@', 2)) <> 'giganticdesign.com' then
+    raise exception 'Docket accounts must use a giganticdesign.com address';
+  end if;
+
   insert into public.profiles (id, full_name, email)
   values (
     new.id,
