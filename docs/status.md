@@ -1519,3 +1519,12 @@ Enter or Tab, or a click puts the name in the message; the id travels
 with the request as a mention so the model acts on that exact record.
 Input and keydown are caught on the form, not the UTextarea, because
 listeners on the component did not reach the box.
+
+## User guide (2026-09-02)
+
+`docs/guide.md` is the guide to using the app and the logic behind it
+(rates, locking, soft deletes, the archive, the jobs). `app/pages/help.vue`
+renders it with `marked` from a `?raw` import, with a contents list from
+the h2 headings, and the rail's question mark menu links to it as "User
+guide". Keep the guide current when a screen changes; it is the same
+file in the repo and in the app.

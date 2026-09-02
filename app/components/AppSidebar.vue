@@ -48,6 +48,7 @@ const sheetOpen = useState('shortcut-sheet-open', () => false)
 const tour = useTour()
 const helpItems = computed(() => [[
   ...(tour.pageTour.value ? [{ label: `Tour: ${tour.pageTour.value.title}`, icon: 'i-lucide-route', onSelect: () => tour.start(tour.pageTour.value!.id) }] : []),
+  { label: 'User guide', icon: 'i-lucide-book-open', to: '/help' },
   { label: 'Tour: Getting around', icon: 'i-lucide-compass', onSelect: () => tour.start('around') },
   { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', kbds: ['?'], onSelect: () => { sheetOpen.value = true } },
 ]])

@@ -99,6 +99,8 @@ through `/portal`. Staff see their own time and expenses unless they have
 - Don't refactor adjacent code that isn't broken.
 - Notes for the next session go in `docs/status.md`; plans in
   `docs/phase-2.md` and `docs/phase-3.md`.
+- `docs/guide.md` is the user guide, rendered in the app at `/help`.
+  When a screen or rule changes, change the guide in the same commit.
 
 ## Where the build stands
 
