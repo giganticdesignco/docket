@@ -2,6 +2,7 @@
 // Harvest import. Years before this one roll up into harvest_archive_monthly;
 // this year's entries come in live. Each month is one call to the server
 // route so a long run shows progress and survives a Vercel timeout.
+// Expenses come in entry by entry for every year, receipts included.
 definePageMeta({ middleware: 'admin' })
 useHead({ title: 'Harvest import' })
 
@@ -28,14 +29,24 @@ const { data: liveCount, refresh: refreshLive } = await useAsyncData('harvest-li
   return count ?? 0
 }, fresh)
 
+const { data: expenseCount, refresh: refreshExpenses } = await useAsyncData('harvest-expense-count', async () => {
+  const { count, error } = await supabase
+    .from('expenses')
+    .select('id', { count: 'exact', head: true })
+    .not('harvest_id', 'is', null)
+  if (error) throw error
+  return count ?? 0
+}, fresh)
+
 const archiveFrom = ref(2015)
 const archiveTo = ref(thisYear - 1)
+const expensesFrom = ref(thisYear)
 const dryRun = ref(false)
 const running = ref(false)
 const stopRequested = ref(false)
 const progress = ref({ done: 0, total: 0, current: '' })
 
-type Mode = 'archive' | 'live' | 'projects'
+type Mode = 'archive' | 'live' | 'projects' | 'expenses'
 type Step = { month: string, mode: Mode }
 type Result = {
   month: string
@@ -52,9 +63,11 @@ type Result = {
   updatedProjects?: number
   projectsInHarvest?: number
   relinkError?: string | null
+  receipts?: number
+  receiptErrors?: string[]
   error?: string
   skippedUsers?: string[]
-  created?: { clients: number, projects: number, tasks: number, project_tasks: number }
+  created?: { clients: number, projects: number, tasks: number, project_tasks: number, categories?: number }
 }
 const log = ref<Result[]>([])
 
@@ -94,6 +107,7 @@ async function run(steps: Step[]) {
     running.value = false
     refreshYearly()
     refreshLive()
+    refreshExpenses()
   }
 }
 
@@ -105,8 +119,10 @@ const syncLive = () => run([
   { month: thisMonthKey, mode: 'projects' as const },
 ])
 const syncProjects = () => run([{ month: thisMonthKey, mode: 'projects' as const }])
+const syncExpenses = () => run(months(expensesFrom.value, thisYear, thisMonth).map(month => ({ month, mode: 'expenses' as const })))
 
 const skippedUsers = computed(() => [...new Set(log.value.flatMap(r => r.skippedUsers ?? []))])
+const receiptErrors = computed(() => log.value.flatMap(r => r.receiptErrors ?? []))
 const num = (n: number | null | undefined) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
 const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 </script>
@@ -180,6 +196,27 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
           </p>
         </div>
       </UCard>
+
+      <UCard>
+        <template #header>
+          <h2 class="font-semibold">Expenses</h2>
+        </template>
+        <div class="space-y-4">
+          <p class="text-sm">
+            <strong class="tabular-nums">{{ num(expenseCount) }}</strong> expenses came from Harvest.
+          </p>
+          <div class="flex items-end gap-3">
+            <UFormField label="From year" class="w-28">
+              <UInput v-model.number="expensesFrom" type="number" :min="2010" :max="thisYear" class="w-full" :disabled="running" />
+            </UFormField>
+            <UButton icon="i-lucide-receipt" :disabled="running || expensesFrom > thisYear" @click="syncExpenses">Sync expenses</UButton>
+          </div>
+          <p class="text-xs text-muted">
+            Every expense from that January to today, keyed on its Harvest id, with receipts copied into the receipts bucket. Re-running is safe.
+            Expenses for people without a Docket profile are skipped.
+          </p>
+        </div>
+      </UCard>
     </div>
 
     <UCard v-if="running || log.length">
@@ -198,6 +235,12 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
       <div v-if="skippedUsers.length" class="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
         <strong>Skipped, no Docket profile:</strong> {{ skippedUsers.join(', ') }}
       </div>
+      <div v-if="receiptErrors.length" class="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
+        <strong>Receipts not copied:</strong>
+        <ul class="mt-1 list-disc pl-5">
+          <li v-for="(err, i) in receiptErrors" :key="i">{{ err }}</li>
+        </ul>
+      </div>
 
       <table class="w-full text-sm">
         <thead class="text-left text-muted">
@@ -206,7 +249,7 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
             <th class="px-2 py-1 font-medium">Mode</th>
             <th class="px-2 py-1 text-right font-medium">Fetched</th>
             <th class="px-2 py-1 text-right font-medium">Rows</th>
-            <th class="px-2 py-1 text-right font-medium">Hours</th>
+            <th class="px-2 py-1 text-right font-medium">Total</th>
             <th class="px-2 py-1 text-right font-medium">Deleted</th>
             <th class="px-2 py-1 font-medium">Created</th>
           </tr>
@@ -217,13 +260,16 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
             <td class="px-2 py-1">{{ r.mode }}<span v-if="r.dryRun" class="text-muted"> (dry)</span></td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.fetched }}<span v-if="r.skippedRunning" class="text-muted"> ({{ r.skippedRunning }} running)</span></td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? r.rows : r.mode === 'projects' ? r.updatedProjects : r.imported }}</td>
-            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? num(r.hours) : '' }}</td>
-            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'live' ? r.deleted : '' }}</td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? num(r.hours) + ' h' : r.mode === 'expenses' ? money(r.amount) : '' }}</td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'live' || r.mode === 'expenses' ? r.deleted : '' }}</td>
             <td class="px-2 py-1 text-muted">
               <span v-if="r.error" class="text-error">Failed: {{ r.error }}</span>
-              <span v-else-if="r.created && (r.created.clients || r.created.projects || r.created.tasks || r.created.project_tasks)">
-                {{ r.created.clients }} clients, {{ r.created.projects }} projects, {{ r.created.tasks }} tasks, {{ r.created.project_tasks }} assignments
+              <span v-else-if="r.created && (r.created.clients || r.created.projects || r.created.tasks || r.created.project_tasks || r.created.categories)">
+                {{ r.created.clients }} clients, {{ r.created.projects }} projects,
+                <template v-if="r.mode === 'expenses'">{{ r.created.categories ?? 0 }} categories</template>
+                <template v-else>{{ r.created.tasks }} tasks, {{ r.created.project_tasks }} assignments</template>
               </span>
+              <span v-if="r.mode === 'expenses' && r.receipts" class="text-muted"> {{ r.receipts }} receipts{{ r.dryRun ? ' to copy' : ' copied' }}</span>
               <span v-if="r.relinkError" class="text-warning"> Archive relink skipped: {{ r.relinkError }}</span>
             </td>
           </tr>

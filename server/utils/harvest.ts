@@ -36,6 +36,22 @@ export type HarvestProject = {
   client: HarvestRef
 }
 
+export type HarvestExpense = {
+  id: number
+  spent_date: string
+  notes: string | null
+  units: number | null
+  total_cost: number
+  billable: boolean
+  is_billed: boolean
+  is_locked: boolean
+  receipt: { url: string, file_name: string, file_size: number, content_type: string } | null
+  user: HarvestRef
+  client: HarvestRef
+  project: HarvestRef & { code: string | null }
+  expense_category: HarvestRef & { unit_price: number | null, unit_name: string | null }
+}
+
 export type HarvestUser = {
   id: number
   email: string
@@ -94,6 +110,9 @@ async function harvestAll<K extends string, T>(path: string, key: K, params: Rec
 export const harvestTimeEntries = (from: string, to: string) =>
   harvestAll<'time_entries', HarvestTimeEntry>('/time_entries', 'time_entries', { from, to })
 
+export const harvestExpenses = (from: string, to: string) =>
+  harvestAll<'expenses', HarvestExpense>('/expenses', 'expenses', { from, to })
+
 export const harvestProjects = () =>
   harvestAll<'projects', HarvestProject>('/projects', 'projects', {})
 
@@ -106,6 +125,14 @@ export async function harvestUsers(): Promise<HarvestUser[]> {
     if (String((e as Error).message).startsWith('Harvest 403')) return []
     throw e
   }
+}
+
+// Receipt files sit behind the same token as the API. Harvest redirects to
+// a signed file link; fetch follows that on its own.
+export async function harvestReceipt(url: string): Promise<{ bytes: ArrayBuffer, contentType: string }> {
+  const res = await fetch(url, { headers: harvestHeaders() })
+  if (!res.ok) throw new Error(`Harvest ${res.status} fetching receipt`)
+  return { bytes: await res.arrayBuffer(), contentType: res.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream' }
 }
 
 export const round2 = (n: number) => Math.round(n * 100) / 100

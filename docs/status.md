@@ -88,6 +88,45 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Harvest expense import (added 2026-09-02)
+
+Luke asked "can we import expenses?". New `expenses` mode on
+`/api/harvest/import` and an Expenses card on `/admin/harvest` with a
+From year field and "Sync expenses" (one call per month, same log).
+
+- Upserts into `expenses` on a new `harvest_id` column (migration
+  `harvest_expenses`, mirrored in schema.sql). Also adds `harvest_id` to
+  `expense_categories`; the 24 seeded categories matched Harvest by name
+  and adopted their ids, so nothing was created.
+- Mapping: spent_date, total_cost (rounded to cents), notes, billable,
+  and `is_locked = is_billed` (invoiced in Harvest). Harvest has no
+  reimbursable flag, so `is_reimbursable` keeps whatever Docket has.
+  Clients and projects are matched or created the same way as time
+  entries; the ensure* helpers moved out of importLive into a shared
+  `ensurers()` factory so both modes use them.
+- Receipts: downloaded from Harvest with the API token (Harvest redirects
+  to a signed file link) and uploaded to
+  `receipts/<owner>/harvest-<expense id>.<ext>` with upsert, so re-runs
+  skip anything already filed. The storage insert policy now lets admins
+  write to any folder (was owner only); read, update, and delete already
+  did. Files the bucket cannot take (not image or PDF, over 10 MB) or that
+  fail to download are listed on the page as "Receipts not copied" and
+  the expense still comes in without one.
+- Expenses deleted in Harvest are deleted here (with their receipt file)
+  unless batched. People without a profile are skipped and listed.
+- Per month it is slow: about 30 to 45 seconds for 40 receipts. Fine
+  locally; on Vercel keep the function timeout in mind if a month has many
+  receipts (a re-run resumes where the receipts left off).
+
+Verified as luke@ in Chrome: a dry run for 2026 then the real run.
+Every month matched a direct pull of `/v2/expenses` (745 expenses,
+$260,160.88, 334 receipts, 253 PDF / 69 PNG / 12 JPEG), no receipt
+errors, 334 objects in the bucket with sizes and mime types set, no
+expense pointing at a missing file, 381 expenses locked as invoiced. The
+import created 4 clients and 69 projects that had expenses but no 2026
+time. `/expenses` shows Luke's 15 with paperclips and a receipt opened
+as a signed PNG in a new tab.
+
 ## Data state after the 2026 Harvest sync (2026-09-02)
 
 - All 16 people now have auth users and profiles (14 created by SQL the
@@ -154,17 +193,29 @@ deleted a report.
 Not built: capacity_weekly and project_budget_status as report sources,
 relative date ranges ("this month"), scheduled or emailed reports.
 
-Next is step 8: QuickBooks push. Waiting on Sean or Tom (2026-09-03) for:
-QBO Online confirmed, an Intuit developer app's client id and secret
-(go in .env as NUXT_QBO_CLIENT_ID / NUXT_QBO_CLIENT_SECRET), and whether
-to build against the QBO sandbox company first. The OAuth callback will
-be /api/qbo/callback on whatever host the app runs on; local dev uses
-http://localhost:3000/api/qbo/callback, which the Intuit app must list.
+Step 8 needs a decision first (2026-09-02). Luke learned that Gigantic
+does all billing through Harvest, invoices and payment follow-up
+included, not QuickBooks. CLAUDE.md's "we do NOT invoice, QBO owns
+invoice numbers, AR, and payment status" was the wrong premise, so a
+QBO push alone would not let Harvest be cancelled. Options, for Luke to
+pick:
 
-Things step 8 can do before the credentials arrive: the billing_batches
-UI (pick a client and period, see unbilled time and expenses, build a
-draft batch, lock the rows) is pure Supabase and needs no QBO. Only the
-push itself and the customer mapping need the app.
+1. Docket owns invoicing: invoice numbers, line items from a batch, PDF,
+   email through Resend, sent/paid/overdue status, and overdue reminders
+   riding on the step 6 reminder cron. QBO gets nothing, or a later
+   summary push for the books. Largest build, no new credentials.
+2. Move billing to QuickBooks Online: the batch pushes an invoice and QBO
+   sends it, tracks payment, and nags. Needs the Intuit app credentials
+   (NUXT_QBO_CLIENT_ID / NUXT_QBO_CLIENT_SECRET, callback
+   /api/qbo/callback) and whoever does billing works in QBO from then on.
+3. Keep Harvest for invoicing only. Cheapest, but Harvest stays paid for.
+
+Either way, import Harvest's invoice history (`/v2/invoices`: number,
+client, dates, amounts, paid status) before cancelling so AR history
+survives; that is a small addition to the import page. The
+billing_batches UI (pick a client and period, see unbilled time and
+expenses, build a draft batch, lock the rows) is needed under options 1
+and 2 and is pure Supabase, so it can be built before the decision.
 
 ## Step 6: reminders + email
 
@@ -293,6 +344,8 @@ access token: `NUXT_HARVEST_ACCESS_TOKEN` and `NUXT_HARVEST_ACCOUNT_ID`
 - Migration `harvest_import`: `harvest_id bigint unique` on clients,
   projects, tasks, time_entries; `unbilled_time` excludes `is_locked`;
   new view `harvest_archive_yearly` for the page. Mirrored in schema.sql.
+- expenses mode (added later, see "Harvest expense import" above):
+  every expense for a year range into `expenses`, receipts included.
 - Luke's Harvest token is a Manager token, so `/v2/users` returns 403. The
   route tolerates that and matches people to profiles by full name instead
   of email. Time entries are visible in full (June 2025 matched the

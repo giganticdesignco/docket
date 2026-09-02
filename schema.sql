@@ -372,9 +372,10 @@ create index retainers_client_period on retainers (client_id, period_start, peri
 -- ---------- Expenses ----------
 
 create table expense_categories (
-  id        uuid primary key default gen_random_uuid(),
-  name      text not null unique,
-  is_active boolean not null default true
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null unique,
+  is_active  boolean not null default true,
+  harvest_id bigint unique                 -- Harvest category id, set by the import
 );
 
 create table expenses (
@@ -390,6 +391,7 @@ create table expenses (
   is_reimbursable boolean not null default false,
   is_locked       boolean not null default false,
   batch_id        uuid references billing_batches(id) on delete set null,
+  harvest_id      bigint unique,        -- Harvest expense id, set by the import
   created_at      timestamptz not null default now()
 );
 
@@ -1127,7 +1129,8 @@ revoke execute on function public.report_time_monthly(date, date, text, text, te
 -- 6. STORAGE
 -- Receipts live in the private `receipts` bucket, one folder per person:
 --   receipts/<user_id>/<uuid>.<ext>
--- Owners read and write their own folder; admins read and delete any.
+-- Owners read and write their own folder; admins read, write, and delete
+-- any (the Harvest import files receipts under their owner).
 -- Supabase's storage schema already exists; the local check stubs it.
 -- ============================================================
 
@@ -1142,7 +1145,7 @@ create policy receipts_read on storage.objects for select to authenticated
 
 create policy receipts_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'receipts'
-              and (storage.foldername(name))[1] = auth.uid()::text);
+              and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
 
 create policy receipts_update on storage.objects for update to authenticated
   using (bucket_id = 'receipts'

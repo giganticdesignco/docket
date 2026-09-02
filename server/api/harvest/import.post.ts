@@ -8,18 +8,21 @@ import type { Database } from '~~/shared/types/database'
 //             creating clients, projects, tasks, and project_tasks as needed
 //   projects: copy budget, rate, billing method, and active flag onto the
 //             Docket projects that came from Harvest
+//   expenses: upsert one month's expenses into expenses keyed on harvest_id,
+//             creating clients, projects, and categories as needed, and file
+//             each receipt in the owner's folder of the receipts bucket
 // Runs as the signed-in admin through RLS. The only secret is the Harvest
 // token. Re-runnable: importing the same month again is safe.
 
-type Mode = 'archive' | 'live' | 'projects'
+type Mode = 'archive' | 'live' | 'projects' | 'expenses'
 type Body = { month?: string, mode?: Mode, dryRun?: boolean }
 type Db = SupabaseClient<Database>
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event)
   const month = body?.month ?? ''
-  if (body.mode !== 'archive' && body.mode !== 'live' && body.mode !== 'projects') {
-    throw createError({ statusCode: 400, statusMessage: 'mode must be archive, live, or projects' })
+  if (body.mode !== 'archive' && body.mode !== 'live' && body.mode !== 'projects' && body.mode !== 'expenses') {
+    throw createError({ statusCode: 400, statusMessage: 'mode must be archive, live, projects, or expenses' })
   }
   if (body.mode !== 'projects' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     throw createError({ statusCode: 400, statusMessage: 'month must be YYYY-MM' })
@@ -37,6 +40,10 @@ export default defineEventHandler(async (event) => {
 
   const from = `${month}-01`
   const to = lastDayOfMonth(month)
+  if (body.mode === 'expenses') {
+    return { month, mode: body.mode, dryRun, skippedRunning: 0, ...(await importExpenses(supabase, from, to, dryRun)) }
+  }
+
   const all = await harvestTimeEntries(from, to)
   // A timer still running in Harvest has partial hours. Leave it for next time.
   const entries = all.filter(e => !e.is_running)
@@ -53,10 +60,11 @@ export default defineEventHandler(async (event) => {
 type Refs = Awaited<ReturnType<typeof loadRefs>>
 
 async function loadRefs(supabase: Db) {
-  const [clients, projects, tasks, profiles, projectTasks, users] = await Promise.all([
+  const [clients, projects, tasks, categories, profiles, projectTasks, users] = await Promise.all([
     selectAll(supabase.from('clients').select('id, name, harvest_id')),
     selectAll(supabase.from('projects').select('id, client_id, name, harvest_id')),
     selectAll(supabase.from('tasks').select('id, name, harvest_id')),
+    selectAll(supabase.from('expense_categories').select('id, name, harvest_id')),
     selectAll(supabase.from('profiles').select('id, email, full_name')),
     selectAll(supabase.from('project_tasks').select('project_id, task_id')),
     harvestUsers(),
@@ -65,6 +73,7 @@ async function loadRefs(supabase: Db) {
     clients,
     projects,
     tasks,
+    categories,
     profiles,
     projectTaskKeys: new Set(projectTasks.map(pt => `${pt.project_id}:${pt.task_id}`)),
     harvestEmail: new Map(users.map(u => [u.id, u.email])),
@@ -151,14 +160,13 @@ async function importArchive(supabase: Db, periodMonth: string, entries: Harvest
   return { rows: list.length, hours, amount }
 }
 
-// ---------- live ----------
+// ---------- reference rows ----------
 
-async function importLive(supabase: Db, from: string, to: string, all: HarvestTimeEntry[], entries: HarvestTimeEntry[], dryRun: boolean) {
-  const refs = await loadRefs(supabase)
-  const created = { clients: 0, projects: 0, tasks: 0, project_tasks: 0 }
-  const skippedUsers = new Map<number, string>()
+const newCreated = () => ({ clients: 0, projects: 0, tasks: 0, project_tasks: 0, categories: 0 })
+type Created = ReturnType<typeof newCreated>
 
-  // Reference rows: match on harvest_id, then on name (and adopt the id), else create.
+// Match on harvest_id, then on name (and adopt the id), else create.
+function ensurers(supabase: Db, refs: Refs, dryRun: boolean, created: Created) {
   async function ensureClient(ref: HarvestRef) {
     let c = refs.clients.find(x => x.harvest_id === ref.id)
       ?? refs.clients.find(x => x.harvest_id == null && same(x.name, ref.name))
@@ -230,6 +238,38 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
     if (!dryRun) fail((await supabase.from('project_tasks').insert({ project_id: projectId, task_id: taskId })).error)
     refs.projectTaskKeys.add(key)
   }
+
+  async function ensureCategory(ref: HarvestRef) {
+    let c = refs.categories.find(x => x.harvest_id === ref.id)
+      ?? refs.categories.find(x => x.harvest_id == null && same(x.name, ref.name))
+    if (c && c.harvest_id == null) {
+      if (!dryRun) fail((await supabase.from('expense_categories').update({ harvest_id: ref.id }).eq('id', c.id)).error)
+      c.harvest_id = ref.id
+    }
+    if (!c) {
+      created.categories++
+      if (dryRun) {
+        c = { id: `dry-category-${ref.id}`, name: ref.name.trim(), harvest_id: ref.id }
+      } else {
+        const { data, error } = await supabase.from('expense_categories').insert({ name: ref.name.trim(), harvest_id: ref.id }).select('id, name, harvest_id').single()
+        fail(error)
+        c = data!
+      }
+      refs.categories.push(c)
+    }
+    return c
+  }
+
+  return { ensureClient, ensureProject, ensureTask, ensureProjectTask, ensureCategory }
+}
+
+// ---------- live ----------
+
+async function importLive(supabase: Db, from: string, to: string, all: HarvestTimeEntry[], entries: HarvestTimeEntry[], dryRun: boolean) {
+  const refs = await loadRefs(supabase)
+  const created = newCreated()
+  const skippedUsers = new Map<number, string>()
+  const { ensureClient, ensureProject, ensureTask, ensureProjectTask } = ensurers(supabase, refs, dryRun, created)
 
   type Row = Database['public']['Tables']['time_entries']['Insert']
   const rows: Row[] = []
@@ -346,4 +386,113 @@ async function importProjects(supabase: Db, dryRun: boolean) {
     }
   }
   return { projectsInHarvest: harvest.length, updatedProjects: rows.length }
+}
+
+// ---------- expenses ----------
+
+// Receipts go to receipts/<owner>/harvest-<expense id>.<ext>, so a re-run
+// finds them by path and downloads nothing twice. The bucket only takes
+// these types; anything else is reported and the expense comes in without.
+const RECEIPT_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', pdf: 'application/pdf',
+}
+const RECEIPT_MAX_BYTES = 10 * 1024 * 1024
+
+async function importExpenses(supabase: Db, from: string, to: string, dryRun: boolean) {
+  const all = await harvestExpenses(from, to)
+  const refs = await loadRefs(supabase)
+  const created = newCreated()
+  const skippedUsers = new Map<number, string>()
+  const { ensureClient, ensureProject, ensureCategory } = ensurers(supabase, refs, dryRun, created)
+
+  // Earlier runs: keep their receipt and reimbursable flag, and find rows
+  // that Harvest has since deleted.
+  const existing = await selectAll(
+    supabase.from('expenses').select('id, harvest_id, batch_id, receipt_path, is_reimbursable').gte('spent_on', from).lte('spent_on', to).not('harvest_id', 'is', null),
+  )
+  const byHarvestId = new Map(existing.map(x => [x.harvest_id!, x]))
+
+  type Row = Database['public']['Tables']['expenses']['Insert']
+  const rows: Row[] = []
+  const pending: { row: Row, expense: HarvestExpense, path: string, contentType: string }[] = []
+  const receiptErrors: string[] = []
+  let receipts = 0
+
+  for (const e of all) {
+    const profile = findProfile(refs, e.user)
+    if (!profile) {
+      const email = refs.harvestEmail.get(e.user.id)
+      skippedUsers.set(e.user.id, email ? `${e.user.name} (${email})` : e.user.name)
+      continue
+    }
+    const client = await ensureClient(e.client)
+    const project = await ensureProject(e.project, client.id)
+    const category = await ensureCategory(e.expense_category)
+    const prior = byHarvestId.get(e.id)
+    const row: Row = {
+      harvest_id: e.id,
+      user_id: profile.id,
+      project_id: project.id,
+      category_id: category.id,
+      spent_on: e.spent_date,
+      amount: round2(e.total_cost),
+      notes: e.notes || null,
+      is_billable: e.billable,
+      // Harvest has no reimbursable flag; whatever was set here stays.
+      is_reimbursable: prior?.is_reimbursable ?? false,
+      // Invoiced in Harvest: never editable, never picked up by a QuickBooks batch.
+      is_locked: e.is_billed,
+      receipt_path: prior?.receipt_path ?? null,
+    }
+    rows.push(row)
+
+    if (e.receipt) {
+      const ext = e.receipt.file_name.split('.').pop()?.toLowerCase() ?? ''
+      const contentType = RECEIPT_TYPES[ext] ?? (Object.values(RECEIPT_TYPES).includes(e.receipt.content_type) ? e.receipt.content_type : null)
+      if (!contentType) {
+        receiptErrors.push(`${e.spent_date} ${e.user.name}: ${e.receipt.file_name} is not an image or PDF`)
+        continue
+      }
+      if (e.receipt.file_size > RECEIPT_MAX_BYTES) {
+        receiptErrors.push(`${e.spent_date} ${e.user.name}: ${e.receipt.file_name} is over 10 MB`)
+        continue
+      }
+      const path = `${profile.id}/harvest-${e.id}.${ext || 'bin'}`
+      if (row.receipt_path === path) continue
+      receipts++
+      pending.push({ row, expense: e, path, contentType })
+    }
+  }
+
+  let deleted = 0
+  if (!dryRun) {
+    for (const { row, expense, path, contentType } of pending) {
+      try {
+        const file = await harvestReceipt(expense.receipt!.url)
+        const { error } = await supabase.storage.from('receipts').upload(path, file.bytes, { contentType, upsert: true })
+        if (error) throw error
+        row.receipt_path = path
+      } catch (err) {
+        receipts--
+        receiptErrors.push(`${expense.spent_date} ${expense.user.name}: ${(err as Error).message}`)
+      }
+    }
+
+    for (const chunk of chunks(rows, 500)) {
+      fail((await supabase.from('expenses').upsert(chunk, { onConflict: 'harvest_id' })).error)
+    }
+
+    // Expenses deleted in Harvest since the last run. Never touch batched rows.
+    const stillInHarvest = new Set(all.map(e => e.id))
+    const stale = existing.filter(x => x.harvest_id != null && !stillInHarvest.has(x.harvest_id) && x.batch_id == null)
+    for (const chunk of chunks(stale, 500)) {
+      fail((await supabase.from('expenses').delete().in('id', chunk.map(x => x.id))).error)
+      deleted += chunk.length
+      const files = chunk.map(x => x.receipt_path).filter((p): p is string => !!p)
+      if (files.length) fail((await supabase.storage.from('receipts').remove(files)).error)
+    }
+  }
+
+  const amount = round2(rows.reduce((sum, r) => sum + r.amount, 0))
+  return { fetched: all.length, imported: rows.length, amount, deleted, receipts, receiptErrors, skippedUsers: [...skippedUsers.values()], created }
 }
