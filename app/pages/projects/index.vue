@@ -13,7 +13,7 @@ const { data: clients } = await useAsyncData('clients-for-projects', async () =>
   const { data, error } = await supabase.from('clients').select('id, name').order('name')
   if (error) throw error
   return data
-})
+}, fresh)
 
 const { data: projects, refresh } = await useAsyncData('projects', async () => {
   const { data, error } = await supabase
@@ -22,7 +22,7 @@ const { data: projects, refresh } = await useAsyncData('projects', async () => {
     .order('name')
   if (error) throw error
   return data
-})
+}, fresh)
 
 const rows = computed(() =>
   (projects.value ?? []).filter(p =>

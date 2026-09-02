@@ -13,7 +13,7 @@ const { data: tasks, refresh } = await useAsyncData('tasks', async () => {
   const { data, error } = await supabase.from('tasks').select('*').order('name')
   if (error) throw error
   return data
-})
+}, fresh)
 
 const rows = computed(() => (tasks.value ?? []).filter(t => showInactive.value || t.is_active))
 

@@ -13,13 +13,13 @@ const { data: client, refresh } = await useAsyncData(`client-${id}`, async () =>
   const { data, error } = await supabase.from('clients').select('*').eq('id', id).single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Client not found' })
   return data
-})
+}, fresh)
 
 const { data: projects, refresh: refreshProjects } = await useAsyncData(`client-${id}-projects`, async () => {
   const { data, error } = await supabase.from('projects').select('*').eq('client_id', id).order('name')
   if (error) throw error
   return data
-})
+}, fresh)
 
 useHead({ title: () => client.value?.name ?? 'Client' })
 

@@ -11,19 +11,19 @@ const { data: project, refresh } = await useAsyncData(`project-${id}`, async () 
   const { data, error } = await supabase.from('projects').select('*, clients(id, name)').eq('id', id).single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   return data
-})
+}, fresh)
 
 const { data: projectTasks } = await useAsyncData(`project-${id}-tasks-named`, async () => {
   const { data, error } = await supabase.from('project_tasks').select('hourly_rate, tasks(name)').eq('project_id', id)
   if (error) throw error
   return data
-})
+}, fresh)
 
 const { data: clients } = await useAsyncData('clients-for-projects', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').order('name')
   if (error) throw error
   return data
-})
+}, fresh)
 
 useHead({ title: () => project.value?.name ?? 'Project' })
 

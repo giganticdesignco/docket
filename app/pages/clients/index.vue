@@ -12,7 +12,7 @@ const { data: clients, refresh } = await useAsyncData('clients', async () => {
   const { data, error } = await supabase.from('clients').select('*').order('name')
   if (error) throw error
   return data
-})
+}, fresh)
 
 const { data: projectCounts } = await useAsyncData('client-project-counts', async () => {
   const { data, error } = await supabase.from('projects').select('client_id').eq('is_active', true)
@@ -20,7 +20,7 @@ const { data: projectCounts } = await useAsyncData('client-project-counts', asyn
   const counts: Record<string, number> = {}
   for (const p of data) counts[p.client_id] = (counts[p.client_id] ?? 0) + 1
   return counts
-})
+}, fresh)
 
 const rows = computed(() =>
   (clients.value ?? []).filter(c => showInactive.value || c.is_active),
