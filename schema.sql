@@ -1082,3 +1082,176 @@ create policy receipts_update on storage.objects for update to authenticated
 create policy receipts_delete on storage.objects for delete to authenticated
   using (bucket_id = 'receipts'
          and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+-- ============================================================
+-- 7. REMINDERS
+-- pg_cron runs run_reminders() at five past every hour. It emails through
+-- Resend with pg_net, straight from Postgres, so there is nothing to deploy
+-- outside this file. Secrets live in Vault (dashboard > SQL editor):
+--   select vault.create_secret('re_...', 'resend_api_key');
+--   select vault.create_secret('Docket <docket@giganticdesign.com>', 'resend_from');
+--   select vault.create_secret('https://docket.giganticdesign.com', 'app_url');
+-- Until resend_api_key exists the job only raises a warning; nothing is
+-- logged, so the first send happens once the key is in.
+-- reminder_log's unique (user_id, kind, for_date) makes each reminder go
+-- out once per person per day however often the job runs. The agency is
+-- on Central Time: "today", "yesterday", and "9am" use America/Chicago.
+-- The local check has neither pg_cron nor pg_net, hence the guards.
+-- ============================================================
+
+do $$ begin
+  create extension if not exists pg_net with schema extensions;
+  create extension if not exists pg_cron;
+exception when others then
+  raise notice 'pg_net / pg_cron not available here: %', sqlerrm;
+end $$;
+
+-- Read one Vault secret, with a default. Internal only.
+create or replace function public.vault_secret(p_name text, p_default text default null)
+returns text
+language sql stable security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select s.decrypted_secret from vault.decrypted_secrets s where s.name = p_name limit 1),
+    p_default
+  );
+$$;
+
+-- Log and send one reminder. Returns false when it already went out for
+-- that person, kind, and day, or when there is no Resend key yet. With
+-- p_dry_run it only reports whether a send would happen.
+create or replace function public.send_reminder(
+  p_user_id uuid, p_kind public.reminder_kind, p_for_date date,
+  p_subject text, p_body text, p_dry_run boolean default false
+)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_email text;
+  v_key   text;
+  v_from  text;
+  v_id    uuid;
+begin
+  select pr.email into v_email from public.profiles pr where pr.id = p_user_id and pr.is_active;
+  if v_email is null then return false; end if;
+
+  if p_dry_run then
+    return not exists (
+      select 1 from public.reminder_log l
+      where l.user_id = p_user_id and l.kind = p_kind and l.for_date = p_for_date
+    );
+  end if;
+
+  v_key := public.vault_secret('resend_api_key');
+  if v_key is null then
+    raise warning 'reminders: resend_api_key is not in Vault, not sending % to %', p_kind, v_email;
+    return false;
+  end if;
+
+  insert into public.reminder_log (user_id, kind, for_date)
+  values (p_user_id, p_kind, p_for_date)
+  on conflict (user_id, kind, for_date) do nothing
+  returning id into v_id;
+  if v_id is null then return false; end if;
+
+  v_from := public.vault_secret('resend_from', 'Docket <onboarding@resend.dev>');
+  perform net.http_post(
+    url     := 'https://api.resend.com/emails',
+    body    := jsonb_build_object('from', v_from, 'to', jsonb_build_array(v_email),
+                                  'subject', p_subject, 'text', p_body),
+    headers := jsonb_build_object('Authorization', 'Bearer ' || v_key,
+                                  'Content-Type', 'application/json')
+  );
+  return true;
+end;
+$$;
+
+-- Find what is due and send it. Timers running over 10 hours are checked
+-- every run; "no time yesterday" only in the 9am hour Central, on weekdays,
+-- skipping people who had time off (or a company holiday) that day.
+-- Callable by admins over the API for a dry run; cron calls it as postgres.
+create or replace function public.run_reminders(p_dry_run boolean default false)
+returns table (kind public.reminder_kind, email text, subject text, sent boolean)
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_local     timestamp := now() at time zone 'America/Chicago';
+  v_today     date := v_local::date;
+  v_yesterday date := v_local::date - 1;
+  v_app       text := public.vault_secret('app_url', 'https://docket.giganticdesign.com');
+  r           record;
+  v_subject   text;
+  v_body      text;
+begin
+  if auth.uid() is not null and not public.is_admin() then
+    raise exception 'Admins only';
+  end if;
+
+  for r in
+    select te.user_id, te.started_at, pr.full_name, pr.email as to_email,
+           p.name as project_name, t.name as task_name,
+           round(extract(epoch from (now() - te.started_at)) / 3600) as hours_running
+    from public.time_entries te
+    join public.profiles pr on pr.id = te.user_id
+    join public.projects  p  on p.id = te.project_id
+    join public.tasks     t  on t.id = te.task_id
+    where te.started_at is not null and te.ended_at is null
+      and te.started_at < now() - interval '10 hours'
+      and pr.is_active
+  loop
+    v_subject := format('Your Docket timer has been running for %s hours', r.hours_running);
+    v_body := format(
+      E'Hi %s,\n\nA timer on %s / %s has been running since %s, about %s hours.\n\nIf you forgot to stop it, fix the entry here: %s/time\n\nDocket',
+      split_part(r.full_name, ' ', 1), r.project_name, r.task_name,
+      to_char(r.started_at at time zone 'America/Chicago', 'FMDay FMMon FMDD, FMHH12:MI AM'),
+      r.hours_running, v_app);
+    kind := 'timer_left_running';
+    email := r.to_email;
+    subject := v_subject;
+    sent := public.send_reminder(r.user_id, 'timer_left_running', v_today, v_subject, v_body, p_dry_run);
+    return next;
+  end loop;
+
+  if extract(hour from v_local) = 9 and extract(isodow from v_yesterday) between 1 and 5 then
+    for r in
+      select pr.id as user_id, pr.full_name, pr.email as to_email
+      from public.profiles pr
+      where pr.is_active
+        and not exists (select 1 from public.time_entries te
+                        where te.user_id = pr.id and te.spent_on = v_yesterday)
+        and not exists (select 1 from public.time_off o
+                        where (o.user_id = pr.id or o.user_id is null)
+                          and v_yesterday between o.starts_on and o.ends_on)
+    loop
+      v_subject := format('No time logged for %s', to_char(v_yesterday, 'FMDay, FMMon FMDD'));
+      v_body := format(
+        E'Hi %s,\n\nDocket has no time from you for %s. Add it here when you get a minute: %s/time?date=%s\n\nDocket',
+        split_part(r.full_name, ' ', 1), to_char(v_yesterday, 'FMDay, FMMon FMDD'), v_app, v_yesterday);
+      kind := 'missing_time';
+      email := r.to_email;
+      subject := v_subject;
+      sent := public.send_reminder(r.user_id, 'missing_time', v_yesterday, v_subject, v_body, p_dry_run);
+      return next;
+    end loop;
+  end if;
+  return;
+end;
+$$;
+
+revoke execute on function public.vault_secret(text, text) from public, anon, authenticated;
+revoke execute on function public.send_reminder(uuid, public.reminder_kind, date, text, text, boolean) from public, anon, authenticated;
+revoke execute on function public.run_reminders(boolean) from public, anon;
+
+do $$ begin
+  perform cron.unschedule('docket-reminders');
+exception when others then null;
+end $$;
+do $$ begin
+  perform cron.schedule('docket-reminders', '5 * * * *', 'select public.run_reminders()');
+exception when others then
+  raise notice 'pg_cron not available here, reminders not scheduled: %', sqlerrm;
+end $$;

@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-02, local session, step 5 built and verified.
+Last updated: 2026-09-02, local session, step 6 built and verified.
 
 ## Where things stand
 
@@ -71,6 +71,43 @@ no rounding.
   no New client, New project, Edit, or Tasks buttons; no Tasks header link;
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
+
+## Step 6: reminders + email
+
+Built entirely in Postgres, not as an Edge Function (a deliberate change
+from docs/structure.md: fewer moving parts, nothing to deploy or
+authenticate, and everything stays in schema.sql). Section 7 of
+schema.sql, migration `reminders`.
+
+- pg_cron job `docket-reminders` runs `run_reminders()` at five past every
+  hour. It sends through Resend with pg_net (`net.http_post`) using
+  `resend_api_key` from Vault. Optional Vault entries: `resend_from`
+  (default `Docket <onboarding@resend.dev>`, Resend's test sender, which
+  only delivers to the Resend signup address) and `app_url` (default
+  https://docket.giganticdesign.com) used in the email links.
+- Kinds: `timer_left_running` for timers over 10 hours, checked every
+  run; `missing_time` for no entries yesterday, only in the 9am hour
+  Central on weekdays, skipping anyone with time_off (or a company
+  holiday) that day. `timesheet_nudge` exists in the enum but is unused.
+- Once per person per kind per day is enforced by reminder_log's unique
+  key: `send_reminder()` inserts the log row first and only sends when the
+  insert happened. Without the Vault key it raises a warning and logs
+  nothing, so the first send happens as soon as the key is added.
+- Admins can call `run_reminders(true)` over the API for a dry run
+  (returns what would send); staff get "Admins only". No UI for this yet.
+- Time zone is hardcoded to America/Chicago in the function.
+
+Verified: inserted an 11-hour running timer for luke@, dry run listed it,
+the real run returned sent=true with one reminder_log row, a second run
+in the same minute returned sent=false with still one row, and pg_net
+recorded Resend's response for the request. Test timer and log row
+deleted afterwards. The cron job's own hourly runs are not observed yet;
+check `cron.job_run_details` after the first :05.
+
+To move off the test sender: verify giganticdesign.com in Resend, then
+`select vault.create_secret('Docket <docket@giganticdesign.com>', 'resend_from');`.
+
+Next is step 7: reports + CSV.
 
 ## Step 5: retainers + budget views
 
