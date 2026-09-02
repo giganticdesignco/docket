@@ -1,5 +1,16 @@
 # Status
 
+## Tasks: cards view (2026-09-02)
+
+A co-worker asked for "card based, 5 across by client, then drill in".
+The Tasks page has a List / Cards toggle (remembered per browser). Cards
+shows a card per client (task count, projects, overdue and due-this-week
+badges, next due), five across at xl. Clicking one shows that client's
+tasks as cards grouped by project (status dot, title, due, priority,
+assignees); a task card opens the task. Everyone, Completed, and search
+apply to both views. Keyboard shortcuts stay on the list view.
+
+
 ## Phase 2, wave 2c: schedule (Gantt) (2026-09-02)
 
 Item 2 of `docs/phase-2.md`. Migration `gantt_dependencies`:

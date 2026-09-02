@@ -15,6 +15,13 @@ const ws = await useWorkStatuses()
 
 type GroupBy = 'status' | 'project' | 'due'
 const groupBy = ref<GroupBy>('status')
+// List, or cards: a card per client, then that client's tasks as cards.
+// Remembered per browser.
+type ViewMode = 'list' | 'cards'
+const viewMode = ref<ViewMode>('list')
+onMounted(() => { try { viewMode.value = (localStorage.getItem('docket-tasks-view') as ViewMode) || 'list' } catch {} })
+watch(viewMode, (v) => { try { localStorage.setItem('docket-tasks-view', v) } catch {} })
+const activeClient = ref<string | null>(null)
 const everyone = ref(false)
 const showCompleted = ref(false)
 const search = ref('')
@@ -186,6 +193,36 @@ async function onDrop(g: Group) {
   }
 }
 
+// ---------- cards ----------
+
+type ClientCard = { name: string, count: number, overdue: number, dueSoon: number, projects: number, nextDue: string | null }
+const clientCards = computed<ClientCard[]>(() => {
+  const m = new Map<string, ClientCard & { projectIds: Set<string> }>()
+  for (const i of visible.value) {
+    const name = i.projects?.clients?.name ?? 'No client'
+    const c = m.get(name) ?? { name, count: 0, overdue: 0, dueSoon: 0, projects: 0, nextDue: null, projectIds: new Set<string>() }
+    c.count += 1
+    c.projectIds.add(i.project_id)
+    if (i.due_on && !ws.isDone(i.status)) {
+      if (i.due_on < today) c.overdue += 1
+      else if (i.due_on <= weekEnd) c.dueSoon += 1
+      if (i.due_on >= today && (!c.nextDue || i.due_on < c.nextDue)) c.nextDue = i.due_on
+    }
+    m.set(name, c)
+  }
+  return [...m.values()].map(c => ({ ...c, projects: c.projectIds.size })).sort((a, b) => b.overdue - a.overdue || b.count - a.count || a.name.localeCompare(b.name))
+})
+const clientTasks = computed(() => visible.value.filter(i => (i.projects?.clients?.name ?? 'No client') === activeClient.value).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999')))
+const clientProjects = computed(() => {
+  const m = new Map<string, { name: string, items: Item[] }>()
+  for (const i of clientTasks.value) {
+    const g = m.get(i.project_id) ?? { name: i.projects?.name ?? 'Project', items: [] }
+    g.items.push(i)
+    m.set(i.project_id, g)
+  }
+  return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
 // ---------- keyboard ----------
 
 // J and K walk the rows in the order shown, X selects, and the letter
@@ -263,15 +300,62 @@ function created(id: string) {
       </div>
       <div class="ml-auto flex flex-wrap items-center gap-3">
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
-        <USelect v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
+        <USelect v-if="viewMode === 'list'" v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
         <USwitch v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />
+        <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
+          <UButton size="xs" icon="i-lucide-list" :variant="viewMode === 'list' ? 'solid' : 'ghost'" :color="viewMode === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="viewMode = 'list';" />
+          <UButton size="xs" icon="i-lucide-layout-grid" :variant="viewMode === 'cards' ? 'solid' : 'ghost'" :color="viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="viewMode = 'cards';" />
+        </div>
         <USwitch v-model="showCompleted" label="Completed" size="sm" />
         <UButton icon="i-lucide-plus" data-tour="new-task" @click="creating = true;">New task</UButton>
       </div>
     </div>
 
+    <!-- Cards: clients five across, then the client's tasks -->
+    <template v-if="viewMode === 'cards'">
+      <div v-if="!activeClient" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <button v-for="c in clientCards" :key="c.name" type="button" class="rounded-lg border border-default bg-default p-4 text-left transition-colors hover:border-primary hover:bg-elevated/40" @click="activeClient = c.name;">
+          <div class="truncate font-semibold" :title="c.name">{{ c.name }}</div>
+          <div class="mt-1 text-3xl font-semibold tabular-nums">{{ c.count }}</div>
+          <div class="text-xs text-muted">{{ c.count === 1 ? 'task' : 'tasks' }} across {{ c.projects }} {{ c.projects === 1 ? 'project' : 'projects' }}</div>
+          <div class="mt-3 flex flex-wrap gap-1 text-xs">
+            <UBadge v-if="c.overdue" color="error" variant="subtle" size="sm">{{ c.overdue }} overdue</UBadge>
+            <UBadge v-if="c.dueSoon" color="warning" variant="subtle" size="sm">{{ c.dueSoon }} due this week</UBadge>
+            <span v-if="!c.overdue && !c.dueSoon && c.nextDue" class="text-muted">next {{ shortDate(c.nextDue) }}</span>
+          </div>
+        </button>
+        <p v-if="!clientCards.length" class="col-span-full py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.' }}</p>
+      </div>
+      <div v-else class="space-y-4">
+        <div class="flex items-center gap-3">
+          <UButton icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" @click="activeClient = null;">All clients</UButton>
+          <h2 class="text-lg font-semibold">{{ activeClient }}</h2>
+          <span class="text-sm text-muted">{{ clientTasks.length }} {{ clientTasks.length === 1 ? 'task' : 'tasks' }}</span>
+        </div>
+        <div v-for="p in clientProjects" :key="p.name" class="space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-muted">{{ p.name === 'General' ? 'General tasks' : p.name }} <span class="font-normal">{{ p.items.length }}</span></h3>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <NuxtLink v-for="i in p.items" :key="i.id" :to="`/tasks/${i.id}`" class="flex min-h-28 flex-col rounded-lg border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated/40">
+              <div class="flex items-start gap-2">
+                <span class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" />
+                <span class="line-clamp-2 font-medium">{{ i.title }}</span>
+              </div>
+              <div class="mt-auto flex items-center gap-2 pt-3 text-xs text-muted">
+                <span :class="i.due_on && i.due_on < today && !ws.isDone(i.status) ? 'text-error' : ''">{{ i.due_on ? shortDate(i.due_on) : 'no date' }}</span>
+                <UIcon :name="priorityIcon(i.priority)" class="size-3.5" :class="priorityClass(i.priority)" />
+                <span v-if="i.work_item_assignees.length" class="ml-auto flex -space-x-1.5">
+                  <span v-for="a in i.work_item_assignees.slice(0, 3)" :key="a.user_id" class="grid size-5 place-items-center rounded-full bg-elevated text-[9px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                </span>
+              </div>
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <div
       v-for="g in groups" :key="g.key"
+      v-show="viewMode === 'list'"
       class="rounded-lg border border-default transition-colors" :class="over === g.key && dragging ? 'border-primary bg-primary/5' : ''"
       @dragover.prevent="over = g.key" @dragleave="over === g.key && (over = null)" @drop.prevent="onDrop(g)"
     >
@@ -345,7 +429,7 @@ function created(id: string) {
       </template>
     </UModal>
 
-    <p v-if="!groups.length" class="py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.' }}</p>
+    <p v-if="viewMode === 'list' && !groups.length" class="py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.' }}</p>
 
     <Teleport to="body">
       <div v-if="menu" class="fixed inset-0 z-50" @click="closeMenu">
