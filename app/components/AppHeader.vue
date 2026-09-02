@@ -11,6 +11,7 @@ const links = computed(() => [
 
 // Admin pages live in one menu so the bar stays short as they accumulate.
 const adminItems = [[
+  { label: 'People', to: '/admin/users', icon: 'i-lucide-users' },
   { label: 'Tasks', to: '/admin/tasks', icon: 'i-lucide-list-checks' },
   { label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-tags' },
   { label: 'Harvest import', to: '/admin/harvest', icon: 'i-lucide-download' },

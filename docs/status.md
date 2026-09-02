@@ -72,6 +72,22 @@ no rounding.
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
 
+## People page (added 2026-09-02)
+
+`/admin/users` (Admin menu > People): name, role, default rate, hours per
+week, active flag, edit through `UserForm`. Hours per week writes
+`availability` history (closes the current row, opens one from today).
+You cannot change your own role or deactivate yourself.
+
+"Add person" creates the account through `server/api/people.post.ts`,
+which uses Supabase's Admin API (`auth.admin.createUser` with the email
+confirmed so Google links on first sign-in) and lets the profile trigger
+build the profile. That route is the one place the project secret key is
+used: set `SUPABASE_SECRET_KEY` (Project Settings > API keys > Secret
+keys) in `.env` and on Vercel. Without it the button returns a clear
+error. No email is sent; tell the person to sign in with Google.
+Verified by creating and deleting a throwaway account.
+
 ## Data state after the 2026 Harvest sync (2026-09-02)
 
 - All 16 people now have auth users and profiles (14 created by SQL the
