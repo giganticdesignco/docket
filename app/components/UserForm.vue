@@ -104,7 +104,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     </div>
     <div class="grid grid-cols-2 items-end gap-4">
       <UFormField label="Hours per week" name="hours_per_week" hint="From today">
-        <UInput v-model="state.hours_per_week" type="number" step="0.5" min="0" max="168" class="w-full" placeholder="40" />
+        <UInput v-model="state.hours_per_week" type="number" step="0.5" min="0" max="168" class="w-full" placeholder="30" />
       </UFormField>
       <UFormField name="is_active" class="pb-2">
         <USwitch v-model="state.is_active" label="Active" :disabled="isSelf" />

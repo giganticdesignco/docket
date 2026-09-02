@@ -896,7 +896,10 @@ export type Database = {
           default_terms_days: number
           id: boolean
           next_invoice_number: number
+          next_quote_number: number
           payment_instructions: string | null
+          quote_terms: string | null
+          quote_valid_days: number
           remind_every_days: number
           remind_overdue: boolean
         }
@@ -910,7 +913,10 @@ export type Database = {
           default_terms_days?: number
           id?: boolean
           next_invoice_number?: number
+          next_quote_number?: number
           payment_instructions?: string | null
+          quote_terms?: string | null
+          quote_valid_days?: number
           remind_every_days?: number
           remind_overdue?: boolean
         }
@@ -924,7 +930,10 @@ export type Database = {
           default_terms_days?: number
           id?: boolean
           next_invoice_number?: number
+          next_quote_number?: number
           payment_instructions?: string | null
+          quote_terms?: string | null
+          quote_valid_days?: number
           remind_every_days?: number
           remind_overdue?: boolean
         }
@@ -1343,49 +1352,70 @@ export type Database = {
         Row: {
           accepted_at: string | null
           accepted_by: string | null
+          accepted_email: string | null
           client_id: string
           created_at: string
           created_by: string
+          decline_reason: string | null
+          declined_at: string | null
+          declined_by: string | null
           id: string
           intro: string | null
           number: string
           project_id: string | null
+          public_token: string
           sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
+          subtotal: number
           terms: string | null
           title: string
+          updated_at: string
           valid_until: string | null
         }
         Insert: {
           accepted_at?: string | null
           accepted_by?: string | null
+          accepted_email?: string | null
           client_id: string
           created_at?: string
           created_by: string
+          decline_reason?: string | null
+          declined_at?: string | null
+          declined_by?: string | null
           id?: string
           intro?: string | null
           number: string
           project_id?: string | null
+          public_token?: string
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
+          subtotal?: number
           terms?: string | null
           title: string
+          updated_at?: string
           valid_until?: string | null
         }
         Update: {
           accepted_at?: string | null
           accepted_by?: string | null
+          accepted_email?: string | null
           client_id?: string
           created_at?: string
           created_by?: string
+          decline_reason?: string | null
+          declined_at?: string | null
+          declined_by?: string | null
           id?: string
           intro?: string | null
           number?: string
           project_id?: string | null
+          public_token?: string
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
+          subtotal?: number
           terms?: string | null
           title?: string
+          updated_at?: string
           valid_until?: string | null
         }
         Relationships: [
@@ -2533,6 +2563,10 @@ export type Database = {
       }
     }
     Functions: {
+      accept_quote: {
+        Args: { p_email?: string; p_name: string; p_quote_id: string }
+        Returns: string
+      }
       create_billing_batch: {
         Args: {
           p_client_id: string
@@ -2548,8 +2582,17 @@ export type Database = {
         Args: { p_batch_id?: string; p_client_id: string }
         Returns: string
       }
+      create_quote: {
+        Args: { p_client_id: string; p_title: string }
+        Returns: string
+      }
+      decline_quote: {
+        Args: { p_name: string; p_quote_id: string; p_reason?: string }
+        Returns: undefined
+      }
       is_admin: { Args: never; Returns: boolean }
       next_invoice_number: { Args: never; Returns: string }
+      next_quote_number: { Args: never; Returns: string }
       project_budget: {
         Args: { p_project_id: string }
         Returns: {
@@ -2567,6 +2610,7 @@ export type Database = {
           project_id: string
         }[]
       }
+      quote_recalc: { Args: { p_quote_id: string }; Returns: undefined }
       recalc_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
       relink_harvest_archive: { Args: never; Returns: number }
       report_time_monthly: {

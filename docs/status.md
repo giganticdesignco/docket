@@ -112,6 +112,51 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Step 12: quoting (2026-09-02)
+
+The last item on the original build order. Migration `quoting`, mirrored
+in schema.sql; schema TODO 6 resolved, TODO 2 (no e-signature, a typed
+name and email are the record) restated.
+
+- `quotes` gains public_token, subtotal (trigger from the lines),
+  accepted_email, declined_at / _by / _reason, updated_at.
+  `quote_line_items.amount` is hours x rate when both are set, otherwise
+  the typed flat amount (trigger `quote_line_amount`). Numbers read
+  Q-2026-001 from `invoice_settings.next_quote_number`; that row also
+  holds `quote_valid_days` and `quote_terms` (Invoice settings page,
+  Quotes card).
+- `create_quote(client, title)`, `accept_quote(quote, name, email)`:
+  creates the project (name = title, hourly, budget_hours = summed line
+  hours, budget_amount = subtotal) and assigns each line's task type to
+  it at the quoted rate; `decline_quote(quote, name, reason)`. Both
+  decision functions allow the service role (no session) or an admin.
+- `/quotes` (admin, Manage menu): out-with-clients and won-this-year
+  totals, filters, New quote (client + title). `/quotes/[id]`: title,
+  valid until, intro, terms; scope lines with task type, hours, rate,
+  amount (flat when hours or rate is blank); a sitemap of pages (nested
+  with Add child, path, template, "priced by" a scope line, which then
+  shows its page count); Save upserts lines and nodes by id; Preview,
+  Copy link, Send (email via `server/api/quotes/send.post.ts`, moves to
+  sent), Mark as sent, Accept and Decline on the client's behalf, Delete
+  draft. Accepted quotes link to their project. Client page has a Quotes
+  card.
+- Public `/q/<token>` (excluded from the auth redirect; service-role
+  routes under `server/api/q/`): `QuoteDocument.vue` on a white sheet
+  with Download PDF (print), then an accept form (full name, optional
+  email, "I accept" tick) and a decline option with a reason. Expired
+  quotes (sent, past valid_until) show a note instead. The quote's
+  author is emailed on accept or decline.
+
+Verified as luke@ and with curl: created Q-2026-001 for Dupaco, two
+scope lines (40 h x $150, $500 flat) and a two-page sitemap saved with
+subtotal $6,500; the public route returned them with no session, bad
+name 400; accepting from the public route made the project with
+budget_hours 40 and budget_amount 6,500, set accepted_by and email, and
+a second accept was refused. Test quote and project deleted afterwards.
+
+Not built: line-item discounts or tax on quotes, converting a quote's
+sitemap into tasks, duplicating a quote, PDF attachment on the email.
+
 ## Step 11: client review links, editable statuses, ClickUp-style list (2026-09-02)
 
 Migrations `client_review`, `work_statuses_table`, mirrored in schema.sql.
@@ -259,7 +304,8 @@ schema.sql; schema TODO 5 is resolved.
   assignees. Estimates are split evenly across the Docket people on a
   task; guests and client staff are dropped.
 - `capacity_weekly` counts time off on weekdays only and gained
-  `booked_tasks`. Available = weekly hours (People page, default 40)
+  `booked_tasks`. Available = weekly hours (People page, default 30
+  since 2026-09-02; it was 40)
   minus time off minus meetings (calendar_busy, not synced yet).
 - `/capacity` (admin): people x weeks (2 back, 8 ahead). Past weeks show
   logged / available, this week and later show ClickUp booked /

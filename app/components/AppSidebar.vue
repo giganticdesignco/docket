@@ -32,6 +32,7 @@ const sections = computed<Section[]>(() => {
     {
       label: 'Manage',
       links: [
+        { label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' },
         { label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' },
         { label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' },
         { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },

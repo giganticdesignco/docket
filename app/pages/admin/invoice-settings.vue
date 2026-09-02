@@ -25,6 +25,9 @@ const form = reactive({
   next_invoice_number: settings.value?.next_invoice_number ?? 1,
   remind_overdue: settings.value?.remind_overdue ?? false,
   remind_every_days: settings.value?.remind_every_days ?? 7,
+  next_quote_number: settings.value?.next_quote_number ?? 1,
+  quote_valid_days: settings.value?.quote_valid_days ?? 30,
+  quote_terms: settings.value?.quote_terms ?? '',
 })
 
 const saving = ref(false)
@@ -43,6 +46,9 @@ async function save() {
       next_invoice_number: Number(form.next_invoice_number) || 1,
       remind_overdue: form.remind_overdue,
       remind_every_days: Math.max(1, Number(form.remind_every_days) || 7),
+      next_quote_number: Number(form.next_quote_number) || 1,
+      quote_valid_days: Math.max(1, Number(form.quote_valid_days) || 30),
+      quote_terms: form.quote_terms.trim() || null,
     }).eq('id', true)
     if (error) throw error
     toast.add({ title: 'Invoice settings saved', color: 'success' })
@@ -58,7 +64,7 @@ async function save() {
   <div class="max-w-2xl space-y-6">
     <div>
       <h1 class="text-2xl font-semibold">Invoice settings</h1>
-      <p class="text-sm text-muted">What prints on every invoice, defaults for new ones, and overdue reminders.</p>
+      <p class="text-sm text-muted">What prints on every invoice and quote, defaults for new ones, and overdue reminders.</p>
     </div>
 
     <UCard>
@@ -108,6 +114,21 @@ async function save() {
           <UInput v-model.number="form.remind_every_days" type="number" :min="1" class="w-full" :disabled="!form.remind_overdue" />
         </UFormField>
         <p class="text-xs text-muted">Reminders only go to invoices that were emailed from Docket, to the same addresses. You can also send one by hand from the invoice.</p>
+      </div>
+    </UCard>
+
+    <UCard>
+      <template #header><h2 class="font-semibold">Quotes</h2></template>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <UFormField label="Next quote number" help="Numbers read Q-2026-014.">
+          <UInput v-model.number="form.next_quote_number" type="number" :min="1" class="w-full" />
+        </UFormField>
+        <UFormField label="Valid for (days)" help="Valid-until date on new quotes.">
+          <UInput v-model.number="form.quote_valid_days" type="number" :min="1" class="w-full" />
+        </UFormField>
+        <UFormField label="Default terms" class="sm:col-span-2" help="Prefilled on new quotes, editable per quote.">
+          <UTextarea v-model="form.quote_terms" :rows="4" class="w-full" />
+        </UFormField>
       </div>
     </UCard>
 

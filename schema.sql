@@ -27,7 +27,8 @@
 --      c. Whether QBO Service Items exist per task (tasks.qbo_item_id).
 --      d. Whether payment is collected THROUGH Harvest (card/ACH). If
 --         so, that moves to QBO Payments too.
--- 2. E-signature on quotes: not handled. accepted_by is a typed name.
+-- 2. E-signature on quotes: not handled. accepted_by is a typed name
+--    (plus accepted_email) recorded by accept_quote() from /q/<token>.
 --    Keep PandaDoc if legally signable docs are required.
 -- 3. RESOLVED in step 5: retainer_status() chains contiguous periods
 --    (same client, project, name) and carries leftover forward when the
@@ -37,8 +38,8 @@
 --    definitions, not output.
 -- 5. RESOLVED in step 9: capacity_weekly counts time off on weekdays
 --    only, so a week of PTO is 40h against a 40h base.
--- 6. quotes.public_token (for the /q/[token] public zone) is not here
---    yet. Add it in step 10.
+-- 6. RESOLVED in step 12: quotes.public_token feeds /q/<token>; the
+--    public page is served by a service-role route.
 -- 7. RESOLVED in step 4: receipts bucket + storage policies are in
 --    section 6 at the bottom. Local check stubs the storage schema.
 -- 8. Auth setup in the Supabase dashboard (not expressible in SQL):
@@ -237,6 +238,36 @@ begin
     new.completed_at := null;
   end if;
   return new;
+end $$;
+
+-- Quote lines: hours x rate when both are given, otherwise the typed
+-- amount (a flat fee). The quote's subtotal follows its lines.
+create or replace function public.quote_line_amount() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.hours is not null and new.rate is not null then
+    new.amount := round(new.hours * new.rate, 2);
+  end if;
+  return new;
+end $$;
+
+create or replace function public.quote_recalc(p_quote_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.quotes set
+    subtotal = coalesce((select sum(amount) from public.quote_line_items where quote_id = p_quote_id), 0),
+    updated_at = now()
+  where id = p_quote_id;
+end $$;
+
+create or replace function public.quote_lines_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op in ('DELETE', 'UPDATE') then perform public.quote_recalc(old.quote_id); end if;
+  if tg_op = 'INSERT' or (tg_op = 'UPDATE' and new.quote_id is distinct from old.quote_id) then
+    perform public.quote_recalc(new.quote_id);
+  end if;
+  return null;
 end $$;
 
 -- ============================================================
@@ -554,7 +585,11 @@ create table invoice_settings (
   default_tax_rate     numeric(5,2) not null default 0,
   next_invoice_number  int not null default 1, -- set to continue Harvest's sequence
   remind_overdue       boolean not null default false,
-  remind_every_days    int not null default 7 check (remind_every_days > 0)
+  remind_every_days    int not null default 7 check (remind_every_days > 0),
+  -- Quotes share this row: numbering, how long a quote stays open, terms.
+  next_quote_number    int not null default 1,
+  quote_valid_days     int not null default 30,
+  quote_terms          text
 );
 insert into invoice_settings (id) values (true) on conflict do nothing;
 
@@ -617,25 +652,35 @@ create table invoice_payments (
 );
 create index invoice_payments_invoice on invoice_payments (invoice_id, paid_on);
 
--- ---------- Quoting (phase 3 scaffolding) ----------
--- Replaces PandaDoc. A quote is accepted -> it becomes a project,
--- and its hour total seeds projects.budget_hours.
+-- ---------- Quoting (step 12) ----------
+-- Replaces PandaDoc. A quote is accepted from /q/<public_token> (or by an
+-- admin) -> accept_quote() makes the project, its hour total becomes
+-- budget_hours, its subtotal budget_amount, and each line's task type is
+-- assigned to the project at the quoted rate.
 
 create table quotes (
-  id          uuid primary key default gen_random_uuid(),
-  client_id   uuid not null references clients(id) on delete restrict,
-  project_id  uuid references projects(id) on delete set null, -- set on acceptance
-  number      text not null unique,     -- e.g. Q-2026-014
-  title       text not null,
-  status      quote_status not null default 'draft',
-  intro       text,                     -- scope narrative
-  terms       text,
-  valid_until date,
-  sent_at     timestamptz,
-  accepted_at timestamptz,
-  accepted_by text,                     -- client name typed at accept
-  created_by  uuid not null references profiles(id) on delete restrict,
-  created_at  timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  client_id      uuid not null references clients(id) on delete restrict,
+  project_id     uuid references projects(id) on delete set null, -- set on acceptance
+  number         text not null unique,     -- Q-2026-014, from invoice_settings.next_quote_number
+  title          text not null,
+  status         quote_status not null default 'draft',
+  intro          text,                     -- scope narrative
+  terms          text,
+  valid_until    date,
+  subtotal       numeric(12,2) not null default 0,  -- kept by quote_recalc()
+  public_token   text not null unique
+                 default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+  sent_at        timestamptz,
+  accepted_at    timestamptz,
+  accepted_by    text,                     -- client name typed at accept
+  accepted_email text,
+  declined_at    timestamptz,
+  declined_by    text,
+  decline_reason text,
+  created_by     uuid not null references profiles(id) on delete restrict,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
 );
 
 create index quotes_client_status on quotes (client_id, status);
@@ -653,6 +698,10 @@ create table quote_line_items (
 );
 
 create index quote_line_items_quote on quote_line_items (quote_id, sort_order);
+create trigger quote_line_items_amount before insert or update on quote_line_items
+  for each row execute function public.quote_line_amount();
+create trigger quote_line_items_recalc after insert or update or delete on quote_line_items
+  for each row execute function public.quote_lines_changed();
 
 -- Sitemap / page inventory (the Octopus.do part).
 -- Self-referencing tree. A node can roll up into a quote line item
@@ -754,7 +803,7 @@ create index time_off_user_range on time_off (user_id, starts_on, ends_on);
 create table availability (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references profiles(id) on delete cascade,
-  hours_per_week numeric(5,2) not null default 40,
+  hours_per_week numeric(5,2) not null default 30,   -- a billable week is 30, not 40
   effective_from date not null,
   effective_to   date,                  -- null = current
   unique (user_id, effective_from)
@@ -928,7 +977,7 @@ select
   pr.id as user_id,
   pr.full_name as user_name,
   w.week_start,
-  coalesce(av.hours_per_week, 40) as base_hours,
+  coalesce(av.hours_per_week, 30) as base_hours,
   -- Weekdays only: a Monday-to-Friday week off is 5 x hours_per_day.
   coalesce((
     select sum(t.hours_per_day * (
@@ -1463,6 +1512,78 @@ begin
   end if;
 end $$;
 
+-- ---------- Quoting ----------
+
+-- Q-2026-014 style numbers from the settings counter.
+create or replace function public.next_quote_number() returns text
+language plpgsql security definer set search_path = '' as $$
+declare v int;
+begin
+  update public.invoice_settings set next_quote_number = next_quote_number + 1
+   where id returning next_quote_number - 1 into v;
+  return 'Q-' || to_char(now() at time zone 'America/Chicago', 'YYYY') || '-' || lpad(v::text, 3, '0');
+end $$;
+
+create or replace function public.create_quote(p_client_id uuid, p_title text) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare v_id uuid; s record;
+begin
+  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if coalesce(trim(p_title), '') = '' then raise exception 'Give the quote a title'; end if;
+  select * into s from public.invoice_settings where id;
+  insert into public.quotes (client_id, number, title, terms, valid_until, created_by)
+  values (p_client_id, public.next_quote_number(), trim(p_title), s.quote_terms,
+          (now() at time zone 'America/Chicago')::date + s.quote_valid_days, auth.uid())
+  returning id into v_id;
+  return v_id;
+end $$;
+
+-- Acceptance, by the client from /q/<token> (service role, no session) or
+-- by an admin on their behalf. Makes the project: hours from the lines
+-- become budget_hours, the subtotal becomes budget_amount, and each line's
+-- task type is assigned to the project with the quoted rate.
+create or replace function public.accept_quote(p_quote_id uuid, p_name text, p_email text default null) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare q record; v_project uuid; v_hours numeric; r record;
+begin
+  if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
+  if coalesce(trim(p_name), '') = '' then raise exception 'A name is required to accept'; end if;
+  select * into q from public.quotes where id = p_quote_id for update;
+  if q.id is null then raise exception 'Quote not found'; end if;
+  if q.status not in ('draft', 'sent') then raise exception 'This quote is already %', q.status; end if;
+
+  select sum(hours) into v_hours from public.quote_line_items where quote_id = q.id;
+  insert into public.projects (client_id, name, billing_method, budget_hours, budget_amount)
+  values (q.client_id, q.title, 'hourly', nullif(v_hours, 0), nullif(q.subtotal, 0))
+  returning id into v_project;
+
+  for r in
+    select task_id, max(rate) as rate from public.quote_line_items
+    where quote_id = q.id and task_id is not null group by task_id
+  loop
+    insert into public.project_tasks (project_id, task_id, hourly_rate) values (v_project, r.task_id, r.rate)
+    on conflict do nothing;
+  end loop;
+
+  update public.quotes set status = 'accepted', accepted_at = now(), accepted_by = trim(p_name),
+    accepted_email = nullif(trim(coalesce(p_email, '')), ''), project_id = v_project, updated_at = now()
+  where id = q.id;
+  return v_project;
+end $$;
+
+create or replace function public.decline_quote(p_quote_id uuid, p_name text, p_reason text default null) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_status public.quote_status;
+begin
+  if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
+  select status into v_status from public.quotes where id = p_quote_id for update;
+  if v_status is null then raise exception 'Quote not found'; end if;
+  if v_status not in ('draft', 'sent') then raise exception 'This quote is already %', v_status; end if;
+  update public.quotes set status = 'declined', declined_at = now(), declined_by = nullif(trim(coalesce(p_name, '')), ''),
+    decline_reason = nullif(trim(coalesce(p_reason, '')), ''), updated_at = now()
+  where id = p_quote_id;
+end $$;
+
 -- ============================================================
 -- 4. ROW LEVEL SECURITY
 -- ============================================================
@@ -1654,6 +1775,13 @@ revoke execute on function public.write_audit_log()          from public, anon, 
 revoke execute on function public.protect_profile_columns()  from public, anon, authenticated;
 revoke execute on function public.set_rate_snapshot()        from public, anon, authenticated;
 revoke execute on function public.work_item_touch()          from public, anon, authenticated;
+revoke execute on function public.quote_line_amount()        from public, anon, authenticated;
+revoke execute on function public.quote_recalc(uuid)         from public, anon, authenticated;
+revoke execute on function public.quote_lines_changed()      from public, anon, authenticated;
+revoke execute on function public.next_quote_number()        from public, anon, authenticated;
+revoke execute on function public.create_quote(uuid, text)   from public, anon;
+revoke execute on function public.accept_quote(uuid, text, text)  from public, anon;
+revoke execute on function public.decline_quote(uuid, text, text) from public, anon;
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, anon;
 revoke execute on function public.project_budget(uuid)       from public, anon;

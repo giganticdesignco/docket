@@ -36,8 +36,13 @@ const { data: retainers, refresh: refreshRetainers } = await useAsyncData(`clien
   return data.filter(r => r.client_id === id).sort((a, b) => b.period_start.localeCompare(a.period_start))
 }, fresh)
 
-// Docket invoices, then Harvest history. RLS gives staff nothing for
-// either, so no admin check on the queries.
+// Quotes, Docket invoices, then Harvest history. RLS gives staff nothing
+// for any of them, so no admin check on the queries.
+const { data: quotes } = await useAsyncData(`client-${id}-quotes`, async () => {
+  const { data, error } = await supabase.from('quotes').select('id, number, title, status, subtotal, valid_until').eq('client_id', id).order('created_at', { ascending: false }).limit(20)
+  if (error) throw error
+  return data
+}, fresh)
 const { data: docketInvoices } = await useAsyncData(`client-${id}-docket-invoices`, async () => {
   const { data, error } = await supabase
     .from('invoices')
@@ -185,6 +190,19 @@ const invoiceLabel = (inv: InvoiceLike) =>
     </UCard>
 
     <template v-if="isAdmin">
+      <h2 class="text-lg font-semibold">Quotes</h2>
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <ul v-if="quotes?.length" class="divide-y divide-default text-sm">
+          <li v-for="q in quotes" :key="q.id" class="flex items-center gap-3 px-4 py-2">
+            <NuxtLink :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
+            <span class="min-w-0 flex-1 truncate">{{ q.title }}</span>
+            <span class="tabular-nums">{{ money(q.subtotal) }}</span>
+            <UBadge :color="q.status === 'accepted' ? 'success' : q.status === 'sent' ? 'info' : q.status === 'declined' || q.status === 'expired' ? 'neutral' : 'neutral'" variant="subtle" size="sm">{{ q.status }}</UBadge>
+          </li>
+        </ul>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No quotes for this client. Start one from Quotes.</p>
+      </UCard>
+
       <div class="flex items-center gap-4">
         <h2 class="text-lg font-semibold">Invoices</h2>
         <UButton :to="`/billing/new?client=${id}`" class="ml-auto" size="sm" variant="outline" icon="i-lucide-plus">New batch</UButton>
