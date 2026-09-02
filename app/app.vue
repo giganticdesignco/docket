@@ -23,6 +23,7 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
     <AppSidebar v-if="staff" />
     <SearchPalette v-if="staff" />
     <AppShortcuts v-if="staff" />
+    <AssistantDrawer v-if="staff" />
     <div v-if="staff" class="app-shell md:pl-14">
       <UContainer class="py-6">
         <SettingsNav v-if="inSettings" />

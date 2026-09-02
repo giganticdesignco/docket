@@ -185,6 +185,33 @@ const lateStart = computed(() => {
 
 const commentBody = ref('')
 const commentVisible = ref(false)
+
+// ---------- assistant ----------
+const drafting = ref<'description' | 'reply' | null>(null)
+async function draftDescription() {
+  drafting.value = 'description'
+  try {
+    const r = await $fetch<{ text: string }>('/api/ai/draft', { method: 'POST', body: { kind: 'task_description', taskId: id, current: draft.description, instruction: draft.description ? 'Tidy and complete the current description; keep its facts.' : 'Write it from the task title, comments, and project.' } })
+    draft.description = r.text
+    saveDescription()
+  } catch (e) {
+    toast.add({ title: 'Could not draft', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+  } finally {
+    drafting.value = null
+  }
+}
+async function draftReply() {
+  drafting.value = 'reply'
+  try {
+    const r = await $fetch<{ text: string }>('/api/ai/draft', { method: 'POST', body: { kind: 'client_reply', taskId: id, current: commentBody.value, instruction: commentBody.value ? 'Turn these notes into the reply.' : 'Reply to the latest client comment or decision.' } })
+    commentBody.value = r.text
+    commentVisible.value = true
+  } catch (e) {
+    toast.add({ title: 'Could not draft', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+  } finally {
+    drafting.value = null
+  }
+}
 const commenting = ref(false)
 // @mentions: typing @ offers people; the comment keeps "@Full Name" in
 // the text and the matching ids in mentions, which notifies them.
@@ -521,7 +548,10 @@ async function deleteTask() {
         </dl>
 
         <div>
-          <h2 class="mb-1 text-xs font-semibold uppercase tracking-wider text-dimmed">Description</h2>
+          <div class="mb-1 flex items-center gap-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-dimmed">Description</h2>
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-sparkles" class="ml-auto" :loading="drafting === 'description'" @click="draftDescription">{{ draft.description ? 'Tidy' : 'Draft' }}</UButton>
+          </div>
           <UTextarea v-model="draft.description" variant="none" autoresize :rows="3" class="w-full" :ui="{ base: 'px-0' }" placeholder="Add a description" @blur="saveDescription" />
         </div>
 
@@ -588,6 +618,7 @@ async function deleteTask() {
           </div>
           <div class="mt-2 flex items-center gap-3">
             <UCheckbox v-model="commentVisible" label="Visible to client" size="sm" />
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-sparkles" :loading="drafting === 'reply'" title="Draft a client-facing reply" @click="draftReply">Draft reply</UButton>
             <UButton size="sm" class="ml-auto" :loading="commenting" :disabled="!commentBody.trim()" @click="addComment">Comment</UButton>
           </div>
         </div>

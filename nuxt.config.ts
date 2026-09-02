@@ -19,6 +19,8 @@ export default defineNuxtConfig({
     // project, with <site>/api/google/callback as a redirect URI.
     googleClientId: '',
     googleClientSecret: '',
+    // NUXT_ANTHROPIC_API_KEY for the assistant. Server only.
+    anthropicApiKey: '',
   },
   routeRules: {
     // The signed-in app renders in the browser. Every page needs the

@@ -93,6 +93,40 @@ const lineOptions = computed(() => [{ label: 'Not priced', value: '__none__' }, 
 function addLine() {
   draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '' })
 }
+
+// ---------- assistant ----------
+// Draft the intro from the quote, or propose scope lines from a brief.
+// Both land in the editor for the person to change before saving.
+const drafting = ref<'intro' | 'lines' | null>(null)
+const briefOpen = ref(false)
+const brief = ref('')
+const briefNotes = ref('')
+async function draftIntro() {
+  drafting.value = 'intro'
+  try {
+    const r = await $fetch<{ text: string }>('/api/ai/draft', { method: 'POST', body: { kind: 'quote_intro', quoteId: id, current: form.intro, instruction: form.intro ? 'Improve the current text; keep its facts.' : undefined } })
+    form.intro = r.text
+  } catch (e) {
+    toast.add({ title: 'Could not draft', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+  } finally {
+    drafting.value = null
+  }
+}
+async function draftLinesFromBrief() {
+  if (!brief.value.trim()) return
+  drafting.value = 'lines'
+  try {
+    const r = await $fetch<{ lines: { description: string, task_id: string | null, hours: number, rate: number }[], notes: string }>('/api/ai/quote-draft', { method: 'POST', body: { quoteId: id, brief: brief.value } })
+    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '' })
+    briefNotes.value = r.notes
+    briefOpen.value = false
+    toast.add({ title: `${r.lines.length} lines proposed`, description: 'Edit them, then save the quote.', color: 'success' })
+  } catch (e) {
+    toast.add({ title: 'Could not draft lines', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+  } finally {
+    drafting.value = null
+  }
+}
 function removeLine(i: number) {
   const l = draftLines.value[i]!
   removedLines.add(l.id)
@@ -277,6 +311,7 @@ async function deleteQuote() {
           </UFormField>
           <UFormField label="Introduction" class="md:col-span-4" help="Scope narrative, printed above the lines.">
             <UTextarea v-model="form.intro" :rows="4" class="w-full" />
+            <div class="mt-1 flex justify-end"><UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-sparkles" :loading="drafting === 'intro'" @click="draftIntro">{{ form.intro ? 'Improve with the assistant' : 'Draft with the assistant' }}</UButton></div>
           </UFormField>
           <UFormField label="Terms" class="md:col-span-4">
             <UTextarea v-model="form.terms" :rows="3" class="w-full" />
@@ -287,7 +322,8 @@ async function deleteQuote() {
       <div class="flex items-center gap-4">
         <h2 class="text-lg font-semibold">Scope</h2>
         <span class="text-sm text-muted">Hours x rate, or a flat amount.</span>
-        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" :to="`/estimator?quote=${id}`">Add signage job</UButton>
+        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-sparkles" class="ml-auto" @click="briefOpen = true;">Draft lines</UButton>
+        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" :to="`/estimator?quote=${id}`">Add signage job</UButton>
         <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="addLine">Add line</UButton>
       </div>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
@@ -415,6 +451,21 @@ async function deleteQuote() {
         <div class="flex w-full justify-end gap-2">
           <UButton variant="ghost" color="neutral" @click="deleting = false;">Cancel</UButton>
           <UButton color="error" @click="deleteQuote">Delete</UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="briefOpen" title="Draft scope lines" description="Describe the project in a few sentences. The assistant proposes lines with hours based on this client's history; you edit and save.">
+      <template #body>
+        <div class="space-y-3">
+          <UTextarea v-model="brief" :rows="5" class="w-full" placeholder="A five-page marketing site on WordPress with a blog, two landing pages, and a contact form, plus a logo refresh. Photography is theirs." autofocus />
+          <p v-if="briefNotes" class="rounded-md bg-elevated p-3 text-xs text-muted">{{ briefNotes }}</p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="briefOpen = false;">Cancel</UButton>
+          <UButton icon="i-lucide-sparkles" :loading="drafting === 'lines'" :disabled="!brief.trim()" @click="draftLinesFromBrief">Propose lines</UButton>
         </div>
       </template>
     </UModal>

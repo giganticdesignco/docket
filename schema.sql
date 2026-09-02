@@ -1139,6 +1139,26 @@ insert into estimator_materials (legacy_id, name, types, width_in, length_in, co
 (119, 'White Acrylic Sheet', array['Substrate'], 51, 100, 134.37, 925, false, 69),
 (97, 'Window Perffed / SiHL 3214 Value Line 60/40 Window Perf Film, 6.5 mil (DBQ Buses)', array['Print Vinyl'], 54, 1968, 432.0, 925, true, 70);
 
+-- ---------- AI assistant ----------
+-- Every call to the model: who, which job, what went in and came out,
+-- tokens, and what was saved. Written by the server with the service
+-- role (server/utils/ai.ts); people read their own rows, admins
+-- everyone's. The daily cap counts today's rows per person. The model
+-- only ever sees data through the caller's own client, so RLS decides.
+create table ai_events (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references profiles(id) on delete cascade,
+  job           text not null,            -- chat, parse_time, draft_*, quote_draft, digest
+  model         text not null,
+  prompt        text,
+  response      text,
+  input_tokens  int,
+  output_tokens int,
+  saved         jsonb,                    -- what the person accepted, if anything
+  created_at    timestamptz not null default now()
+);
+create index ai_events_user_day on ai_events (user_id, created_at desc);
+
 -- ---------- Audit trail ----------
 -- Who changed what, on time entries and expenses.
 -- Append-only: nobody can update or delete rows here.
@@ -2399,6 +2419,7 @@ alter table google_tokens enable row level security;
 alter table work_item_dependencies enable row level security;
 alter table estimator_materials enable row level security;
 alter table estimator_settings  enable row level security;
+alter table ai_events           enable row level security;
 alter table notification_prefs enable row level security;
 alter table clients                enable row level security;
 alter table projects               enable row level security;
@@ -2568,6 +2589,7 @@ create policy read_all on estimator_materials for select to authenticated using 
 create policy read_all on estimator_settings  for select to authenticated using (not is_client());
 create policy manage_settings on estimator_materials for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 create policy manage_settings on estimator_settings  for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy own_or_settings on ai_events for select to authenticated using (user_id = auth.uid() or has_permission('manage_settings'));
 
 -- People log their own time off; admins manage holidays and everyone else.
 create policy own_time_off on time_off for all to authenticated

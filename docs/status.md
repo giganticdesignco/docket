@@ -1,5 +1,34 @@
 # Status
 
+## Phase 2, wave 2c: AI assistant (2026-09-02)
+
+Item 4 of `docs/phase-2.md`. Migration `ai_events`. Key:
+NUXT_ANTHROPIC_API_KEY (Vercel and .env; Luke created a workspace-scoped
+key on 2026-09-02).
+
+- `server/utils/ai.ts`: `caller()` (team only, 200 calls a day each),
+  `converse()` (Messages API by fetch, tool loop up to six rounds, every
+  call logged to `ai_events`), `docketTools()` (search, report_rollup,
+  report_time, project_budgets, unbilled, get_task, my_tasks, quote),
+  all run through the caller's own Supabase client so RLS decides what
+  the model sees. Models: claude-sonnet-5 for chat, drafting, quotes,
+  digest; claude-haiku-4-5-20251001 for parsing time.
+- Routes: `/api/ai/chat` (drawer, page context), `/api/ai/parse-time`
+  (sentence to a proposal matched against the person's projects and
+  task types), `/api/ai/draft` (task_description, client_reply,
+  quote_intro, invoice_subject, tidy), `/api/ai/quote-draft` (brief to
+  scope lines grounded in the client's history), `/api/ai/digest`
+  (Monday 13:00 UTC Vercel cron, facts via service role, note by the
+  model, Resend to admins).
+- UI: `AssistantDrawer.vue` (Cmd+J, sparkle in the rail): suggestions
+  per page, chat with links, "log: 2h Hills Bank design" makes a time
+  entry card to confirm and save. Draft buttons on the task
+  description, the comment composer (client reply), and the quote
+  intro; "Draft lines" on the quote page proposes scope lines to insert.
+- Nothing is written by the model; every write is a person clicking
+  Save. Client names and amounts do go to the API.
+
+
 ## Phase 2, wave 2c: signage estimator (2026-09-02)
 
 Item 10 of `docs/phase-2.md`. Migration `estimator`.

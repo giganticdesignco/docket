@@ -18,6 +18,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_events: {
+        Row: {
+          created_at: string
+          id: string
+          input_tokens: number | null
+          job: string
+          model: string
+          output_tokens: number | null
+          prompt: string | null
+          response: string | null
+          saved: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          job: string
+          model: string
+          output_tokens?: number | null
+          prompt?: string | null
+          response?: string | null
+          saved?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_tokens?: number | null
+          job?: string
+          model?: string
+          output_tokens?: number | null
+          prompt?: string | null
+          response?: string | null
+          saved?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: Database["public"]["Enums"]["audit_action"]

@@ -4,6 +4,7 @@
 const router = useRouter()
 const { can } = useCurrentUser()
 const searchOpen = useState('search-open', () => false)
+const assistantOpen = useState('assistant-open', () => false)
 const timer = useTimer()
 const toast = useToast()
 const sheetOpen = useState('shortcut-sheet-open', () => false)
@@ -25,6 +26,7 @@ async function toggleTimer() {
 
 useShortcuts('Everywhere', {
   'meta_k': { label: 'Search', handler: () => { searchOpen.value = !searchOpen.value } },
+  'meta_j': { label: 'Assistant', handler: () => { assistantOpen.value = !assistantOpen.value } },
   'n': { label: 'New task', handler: go('/tasks?new=1') },
   't': { label: 'Stop the running timer, or log time', handler: toggleTimer },
   'g-t': { label: 'Go to Time', handler: go('/time') },

@@ -143,7 +143,8 @@ before anything is written.
 
 Depends on: nothing hard; Ask Docket benefits from Roles (a contractor
 should not be able to ask about rates). Size: MVP with jobs 1, 2, and 4
-in 6 to 8 days; quote drafting and the digest 4 to 5 more.
+in 6 to 8 days; quote drafting and the digest 4 to 5 more. All five
+built 2026-09-02.
 
 ## 5. Client logins
 
