@@ -52,6 +52,20 @@ const { data: availability, refresh: refreshAvailability } = await useAsyncData(
 }, fresh)
 
 const hoursFor = (id: string) => availability.value?.find(a => a.user_id === id)?.hours_per_week ?? null
+
+// This month per person, by name, from the report function.
+const { data: monthRows } = await useAsyncData('admin-people-month', async () => {
+  const today = todayString()
+  const { data, error } = await supabase.rpc('report_time', { p_from: startOfMonth(today), p_to: endOfMonth(today), p_group: 'person' })
+  if (error) throw error
+  return data
+}, fresh)
+const monthFor = (name: string) => monthRows.value?.find(r => r.label === name)
+const monthText = (name: string) => {
+  const r = monthFor(name)
+  if (!r || Number(r.hours) === 0) return ''
+  return `${formatHours(r.hours)} (${Math.round(Number(r.billable_hours) / Number(r.hours) * 100)}% billable)`
+}
 const rows = computed(() => (profiles.value ?? []).filter(p => showInactive.value || p.is_active))
 const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 
@@ -84,6 +98,7 @@ function done() {
             <th class="px-4 py-2 font-medium">Role</th>
             <th class="px-4 py-2 text-right font-medium">Default rate</th>
             <th class="px-4 py-2 text-right font-medium">Hours / week</th>
+            <th class="px-4 py-2 text-right font-medium">This month</th>
             <th class="px-4 py-2 font-medium">Status</th>
             <th class="px-4 py-2" />
           </tr>
@@ -97,6 +112,7 @@ function done() {
             </td>
             <td class="px-4 py-2 text-right tabular-nums">{{ money(p.default_rate) }}</td>
             <td class="px-4 py-2 text-right tabular-nums">{{ hoursFor(p.id) ?? '' }}</td>
+            <td class="px-4 py-2 text-right tabular-nums whitespace-nowrap">{{ monthText(p.full_name) }}</td>
             <td class="px-4 py-2">
               <UBadge :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
             </td>
@@ -105,7 +121,7 @@ function done() {
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="7" class="px-4 py-8 text-center text-muted">Nobody here.</td>
+            <td colspan="8" class="px-4 py-8 text-center text-muted">Nobody here.</td>
           </tr>
         </tbody>
       </table>

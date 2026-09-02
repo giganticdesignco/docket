@@ -72,6 +72,26 @@ const { data: recent } = await useAsyncData(`project-${id}-recent`, async () => 
 
 useHead({ title: () => project.value?.name ?? 'Project' })
 
+// Lifetime breakdown by task type and by person, from the report
+// function under RLS: admins see everyone, staff their own time.
+const year = todayString().slice(0, 4)
+const { data: breakdown } = await useAsyncData(`project-${id}-breakdown`, async () => {
+  const p = project.value
+  if (!p) return null
+  const args = { p_from: '2000-01-01', p_to: todayString(), p_client: p.clients?.name ?? undefined, p_project: p.name }
+  const [byTask, byPerson] = await Promise.all([
+    supabase.rpc('report_time', { ...args, p_group: 'task' }),
+    supabase.rpc('report_time', { ...args, p_group: 'person' }),
+  ])
+  if (byTask.error) throw byTask.error
+  if (byPerson.error) throw byPerson.error
+  return { byTask: byTask.data, byPerson: byPerson.data }
+}, fresh)
+const share = (h: number, rows: { hours: number }[]) => {
+  const total = rows.reduce((t, r) => t + Number(r.hours), 0)
+  return total > 0 ? Math.round(Number(h) / total * 100) : 0
+}
+
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
 const money = (n: number | null) => (n == null ? 'Not set' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 const pct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : 0)
@@ -165,6 +185,37 @@ async function copyFolder() {
             <span v-if="project.budget_amount">{{ pct(budget.amount_used, project.budget_amount) }}% used</span>
             <span v-else>No amount budget on this project.</span>
           </p>
+        </div>
+      </div>
+    </UCard>
+
+    <ReportRollup :from="`${year}-01-01`" :to="`${year}-12-31`" :client="project.clients?.name ?? undefined" :project="project.name" />
+
+    <UCard v-if="breakdown && (breakdown.byTask.length || breakdown.byPerson.length)">
+      <template #header>
+        <div class="flex items-baseline gap-3">
+          <h2 class="font-semibold">{{ isAdmin ? 'Where the time went' : 'Where your time went' }}</h2>
+          <span class="text-xs text-muted">Lifetime.<template v-if="recent?.length"> Last entry {{ shortDate(recent[0]!.spent_on!) }}.</template></span>
+        </div>
+      </template>
+      <div class="grid gap-6 sm:grid-cols-2">
+        <div>
+          <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted">By task type</h3>
+          <ul class="space-y-1.5 text-sm">
+            <li v-for="r in breakdown.byTask" :key="r.key" class="space-y-0.5">
+              <div class="flex justify-between gap-3"><span class="truncate">{{ r.label || 'No task' }}</span><span class="tabular-nums text-muted">{{ formatHours(r.hours) }} <span class="text-xs">{{ share(r.hours, breakdown.byTask) }}%</span></span></div>
+              <UProgress :model-value="share(r.hours, breakdown.byTask)" size="xs" color="neutral" />
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="mb-2 text-xs font-medium uppercase tracking-wide text-muted">By person</h3>
+          <ul class="space-y-1.5 text-sm">
+            <li v-for="r in breakdown.byPerson" :key="r.key" class="space-y-0.5">
+              <div class="flex justify-between gap-3"><span class="truncate">{{ r.label }}</span><span class="tabular-nums text-muted">{{ formatHours(r.hours) }} <span class="text-xs">{{ share(r.hours, breakdown.byPerson) }}%</span></span></div>
+              <UProgress :model-value="share(r.hours, breakdown.byPerson)" size="xs" color="neutral" />
+            </li>
+          </ul>
         </div>
       </div>
     </UCard>

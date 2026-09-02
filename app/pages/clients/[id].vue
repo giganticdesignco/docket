@@ -67,6 +67,28 @@ const { data: invoices } = await useAsyncData(`client-${id}-invoices`, async () 
 
 useHead({ title: () => client.value?.name ?? 'Client' })
 
+// Lifetime burn per project, everyone's time, for the projects table.
+const { data: budgets } = await useAsyncData('project-budgets', async () => {
+  const { data, error } = await supabase.rpc('project_budgets')
+  if (error) throw error
+  return data
+}, fresh)
+const burn = (projectId: string) => budgets.value?.find(b => b.project_id === projectId)
+const usedPct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : null)
+
+// Billing this year: Docket invoices plus Harvest history, sent or later.
+const year = todayString().slice(0, 4)
+const billing = computed(() => {
+  const docket = (docketInvoices.value ?? []).filter(i => i.status !== 'draft' && i.status !== 'void')
+  const harvest = (invoices.value ?? []).filter(i => i.state !== 'draft')
+  const thisYear = <T extends { issue_date: string }>(rows: T[]) => rows.filter(r => r.issue_date >= `${year}-01-01`)
+  return {
+    invoiced: thisYear(docket).reduce((t, i) => t + i.total, 0) + thisYear(harvest).reduce((t, i) => t + i.amount, 0),
+    paid: thisYear(docket).reduce((t, i) => t + i.total - i.due_amount, 0) + thisYear(harvest).reduce((t, i) => t + i.amount - i.due_amount, 0),
+    outstanding: docket.filter(i => i.status === 'sent').reduce((t, i) => t + i.due_amount, 0) + harvest.filter(i => i.state === 'open').reduce((t, i) => t + i.due_amount, 0),
+  }
+})
+
 const projectName = (projectId: string | null) => projects.value?.find(p => p.id === projectId)?.name ?? 'All projects'
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n) : money(n))
@@ -127,6 +149,20 @@ const invoiceLabel = (inv: InvoiceLike) =>
       <dd>{{ client.qbo_customer_id }}</dd>
     </dl>
 
+    <ReportRollup :from="`${year}-01-01`" :to="`${year}-12-31`" :client="client.name" />
+
+    <UCard v-if="isAdmin" :ui="{ body: 'p-3 sm:p-4' }">
+      <div class="flex items-baseline gap-3">
+        <h2 class="font-semibold">Billing</h2>
+        <span class="text-xs text-muted">Docket and Harvest invoices together.</span>
+      </div>
+      <div class="mt-3 grid grid-cols-3 gap-4">
+        <div><div class="text-xs text-muted">Invoiced this year</div><div class="text-lg font-semibold tabular-nums">{{ money(billing.invoiced) }}</div></div>
+        <div><div class="text-xs text-muted">Paid this year</div><div class="text-lg font-semibold tabular-nums">{{ money(billing.paid) }}</div></div>
+        <div><div class="text-xs text-muted">Outstanding</div><div class="text-lg font-semibold tabular-nums" :class="billing.outstanding > 0 ? 'text-warning' : ''">{{ money(billing.outstanding) }}</div></div>
+      </div>
+    </UCard>
+
     <div class="flex items-center gap-4">
       <h2 class="text-lg font-semibold">Projects</h2>
       <UButton v-if="isAdmin" class="ml-auto" size="sm" icon="i-lucide-plus" @click="creatingProject = true;">New project</UButton>
@@ -139,6 +175,8 @@ const invoiceLabel = (inv: InvoiceLike) =>
             <th class="px-4 py-2 font-medium">Name</th>
             <th class="px-4 py-2 font-medium">Code</th>
             <th class="px-4 py-2 font-medium">Billing</th>
+            <th class="px-4 py-2 text-right font-medium">Hours</th>
+            <th class="px-4 py-2 text-right font-medium">Budget</th>
             <th class="px-4 py-2 font-medium">Status</th>
           </tr>
         </thead>
@@ -147,12 +185,24 @@ const invoiceLabel = (inv: InvoiceLike) =>
             <td class="px-4 py-2"><NuxtLink :to="`/projects/${p.id}`" class="font-medium hover:underline">{{ p.name }}</NuxtLink></td>
             <td class="px-4 py-2 text-muted">{{ p.code }}</td>
             <td class="px-4 py-2">{{ billingLabel(p.billing_method) }}</td>
+            <td class="px-4 py-2 text-right tabular-nums">{{ formatHours(burn(p.id)?.hours_used ?? 0) }}</td>
+            <td class="px-4 py-2 text-right tabular-nums">
+              <template v-if="p.budget_hours && burn(p.id)">
+                <span :class="usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.hours_used, p.budget_hours) }}%</span>
+                <span class="text-muted"> of {{ formatHours(p.budget_hours) }}</span>
+              </template>
+              <template v-else-if="p.budget_amount && burn(p.id) && isAdmin">
+                <span :class="usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.amount_used, p.budget_amount) }}%</span>
+                <span class="text-muted"> of {{ money(p.budget_amount) }}</span>
+              </template>
+              <span v-else class="text-muted">No budget</span>
+            </td>
             <td class="px-4 py-2">
               <UBadge :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
             </td>
           </tr>
           <tr v-if="!projects?.length">
-            <td colspan="4" class="px-4 py-8 text-center text-muted">No projects for this client.</td>
+            <td colspan="6" class="px-4 py-8 text-center text-muted">No projects for this client.</td>
           </tr>
         </tbody>
       </table>

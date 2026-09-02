@@ -57,6 +57,24 @@ const { data: projectTasks } = await useAsyncData('project-tasks-for-time', asyn
 
 await timer.load()
 
+// The signed-in person's pace: this week and this month against their
+// weekly target, and how much of it is billable.
+const { profile } = useCurrentUser()
+const { data: pace } = await useAsyncData('time-pace', async () => {
+  const name = profile.value?.full_name
+  if (!name) return null
+  const today = todayString()
+  const [week, month, target] = await Promise.all([
+    supabase.rpc('report_rollup', { p_from: weekStart.value, p_to: weekEnd.value, p_person: name }).single(),
+    supabase.rpc('report_rollup', { p_from: startOfMonth(today), p_to: endOfMonth(today), p_person: name }).single(),
+    supabase.from('availability').select('hours_per_week').eq('user_id', user.value!.sub).is('effective_to', null).maybeSingle(),
+  ])
+  if (week.error) throw week.error
+  if (month.error) throw month.error
+  return { week: week.data, month: month.data, target: target.data?.hours_per_week ?? 30 }
+}, { ...fresh, watch: [weekStart] })
+const billableShare = (r: { hours: number, billable_hours: number }) => (Number(r.hours) > 0 ? Math.round(Number(r.billable_hours) / Number(r.hours) * 100) : 0)
+
 type Row = NonNullable<typeof entries.value>[number]
 
 const dayEntries = computed(() => (entries.value ?? []).filter(e => e.spent_on === selected.value))
@@ -128,6 +146,11 @@ async function confirmDelete() {
     </div>
 
     <WeekStrip :days="days" :selected="selected" :totals="totals" @select="goTo" />
+
+    <p v-if="pace" class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+      <span>This week <strong class="text-default tabular-nums">{{ formatHours(pace.week.hours) }}</strong> of {{ formatHours(pace.target) }}<template v-if="Number(pace.week.hours) > 0">, {{ billableShare(pace.week) }}% billable</template></span>
+      <span>This month <strong class="text-default tabular-nums">{{ formatHours(pace.month.hours) }}</strong><template v-if="Number(pace.month.hours) > 0">, {{ billableShare(pace.month) }}% billable</template></span>
+    </p>
 
     <div v-if="runningElsewhere" class="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 text-sm">
       <UIcon name="i-lucide-timer" class="text-primary" />

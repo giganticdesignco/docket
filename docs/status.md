@@ -1,5 +1,29 @@
 # Status
 
+## Phase 2, wave 2a: rollups on detail pages (2026-09-02)
+
+Item 13 of `docs/phase-2.md`. No migration; everything reads the
+report functions from the reports step.
+
+- `ReportRollup.vue`: the strip from the report page for one client,
+  project, or person (props from, to, client, project, person). Calls
+  `report_rollup` now and for the same days last year; hours for
+  everyone, money only for admins; "Full report" link opens `/reports`
+  with the same filters.
+- Client page: This year strip; admin Billing card (invoiced and paid
+  this year, outstanding) from Docket plus Harvest invoices; projects
+  table gains Hours and Budget used columns from `project_budgets()`.
+- Project page: This year strip and a "Where the time went" card,
+  lifetime by task type and by person with share bars, plus the date of
+  the last entry.
+- Time page: a line under the week strip, "This week h:mm of target,
+  n% billable. This month h:mm, n% billable", target from
+  `availability` (30 when unset).
+- People page: a This month column per person with billable share.
+- Verified in the browser on Hills Bank, its Retainer (2/26) project,
+  the Time page, and People. Typecheck passes.
+
+
 ## Phase 2, wave 2a: reports in the Harvest layout (2026-09-02)
 
 Items 11 and 12 of `docs/phase-2.md`. Migration `harvest_style_reports`
