@@ -3044,3 +3044,14 @@ alter table user_views enable row level security;
 create policy own_views on user_views for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 grant select, insert, update, delete on user_views to authenticated;
+
+-- Mac app builds. Public so the download link in the update banner works
+-- without a sign-in; only people who manage settings can put files here.
+-- desktop/release.sh builds the DMG and rewrites public/desktop/latest.json.
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('desktop', 'desktop', true, 209715200)
+on conflict (id) do nothing;
+create policy desktop_read   on storage.objects for select to anon, authenticated using (bucket_id = 'desktop');
+create policy desktop_insert on storage.objects for insert to authenticated with check (bucket_id = 'desktop' and has_permission('manage_settings'));
+create policy desktop_update on storage.objects for update to authenticated using (bucket_id = 'desktop' and has_permission('manage_settings'));
+create policy desktop_delete on storage.objects for delete to authenticated using (bucket_id = 'desktop' and has_permission('manage_settings'));

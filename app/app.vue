@@ -25,6 +25,7 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
     <AppShortcuts v-if="staff" />
     <AssistantDrawer v-if="staff" />
     <div v-if="staff" class="app-shell md:pl-14">
+      <DesktopUpdateBanner />
       <UContainer class="py-6">
         <SettingsNav v-if="inSettings" />
         <NuxtPage />

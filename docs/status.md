@@ -1345,3 +1345,22 @@ Not wired, because the screens have no such state yet: sidebar sections
 Verified in the dev browser: toggles on Tasks survive a reload and Reset
 view clears them; the panel drag persists across reload and clamps at
 720. Rows checked in `user_views`.
+
+## Phase 3: desktop update notice (2026-09-02)
+
+The Mac app shows a banner when the site has a newer build. Pieces:
+`public/desktop/latest.json` (version, DMG url, notes),
+`app/composables/useDesktopUpdate.ts` (reads the shell's version from
+Tauri, fetches latest.json on launch and daily, compares, remembers
+"Not now" per version in localStorage), `DesktopUpdateBanner.vue`
+mounted in app.vue above the page, and `desktop/release.sh` which bumps
+the version in the three files, builds, copies the DMG to the Desktop,
+and rewrites latest.json. The DMG goes in the public Storage bucket
+`desktop` (created; read for anyone, write for manage_settings). Luke
+uploads it in the dashboard, then commits and pushes.
+
+Verified in the dev browser with the dev-only hook
+`window.__docketUpdate('0.0.1')`: banner appears, Not now hides it and
+keeps it hidden for that version. Not verified inside the real shell;
+the version read uses `window.__TAURI__.app.getVersion`, which
+`core:default` allows. In-place auto-update waits for Apple signing.

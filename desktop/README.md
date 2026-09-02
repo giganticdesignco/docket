@@ -40,4 +40,20 @@ app and choose Open once to get past Gatekeeper.
 ## Updating
 
 The site updates itself; the shell only needs a new build when the shell
-changes. Auto-update of the shell is not set up yet.
+changes. When it does:
+
+```bash
+cd desktop
+./release.sh 0.2.0 "What changed, in a sentence"
+```
+
+That bumps the version everywhere, builds, copies the DMG to your
+Desktop, and rewrites `public/desktop/latest.json`. Upload the DMG to the
+public `desktop` bucket in Supabase Storage under exactly the name the
+script prints, then commit and push. Every open Mac app compares its own
+version with `latest.json` on launch and once a day and shows a banner
+with a Download button when the site has a newer one. "Not now" hides
+that version until the next one.
+
+In-place auto-update (`tauri-plugin-updater`) waits for the Apple
+Developer account: a replaced, unsigned app may not get past Gatekeeper.
