@@ -41,5 +41,9 @@ const title = guide.match(/^# (.*)$/m)?.[1] ?? 'Guide'
 .guide :deep(li) { margin: 0.3rem 0; line-height: 1.55; }
 .guide :deep(code) { font-size: 0.85em; padding: 0.05rem 0.3rem; border-radius: 0.25rem; background: var(--ui-bg-elevated); }
 .guide :deep(strong) { font-weight: 600; }
+.guide :deep(ol) { margin: 0.5rem 0 0.5rem 1.25rem; list-style: decimal; }
+.guide :deep(.flow) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 1rem 0 1.25rem; }
+.guide :deep(.flow span) { padding: 0.25rem 0.65rem; border-radius: 9999px; border: 1px solid color-mix(in oklab, var(--ui-primary) 45%, transparent); background: color-mix(in oklab, var(--ui-primary) 10%, transparent); font-size: 0.8rem; font-weight: 500; }
+.guide :deep(.flow i) { width: 0.9rem; height: 1px; background: var(--ui-border); }
 .guide :deep(a) { text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--ui-primary) 40%, transparent); }
 </style>

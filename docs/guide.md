@@ -121,20 +121,58 @@ sees hours.
 - **Visible to client** on a project shows all of its tasks on the
   client's portal, read only, without sharing each one.
 
-## Quotes and the estimator
+## From estimate to invoice
 
-- **A quote** has lines with hours and rates, an intro, terms, a valid
-  until date, and an optional sitemap for web work. Send it and the
-  client gets a link to a page where they can accept or decline; you
-  can also accept on their behalf.
-- **Accepting creates the project**, with the quote's hours and amount
-  as its budget and each quoted task type and rate copied to the
-  project's rate table. From then on time logs against it like any
-  project.
-- **The estimator** prices print, vinyl, and signage jobs from the
-  materials list and the pricing rules in Settings, the same maths as
-  the old estimator site. Add a priced job to a draft quote in one
-  click. The Assistant can also draft scope lines from a brief.
+This is the path a piece of work takes through Docket. Each step hands
+the next one what it needs, so nothing is typed twice.
+
+<div class="flow">
+<span>Estimate</span><i></i><span>Quote</span><i></i><span>Sent</span><i></i><span>Accepted</span><i></i><span>Project</span><i></i><span>Time</span><i></i><span>Batch</span><i></i><span>Invoice</span><i></i><span>Paid</span>
+</div>
+
+1. **Estimate the job.** For print, vinyl, and signage, open the
+   Estimator, set the size and quantity, and pick the materials layer
+   by layer (primary material, overlaminate, transfer tape, substrate,
+   banner tape, mounting tape). It prices the job from the materials'
+   roll cost and the pricing rules in Settings, the same maths as the
+   old estimator site, and shows the price per unit and per square foot.
+   Add as many jobs as the quote needs. For design and web work there is
+   nothing to estimate here; go straight to the quote.
+2. **Start a quote.** From Quotes, New quote picks the client and gives
+   the quote a number and a title. The title becomes the project's name
+   later, so make it the name you want to see on the time sheet.
+3. **Fill the lines.** Add to quote on the Estimator drops each priced
+   job in as a line with its description and amount. Design and web
+   lines are typed by hand, with hours and a rate, or the Assistant can
+   draft them from a short brief using what similar work cost before.
+   Web quotes can carry a sitemap the client will see. Add an intro,
+   terms, and a valid-until date.
+4. **Send it.** Send emails the client a link to the quote page, which
+   opens without a sign-in. The quote moves from Draft to Sent. It shows
+   as Expired once the valid-until date passes.
+5. **The client decides.** On the quote page they type their name and
+   accept or decline; a note comes back with a decline. You can also
+   accept or decline on their behalf when the answer came by phone or
+   email. Either way the quote records who decided and when, and the
+   quote's creator gets a notification.
+6. **Accepting makes the project.** Docket creates the project under
+   the client with the quote's title, sets its budget to the quoted
+   hours and amount, and copies each quoted task type and rate into the
+   project's rate table. The quote and the project link to each other.
+7. **Work and log time.** Time logs against the project like any
+   other, at the quoted rates, and the project's budget bar shows how
+   much of the quote has been used. Tasks for the job live on the
+   project too.
+8. **Bill it.** Unbilled shows the project's billable time and
+   expenses. A batch locks them, Create invoice turns the batch into an
+   invoice with lines summarised by task type, project, or one line,
+   and Send emails the client the invoice page. Fixed-fee work that
+   should bill the quoted amount rather than hours uses a blank invoice
+   with a line for the quote total. Record the payment when it arrives.
+
+Nothing along this path is recomputed later: the estimate is frozen in
+the quote line, the quote's rates are frozen in the project, and each
+time entry freezes its rate when it is saved.
 
 ## Billing and invoices
 
