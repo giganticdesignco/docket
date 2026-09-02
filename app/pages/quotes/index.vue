@@ -27,7 +27,8 @@ const { data: clients } = __ad2
 
 type Row = NonNullable<typeof quotes.value>[number]
 type Filter = 'all' | 'draft' | 'sent' | 'accepted' | 'declined'
-const filter = ref<Filter>('all')
+const view = await useViewState('quotes', { filter: 'all' as Filter })
+const filter = persisted(view, 'filter')
 const filters: { value: Filter, label: string }[] = [
   { value: 'all', label: 'All' }, { value: 'draft', label: 'Drafts' }, { value: 'sent', label: 'Sent' }, { value: 'accepted', label: 'Accepted' }, { value: 'declined', label: 'Declined' },
 ]

@@ -21,23 +21,31 @@ type Tab = 'client' | 'project' | 'task' | 'category' | 'person'
 type Billable = 'all' | 'yes' | 'no'
 
 const q = (k: string) => (typeof route.query[k] === 'string' ? route.query[k] as string : '')
+// The URL wins when it has anything in it (a shared link); otherwise the
+// report opens the way this person left it. A preset range is re-centred
+// on today, so "month" means this month, not the one you last looked at.
+const view = await useViewState('reports', { kind: 'time', range: 'month', from: '', to: '', tab: 'client', client: '', project: '', person: '', task: '', category: '', billable: 'all' })
+const fromUrl = Object.keys(route.query).length > 0
+const v = (k: keyof typeof view) => (fromUrl ? '' : String(view[k] ?? ''))
 const state = reactive({
-  kind: (q('kind') || 'time') as Kind,
-  range: (q('range') || 'month') as Range,
+  kind: (q('kind') || v('kind') || 'time') as Kind,
+  range: (q('range') || v('range') || 'month') as Range,
   from: q('from') || startOfMonth(todayString()),
   to: q('to') || endOfMonth(todayString()),
-  tab: (q('tab') || 'client') as Tab,
-  client: q('client'),
-  project: q('project'),
-  person: q('person'),
-  task: q('task'),
-  category: q('category'),
-  billable: (q('billable') || 'all') as Billable,
+  tab: (q('tab') || v('tab') || 'client') as Tab,
+  client: q('client') || v('client'),
+  project: q('project') || v('project'),
+  person: q('person') || v('person'),
+  task: q('task') || v('task'),
+  category: q('category') || v('category'),
+  billable: (q('billable') || v('billable') || 'all') as Billable,
 })
+if (!fromUrl) [state.from, state.to] = state.range === 'custom' && view.from ? [view.from, view.to] : bounds(state.range, todayString())
 watch(state, () => {
   const query: Record<string, string> = {}
   for (const [k, v] of Object.entries(state)) if (v && v !== 'all') query[k] = v
   router.replace({ query })
+  Object.assign(view, state)
 }, { deep: true })
 
 // ---------- timeframe ----------

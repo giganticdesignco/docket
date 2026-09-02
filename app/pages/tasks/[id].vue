@@ -453,6 +453,30 @@ async function deleteTask() {
   if (error) toast.add({ title: 'Could not delete', description: error.message, color: 'error' })
   else await navigateTo('/tasks')
 }
+
+// The activity panel is dragged wider or narrower from its left edge,
+// within limits, and the width is remembered per person.
+const PANEL_MIN = 320
+const PANEL_MAX = 720
+const PANEL_DEFAULT = 420
+const layout = await useViewState('task-detail', { panelWidth: PANEL_DEFAULT })
+const clampPanel = (w: number) => Math.min(PANEL_MAX, Math.max(PANEL_MIN, Math.round(w)))
+const panelWidth = computed(() => clampPanel(Number(layout.panelWidth) || PANEL_DEFAULT))
+function startResize(e: PointerEvent) {
+  const startX = e.clientX
+  const startW = panelWidth.value
+  const move = (ev: PointerEvent) => { layout.panelWidth = clampPanel(startW + (startX - ev.clientX)) }
+  const stop = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
 </script>
 
 <template>
@@ -470,9 +494,9 @@ async function deleteTask() {
       </div>
     </div>
 
-    <div class="grid min-h-0 flex-1 lg:grid-cols-5">
+    <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
       <!-- Left: the task -->
-      <div class="min-h-0 space-y-6 overflow-y-auto py-6 lg:col-span-3 lg:pr-8">
+      <div class="min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto py-6 lg:pr-6">
         <div class="flex flex-wrap items-center gap-3">
           <USelect :model-value="item.status" :items="ws.items.value" :color="ws.color(item.status)" variant="subtle" size="sm" class="w-44" @update:model-value="setStatus($event as string)" />
           <span v-if="item.completed_at" class="text-xs text-muted">Completed {{ stamp(item.completed_at) }}</span>
@@ -585,8 +609,10 @@ async function deleteTask() {
         </div>
       </div>
 
+      <!-- Drag handle: sits on the panel's left border. Double-click resets. -->
+      <div class="hidden w-1.5 shrink-0 cursor-col-resize rounded-full transition-colors hover:bg-primary/40 lg:block" title="Drag to resize. Double-click to reset." @pointerdown.prevent="startResize" @dblclick="layout.panelWidth = PANEL_DEFAULT" />
       <!-- Right: activity -->
-      <div class="flex min-h-0 flex-col border-t border-default lg:col-span-2 lg:border-l lg:border-t-0 lg:pl-6">
+      <div class="flex min-h-0 shrink-0 flex-col border-t border-default lg:w-(--panel) lg:border-l lg:border-t-0 lg:pl-6" :style="{ '--panel': `${panelWidth}px` }">
         <h2 class="shrink-0 py-4 text-xs font-semibold uppercase tracking-wider text-dimmed">Activity <span class="font-normal">{{ comments?.length ?? 0 }}</span></h2>
         <div class="min-h-0 flex-1 overflow-y-auto pr-1">
           <ul v-if="comments?.length" class="space-y-4 text-sm">

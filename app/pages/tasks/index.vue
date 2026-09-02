@@ -14,18 +14,23 @@ const toast = useToast()
 const ws = await useWorkStatuses()
 
 type GroupBy = 'status' | 'project' | 'due'
-const groupBy = ref<GroupBy>('status')
 // List, or cards: a card per client, then that client's tasks as cards.
-// Remembered per browser.
 type ViewMode = 'list' | 'cards'
-const viewMode = ref<ViewMode>('list')
-onMounted(() => { try { viewMode.value = (localStorage.getItem('docket-tasks-view') as ViewMode) || 'list' } catch {} })
-watch(viewMode, (v) => { try { localStorage.setItem('docket-tasks-view', v) } catch {} })
-const activeClient = ref<string | null>(null)
-const everyone = ref(false)
-const showCompleted = ref(false)
+// How you left the list is remembered per person (user_views), so the
+// desktop app and the browser agree.
+const view = await useViewState('tasks', {
+  groupBy: 'status' as GroupBy, viewMode: 'list' as ViewMode, activeClient: null as string | null,
+  everyone: false, showCompleted: false, collapsed: [] as string[],
+})
+const groupBy = persisted(view, 'groupBy')
+const viewMode = persisted(view, 'viewMode')
+const activeClient = persisted(view, 'activeClient')
+const everyone = persisted(view, 'everyone')
+const showCompleted = persisted(view, 'showCompleted')
 const search = ref('')
-const collapsed = ref(new Set<string>())
+const collapsed = ref(new Set<string>(view.collapsed))
+watch(collapsed, (s) => { view.collapsed = [...s] }, { deep: true })
+function resetView() { view.$reset(); collapsed.value = new Set() }
 
 const __ad1 = useAsyncData('work-items', async () => {
   const { data, error } = await supabase
@@ -307,6 +312,7 @@ function created(id: string) {
           <UButton size="xs" icon="i-lucide-layout-grid" :variant="viewMode === 'cards' ? 'solid' : 'ghost'" :color="viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="viewMode = 'cards';" />
         </div>
         <USwitch v-model="showCompleted" label="Completed" size="sm" />
+        <UButton size="xs" variant="ghost" color="neutral" title="Back to the default list" @click="resetView">Reset view</UButton>
         <UButton icon="i-lucide-plus" data-tour="new-task" @click="creating = true;">New task</UButton>
       </div>
     </div>

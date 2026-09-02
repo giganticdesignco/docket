@@ -29,7 +29,8 @@ const { data: clients } = __ad2
 
 type Row = NonNullable<typeof invoices.value>[number]
 type Filter = 'open' | 'overdue' | 'draft' | 'paid' | 'void' | 'all'
-const filter = ref<Filter>('all')
+const view = await useViewState('invoices', { filter: 'all' as Filter })
+const filter = persisted(view, 'filter')
 const filters: { value: Filter, label: string }[] = [
   { value: 'all', label: 'All' }, { value: 'draft', label: 'Drafts' }, { value: 'open', label: 'Open' },
   { value: 'overdue', label: 'Overdue' }, { value: 'paid', label: 'Paid' }, { value: 'void', label: 'Void' },

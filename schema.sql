@@ -649,6 +649,7 @@ create unique index one_running_timer_per_user
   on time_entries (user_id)
   where ended_at is null and started_at is not null;
 
+create index time_entries_spent_on   on time_entries (spent_on);            -- reports over a date range
 create index time_entries_user_date    on time_entries (user_id, spent_on desc);
 create index time_entries_project_date on time_entries (project_id, spent_on);
 create index time_entries_batch        on time_entries (batch_id);
@@ -1217,7 +1218,8 @@ select
   te.hours,
   te.is_billable,
   case when te.is_billable then te.hours else 0 end as billable_hours,
-  case when not public.has_permission('see_money') then null
+  -- Scalar subquery: the permission check runs once per query, not per row.
+  case when not (select public.has_permission('see_money')) then null
        when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end as amount,
   te.notes,
   te.is_locked,
@@ -1737,7 +1739,8 @@ as $$
 $$;
 
 -- The strip above a report: one row of totals for the period under the
--- same filters, so the strip and the table always agree.
+-- same filters, so the strip and the table always agree. One pass over
+-- live rows, one over the archive, one over expenses.
 create or replace function public.report_rollup(
   p_from date, p_to date,
   p_client text default null, p_project text default null, p_person text default null,
@@ -1747,12 +1750,46 @@ returns table (hours numeric, billable_hours numeric, billable_amount numeric, u
 language sql stable
 set search_path = ''
 as $$
-  select
-    coalesce((select sum(t.hours) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
-    coalesce((select sum(t.billable_hours) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
-    coalesce((select sum(t.billable_amount) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
-    coalesce((select sum(t.uninvoiced_amount) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
-    coalesce((select sum(x.amount) from public.report_expenses(p_from, p_to, 'month', p_client, p_project, p_person, null, p_billable) x), 0);
+  with live as (
+    select coalesce(sum(t.hours), 0) as hours,
+           coalesce(sum(t.billable_hours), 0) as billable_hours,
+           coalesce(sum(t.amount), 0) as amount,
+           coalesce(sum(case when t.is_billable and not t.is_locked then t.amount else 0 end), 0) as uninvoiced
+    from public.time_detail t
+    where t.spent_on between p_from and p_to
+      and (p_client   is null or t.client_name  = p_client)
+      and (p_project  is null or t.project_name = p_project)
+      and (p_person   is null or t.user_name    = p_person)
+      and (p_task     is null or t.task_name    = p_task)
+      and (p_billable is null or t.is_billable  = p_billable)
+  ), arch as (
+    select coalesce(sum(case when p_billable is true then a.billable_hours when p_billable is false then a.hours - a.billable_hours else a.hours end), 0) as hours,
+           coalesce(sum(case when p_billable is false then 0 else a.billable_hours end), 0) as billable_hours,
+           coalesce(sum(case when p_billable is false then 0 else a.amount end), 0) as amount
+    from public.harvest_archive_monthly a
+    where a.period_month between date_trunc('month', p_from)::date and p_to
+      and (p_client  is null or a.client_name  = p_client)
+      and (p_project is null or a.project_name = p_project)
+      and (p_person  is null or a.user_name    = p_person)
+      and (p_task    is null or a.task_name    = p_task)
+  ), exp as (
+    select coalesce(sum(e.amount), 0) as amount
+    from public.expenses e
+    join public.projects p on p.id = e.project_id
+    join public.clients c on c.id = p.client_id
+    join public.profiles pr on pr.id = e.user_id
+    where e.spent_on between p_from and p_to
+      and (p_client   is null or c.name = p_client)
+      and (p_project  is null or p.name = p_project)
+      and (p_person   is null or pr.full_name = p_person)
+      and (p_billable is null or e.is_billable = p_billable)
+  )
+  select live.hours + arch.hours,
+         live.billable_hours + arch.billable_hours,
+         case when (select public.has_permission('see_money')) then live.amount + arch.amount end,
+         case when (select public.has_permission('see_money')) then live.uninvoiced end,
+         exp.amount
+  from live, arch, exp;
 $$;
 
 -- Search across tasks, projects, clients, quotes, invoices, and task
@@ -2453,15 +2490,15 @@ alter table saved_reports          enable row level security;
 
 -- ---------- Reference data: everyone reads, admins write ----------
 
-create policy read_all on profiles           for select to authenticated using (id = auth.uid() or not is_client());
+create policy read_all on profiles           for select to authenticated using (id = (select auth.uid()) or not (select is_client()));
 create policy read_all on roles              for select to authenticated using (true);
 create policy read_all on permissions        for select to authenticated using (true);
-create policy read_all on clients            for select to authenticated using (not is_client() or id = my_client_id());
-create policy read_all on projects           for select to authenticated using (not is_client() or client_id = my_client_id());
-create policy read_all on tasks              for select to authenticated using (not is_client());
-create policy read_all on project_tasks      for select to authenticated using (not is_client());
-create policy read_all on expense_categories for select to authenticated using (not is_client());
-create policy read_all on retainers          for select to authenticated using (not is_client());
+create policy read_all on clients            for select to authenticated using (not (select is_client()) or id = (select my_client_id()));
+create policy read_all on projects           for select to authenticated using (not (select is_client()) or client_id = (select my_client_id()));
+create policy read_all on tasks              for select to authenticated using (not (select is_client()));
+create policy read_all on project_tasks      for select to authenticated using (not (select is_client()));
+create policy read_all on expense_categories for select to authenticated using (not (select is_client()));
+create policy read_all on retainers          for select to authenticated using (not (select is_client()));
 
 create policy admin_write on roles              for all to authenticated using (is_admin()) with check (is_admin());
 create policy admin_write on permissions        for all to authenticated using (is_admin()) with check (is_admin());
@@ -2490,7 +2527,7 @@ create policy own_profile on profiles for update to authenticated
 -- ---------- Time: own unlocked rows, admins everything ----------
 
 create policy own_time_select on time_entries for select to authenticated
-  using (user_id = auth.uid() or has_permission('see_all_time'));
+  using (user_id = (select auth.uid()) or (select has_permission('see_all_time')));
 
 create policy own_time_insert on time_entries for insert to authenticated
   with check ((user_id = auth.uid() and not is_client()) or is_admin());
@@ -2505,7 +2542,7 @@ create policy own_time_delete on time_entries for delete to authenticated
 -- ---------- Expenses: same shape ----------
 
 create policy own_exp_select on expenses for select to authenticated
-  using (user_id = auth.uid() or has_permission('see_all_time'));
+  using (user_id = (select auth.uid()) or (select has_permission('see_all_time')));
 
 create policy own_exp_insert on expenses for insert to authenticated
   with check ((user_id = auth.uid() and not is_client()) or is_admin());
@@ -2519,7 +2556,7 @@ create policy own_exp_delete on expenses for delete to authenticated
 
 -- ---------- Billing batches ----------
 
-create policy read_all    on billing_batches for select to authenticated using (not is_client());
+create policy read_all    on billing_batches for select to authenticated using (not (select is_client()));
 create policy manage_billing on billing_batches for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 
 -- ---------- Invoicing: admins only ----------
@@ -2536,7 +2573,7 @@ create policy manage_billing on invoice_payments for all to authenticated using 
 
 -- ---------- Quoting ----------
 
-create policy read_all on quotes              for select to authenticated using (not is_client() or (client_id = my_client_id() and status <> 'draft'));
+create policy read_all on quotes              for select to authenticated using (not (select is_client()) or (client_id = (select my_client_id()) and status <> 'draft'));
 create policy read_all on quote_line_items    for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
 create policy read_all on quote_sitemap_nodes for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
 
@@ -2546,7 +2583,7 @@ create policy manage_billing on quote_sitemap_nodes for all to authenticated usi
 
 -- ---------- Harvest archive ----------
 
-create policy read_all    on harvest_archive_monthly for select to authenticated using (not is_client());
+create policy read_all    on harvest_archive_monthly for select to authenticated using (not (select is_client()));
 create policy manage_billing on harvest_archive_monthly for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 create policy manage_billing on harvest_invoices for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
 create policy client_select  on harvest_invoices for select to authenticated using (is_client() and client_id = my_client_id());
@@ -2558,24 +2595,41 @@ create policy client_select  on harvest_invoices for select to authenticated usi
 create policy read_all    on work_statuses for select to authenticated using (true);
 create policy manage_settings on work_statuses for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 
--- Contractors see the tasks they are on or made; everyone else sees all.
-create policy visible_select on work_items for select to authenticated using (task_visible(id));
+-- Who sees a task: the same rule as task_visible(), written so the
+-- permission and client checks run once per query and the row parts
+-- use indexes (work_items is the biggest table people list).
+create policy visible_select on work_items for select to authenticated using (
+  case when (select is_client()) then
+    shared_at is not null or exists (select 1 from projects p where p.id = work_items.project_id and p.client_visible)
+  else
+    (select has_permission('see_all_tasks'))
+    or created_by = (select auth.uid())
+    or exists (select 1 from work_item_assignees a where a.work_item_id = work_items.id and a.user_id = (select auth.uid()))
+  end
+  and (not (select is_client()) or exists (select 1 from projects p where p.id = work_items.project_id and p.client_id = (select my_client_id())))
+);
 create policy team_insert    on work_items for insert to authenticated with check (created_by = auth.uid() and not is_client());
 create policy visible_update on work_items for update to authenticated using (task_visible(id) and not is_client()) with check (task_visible(id) and not is_client());
 create policy owner_delete   on work_items for delete to authenticated using (created_by = auth.uid() or has_permission('manage_tasks'));
 
-create policy visible_select on work_item_assignees for select to authenticated using (task_visible(work_item_id));
-create policy visible_select on work_item_dependencies for select to authenticated using (task_visible(predecessor_id) and task_visible(successor_id));
-create policy team_write    on work_item_dependencies for all to authenticated using (task_visible(successor_id) and not is_client()) with check (task_visible(predecessor_id) and task_visible(successor_id) and not is_client());
-create policy visible_write  on work_item_assignees for all to authenticated using (task_visible(work_item_id) and not is_client()) with check (task_visible(work_item_id) and not is_client());
+-- CASE so the one-per-query permission check is tried before the per-row function.
+create policy visible_select on work_item_assignees for select to authenticated using (case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);
+create policy visible_select on work_item_dependencies for select to authenticated using (case when (select has_permission('see_all_tasks')) then true else task_visible(predecessor_id) and task_visible(successor_id) end);
+create policy team_write    on work_item_dependencies for all to authenticated
+  using (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(successor_id) end)
+  with check (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(predecessor_id) and task_visible(successor_id) end);
+-- "for all" policies also apply to reads, so these use the same cheap-first CASE.
+create policy visible_write  on work_item_assignees for all to authenticated
+  using (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end)
+  with check (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);
 
 -- Clients see and write only comments marked visible to them.
-create policy visible_select on work_item_comments for select to authenticated using (task_visible(work_item_id) and (not is_client() or visible_to_client));
+create policy visible_select on work_item_comments for select to authenticated using ((case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end) and (not (select is_client()) or visible_to_client));
 create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid() and task_visible(work_item_id) and (not is_client() or visible_to_client));
 create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or has_permission('manage_tasks')) with check (author_id = auth.uid() or has_permission('manage_tasks'));
 create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or has_permission('manage_tasks'));
 
-create policy visible_select on work_item_files for select to authenticated using (task_visible(work_item_id) and (not is_client() or kind = 'upload'));
+create policy visible_select on work_item_files for select to authenticated using ((case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end) and (not (select is_client()) or kind = 'upload'));
 create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid() and not is_client());
 -- Anyone on the team may turn a server link into a shareable uploaded copy.
 create policy visible_update on work_item_files for update to authenticated using (task_visible(work_item_id) and not is_client()) with check (task_visible(work_item_id) and not is_client());
@@ -2583,10 +2637,10 @@ create policy own_delete  on work_item_files for delete to authenticated using (
 
 -- ---------- Time off, capacity ----------
 
-create policy read_all on time_off            for select to authenticated using (not is_client());
-create policy read_all on availability        for select to authenticated using (not is_client());
-create policy read_all on estimator_materials for select to authenticated using (not is_client());
-create policy read_all on estimator_settings  for select to authenticated using (not is_client());
+create policy read_all on time_off            for select to authenticated using (not (select is_client()));
+create policy read_all on availability        for select to authenticated using (not (select is_client()));
+create policy read_all on estimator_materials for select to authenticated using (not (select is_client()));
+create policy read_all on estimator_settings  for select to authenticated using (not (select is_client()));
 create policy manage_settings on estimator_materials for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 create policy manage_settings on estimator_settings  for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 create policy own_or_settings on ai_events for select to authenticated using (user_id = auth.uid() or has_permission('manage_settings'));
@@ -2969,3 +3023,24 @@ do $$ begin
 exception when others then
   raise notice 'pg_cron not available here, invoice reminders not scheduled: %', sqlerrm;
 end $$;
+
+-- ============================================================
+-- PHASE 3. VIEW PERSISTENCE
+-- How each person left each screen: view mode, grouping, sort, filters.
+-- One row per person per screen (key), so it follows them between the
+-- desktop app and the browser. useViewState() in the app reads all of a
+-- person's rows once, then upserts the changed row half a second after
+-- the last change. Anything in the page URL still wins over this.
+-- ============================================================
+
+create table user_views (
+  user_id    uuid not null references profiles(id) on delete cascade,
+  key        text not null,
+  state      jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+alter table user_views enable row level security;
+create policy own_views on user_views for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant select, insert, update, delete on user_views to authenticated;

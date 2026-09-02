@@ -10,7 +10,8 @@ const receipts = useReceipts()
 const toast = useToast()
 
 const year = ref(new Date().getFullYear())
-const everyone = ref(false)
+const prefs = await useViewState('expenses', { everyone: false })
+const everyone = persisted(prefs, 'everyone')
 
 const __ad1 = useAsyncData('expenses', async () => {
   let query = supabase

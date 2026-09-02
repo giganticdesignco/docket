@@ -1292,3 +1292,56 @@ and the staff view is seen on a second real account. Not blocking.
 
 - Nuxt UI is pinned to v3 per CLAUDE.md. v4 is current. Decide before the UI grows.
 - See the TODO list at the top of `schema.sql` for schema-level flags.
+
+## Speed pass (2026-09-02)
+
+Luke still felt the app was slow after the static-shell change. Fetch
+timing in the browser showed three causes, all in Postgres:
+
+- `time_detail` called `has_permission('see_money')` per row; security
+  definer functions are not inlined, so every report paid for it ten
+  thousand times. Now a scalar subquery, evaluated once per query.
+- `report_rollup` ran `report_time` four times plus `report_expenses`.
+  Rewritten as one pass over live time, one over the archive, one over
+  expenses. Year rollup went from ~600 ms of server time to ~120 ms.
+- RLS policies called `is_client()`, `has_permission()` and
+  `task_visible()` per row. Read policies now use `(select fn())` so the
+  planner runs them once. The task tables' `for all` write policies also
+  apply to reads, and their per-row `task_visible()` ran before the
+  cheap check; they now use `case when (select has_permission(...))
+  then true else task_visible(...) end` so the cheap branch wins.
+
+Measured in the dev browser (slowest Supabase call per page, before
+and after): client page 3203 ms to 168, time page 4355 to 109, project
+page 1155 to 145, tasks list 992 to 246, reports 1500 to 250. Migrations
+`policy_and_report_speed` and `task_write_policies_cheap`, mirrored in
+`schema.sql`. No app code changed.
+
+## Phase 3: view persistence (2026-09-02)
+
+Screens open the way you left them, per person, on any device. Table
+`user_views (user_id, key, state jsonb)`, own rows only, mirrored in
+`schema.sql`. `app/composables/useViewState.ts`:
+`await useViewState(key, defaults)` returns a reactive object; the first
+call in a session loads all of the person's rows, each change upserts
+its row half a second later. `persisted(view, 'field')` gives a writable
+ref so pages keep their existing `x.value` code. `view.$reset()` puts
+the defaults back.
+
+Wired: tasks (group, list or cards, everyone, completed, collapsed
+groups, drilled-in client, plus a Reset view button), reports (kind,
+range preset, tab, filters; a preset range recentres on today, custom
+keeps its dates; a URL with a query still wins), schedule (view, zoom,
+everyone; always opens on this week), invoices and quotes (status
+filter), expenses (everyone), and the task page's activity panel width.
+
+The task page's activity panel resizes by dragging its left edge, 320 to
+720 px, double-click to reset to 420. Class is `lg:w-(--panel)`; the
+Tailwind v3 form `w-[var(--panel)]` did not compile under v4.
+
+Not wired, because the screens have no such state yet: sidebar sections
+(not collapsible), time (no week or day toggle), capacity (fixed range).
+
+Verified in the dev browser: toggles on Tasks survive a reload and Reset
+view clears them; the panel drag persists across reload and clamps at
+720. Rows checked in `user_views`.

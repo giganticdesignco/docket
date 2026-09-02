@@ -15,12 +15,16 @@ const router = useRouter()
 type View = 'project' | 'person'
 type Zoom = 'day' | 'week' | 'month'
 const q = (k: string) => (typeof route.query[k] === 'string' ? route.query[k] as string : '')
-const view = ref<View>((q('view') as View) || 'project')
-const zoom = ref<Zoom>((q('zoom') as Zoom) || 'week')
+// The URL wins; without one, the schedule opens as this person left it
+// (view, zoom, everyone), always starting from this week.
+const saved = await useViewState('schedule', { view: 'project' as View, zoom: 'week' as Zoom, everyone: true })
+const view = ref<View>((q('view') as View) || saved.view)
+const zoom = ref<Zoom>((q('zoom') as Zoom) || saved.zoom)
 const from = ref(q('from') || weekDays(todayString())[0]!)
-const everyone = ref(q('mine') !== '1')
+const everyone = ref(q('mine') ? q('mine') !== '1' : saved.everyone)
 watch([view, zoom, from, everyone], () => {
   router.replace({ query: { view: view.value, zoom: zoom.value, from: from.value, ...(everyone.value ? {} : { mine: '1' }) } })
+  Object.assign(saved, { view: view.value, zoom: zoom.value, everyone: everyone.value })
 })
 
 const DAY_PX: Record<Zoom, number> = { day: 36, week: 10, month: 4 }
