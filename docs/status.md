@@ -21,15 +21,26 @@ in a real browser with Google sign-in. That is the next thing to do.
 - `.env` values: `SUPABASE_URL=https://cnnrtsnevmjqhfgpolfo.supabase.co`,
   `SUPABASE_KEY` is the publishable key from Project Settings > API.
 
+## Verified in a real browser so far (Luke, local dev server)
+
+- Google sign-in works, admin badge shows, redirect URL is configured.
+- Created client "Cinc", project "Website" ($140/h), task "Task 1".
+- Bug found and fixed (commit 2c3569f): pages reused stale data on
+  client-side navigation, so the project settings page never showed the
+  new task. Every useAsyncData now passes the `fresh` helper from
+  `app/utils/fresh.ts`. Use it on every future fetch too.
+
 ## Still to do for step 1 sign-off
 
-1. Supabase dashboard > Authentication > URL Configuration: add
-   `http://localhost:3000/callback` to Redirect URLs.
-2. `npm run dev`, sign in as luke@ with Google, create a client, project,
-   task, assign the task to the project.
-3. Sign in as sean@ in a private window: sees all of it, no edit buttons.
+1. `git pull` on the local clone (the fix above is on GitHub, not yet pulled).
+2. As luke@: open project Website, click Tasks, switch Task 1 on, Save.
+   Confirm it shows under Tasks on the project page.
+3. Sign in as sean@ in a private window: sees clients, projects, tasks,
+   no New/Edit/Tasks buttons, no Tasks link in the header, and visiting
+   /admin/tasks or /projects/<id>/settings redirects home.
 4. Fix full names on both profiles (currently "Luke" and "Sean" from the
    email prefix). No profile page yet; do it in the SQL editor or add one.
+5. Then step 1 is done. Step 2 is time entries + timer + week view.
 
 ## Local verify commands
 
