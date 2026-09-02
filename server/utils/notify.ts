@@ -46,3 +46,11 @@ export async function notifyTaskTeam(admin: SupabaseClient<Database>, workItemId
 }
 
 export const escapeHtml = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
+
+// Where links in emails should point: the app_url Vault secret when set,
+// otherwise wherever this request came from. A test run against localhost
+// would otherwise mail out localhost links.
+export async function appOrigin(admin: SupabaseClient<Database>, fallback: string): Promise<string> {
+  const { data } = await admin.rpc('vault_secret', { p_name: 'app_url' })
+  return (data ?? '').replace(/\/$/, '') || fallback
+}

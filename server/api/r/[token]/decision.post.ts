@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   })
   if (cErr) throw createError({ statusCode: 500, statusMessage: cErr.message })
 
-  const origin = getRequestURL(event).origin
+  const origin = await appOrigin(admin, getRequestURL(event).origin)
   await notifyTaskTeam(admin, task.id,
     `${name} ${decision === 'approved' ? 'approved' : 'requested changes on'} "${task.title}"`,
     `${name} (${task.projects?.clients?.name ?? 'client'}) ${decision === 'approved' ? 'approved' : 'requested changes on'} ${task.title}.${note ? `\n\n${note}` : ''}\n\nOpen the task: ${origin}/tasks/${task.id}`)

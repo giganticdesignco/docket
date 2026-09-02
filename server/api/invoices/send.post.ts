@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   if (!key) throw createError({ statusCode: 500, statusMessage: 'resend_api_key is not in Vault' })
   const from = fromSecret ?? 'Docket <onboarding@resend.dev>'
 
-  const link = `${getRequestURL(event).origin}/i/${doc.invoice.public_token}`
+  const link = `${await appOrigin(admin, getRequestURL(event).origin)}/i/${doc.invoice.public_token}`
   const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const longDate = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const company = doc.settings.company_name

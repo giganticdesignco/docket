@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
   const company = settings?.company_name ?? 'Gigantic Design Co.'
   const { data: me } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single()
 
-  const link = `${getRequestURL(event).origin}/r/${task.public_token}`
+  const link = `${await appOrigin(admin, getRequestURL(event).origin)}/r/${task.public_token}`
   const intro = (body.message ?? '').trim() || `${task.title} is ready for your review.`
   const subject = `For review: ${task.title}`
   const text = [intro, `Have a look, leave comments, and approve or request changes here:\n${link}`, `Thanks,\n${me?.full_name ?? company}\n${company}`].join('\n\n')
