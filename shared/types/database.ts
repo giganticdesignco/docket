@@ -2619,6 +2619,65 @@ export type Database = {
       quote_recalc: { Args: { p_quote_id: string }; Returns: undefined }
       recalc_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
       relink_harvest_archive: { Args: never; Returns: number }
+      report_expenses: {
+        Args: {
+          p_billable?: boolean
+          p_category?: string
+          p_client?: string
+          p_from: string
+          p_group: string
+          p_person?: string
+          p_project?: string
+          p_to: string
+        }
+        Returns: {
+          amount: number
+          billable_amount: number
+          key: string
+          label: string
+          sublabel: string
+          uninvoiced_amount: number
+        }[]
+      }
+      report_rollup: {
+        Args: {
+          p_billable?: boolean
+          p_client?: string
+          p_from: string
+          p_person?: string
+          p_project?: string
+          p_task?: string
+          p_to: string
+        }
+        Returns: {
+          billable_amount: number
+          billable_hours: number
+          expenses: number
+          hours: number
+          uninvoiced_amount: number
+        }[]
+      }
+      report_time: {
+        Args: {
+          p_billable?: boolean
+          p_client?: string
+          p_from: string
+          p_group: string
+          p_person?: string
+          p_project?: string
+          p_task?: string
+          p_to: string
+        }
+        Returns: {
+          billable_amount: number
+          billable_hours: number
+          hours: number
+          key: string
+          label: string
+          sublabel: string
+          uninvoiced_amount: number
+        }[]
+      }
       report_time_monthly: {
         Args: {
           p_client?: string

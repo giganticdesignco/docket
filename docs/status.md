@@ -1,5 +1,41 @@
 # Status
 
+## Phase 2, wave 2a: reports in the Harvest layout (2026-09-02)
+
+Items 11 and 12 of `docs/phase-2.md`. Migration `harvest_style_reports`
+adds three security-invoker SQL functions (staff would see their own
+time; the page is admin only):
+
+- `report_time(from, to, group, client, project, person, task, billable)`
+  returns key, label, sublabel, hours, billable_hours, billable_amount,
+  uninvoiced_amount per group. group is client, project, task, person,
+  day, week, or month. Live rows come from `time_detail` (frozen rates;
+  uninvoiced = billable and not `is_locked`, which the Harvest import set
+  from Harvest's billed flag), archive months from
+  `harvest_archive_monthly` with no uninvoiced amount. The data splits
+  cleanly: archive through 2025-12, live from 2026-01.
+- `report_expenses(...)` is the same shape for expenses with category in
+  place of task.
+- `report_rollup(...)` returns one row of totals (hours, billable hours,
+  billable amount, uninvoiced, expenses) under the same filters.
+
+Pages:
+
+- `/reports` (`app/pages/reports/index.vue`) is the new report. Time or
+  Expenses; timeframe bar (Week, Semimonth, Month, Quarter, Year, Custom,
+  with arrows); rollup strip with "vs last year" (an in-progress period
+  compares to the same days last year, labelled "to date"); an SVG bar
+  chart by day, week, or month depending on the span (billable stacked
+  over total); tabs Clients, Projects, Tasks (Categories for expenses),
+  Team; filters for client, project, task or category, person, and
+  billable. Clicking a row drills down (client to projects, project to
+  tasks, task to team, team to projects) and the filters show as chips
+  with a Clear. All state is in the URL. Export CSV downloads the table
+  shown with a totals row.
+- The old builder moved to `/reports/detailed` unchanged apart from a
+  title and back link; saved reports still work there.
+
+
 ## Phase 2, wave 2a: project server folder (2026-09-02)
 
 First 2a item from `docs/phase-2.md`. Migration `project_server_folder`:

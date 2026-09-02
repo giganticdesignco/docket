@@ -1268,6 +1268,168 @@ as $$
   order by 1, 2, 3, 4, 5;
 $$;
 
+-- Harvest-style time report: one row per group with hours, billable
+-- hours, billable amount, and what is still uninvoiced. Runs under the
+-- caller's RLS (time_detail is security invoker), so staff see their own
+-- time. Live entries carry the frozen rate; archive months come in as
+-- they were rolled up, with no uninvoiced amount. Filters are by name
+-- because the archive has no ids. p_group: client, project, task,
+-- person, day, week, month.
+create or replace function public.report_time(
+  p_from date, p_to date, p_group text,
+  p_client text default null, p_project text default null,
+  p_person text default null, p_task text default null,
+  p_billable boolean default null
+)
+returns table (
+  key text, label text, sublabel text,
+  hours numeric, billable_hours numeric, billable_amount numeric, uninvoiced_amount numeric
+)
+language sql stable
+set search_path = ''
+as $$
+  with live as (
+    select
+      case p_group
+        when 'client'  then t.client_name
+        when 'project' then t.client_name || ' / ' || t.project_name
+        when 'task'    then t.task_name
+        when 'person'  then t.user_name
+        when 'day'     then t.spent_on::text
+        when 'week'    then date_trunc('week', t.spent_on)::date::text
+        else t.period_month::text
+      end as key,
+      case p_group
+        when 'client'  then t.client_name
+        when 'project' then t.project_name
+        when 'task'    then t.task_name
+        when 'person'  then t.user_name
+        when 'day'     then t.spent_on::text
+        when 'week'    then date_trunc('week', t.spent_on)::date::text
+        else t.period_month::text
+      end as label,
+      case when p_group = 'project' then t.client_name end as sublabel,
+      t.hours, t.billable_hours, t.amount,
+      case when t.is_billable and not t.is_locked then t.amount else 0 end as uninvoiced
+    from public.time_detail t
+    where t.spent_on between p_from and p_to
+      and (p_client   is null or t.client_name  = p_client)
+      and (p_project  is null or t.project_name = p_project)
+      and (p_person   is null or t.user_name    = p_person)
+      and (p_task     is null or t.task_name    = p_task)
+      and (p_billable is null or t.is_billable  = p_billable)
+  ), arch as (
+    select
+      case p_group
+        when 'client'  then a.client_name
+        when 'project' then a.client_name || ' / ' || a.project_name
+        when 'task'    then coalesce(a.task_name, '')
+        when 'person'  then a.user_name
+        else a.period_month::text
+      end as key,
+      case p_group
+        when 'client'  then a.client_name
+        when 'project' then a.project_name
+        when 'task'    then coalesce(a.task_name, '')
+        when 'person'  then a.user_name
+        else a.period_month::text
+      end as label,
+      case when p_group = 'project' then a.client_name end as sublabel,
+      case when p_billable is true then a.billable_hours
+           when p_billable is false then a.hours - a.billable_hours
+           else a.hours end as hours,
+      case when p_billable is false then 0 else a.billable_hours end as billable_hours,
+      case when p_billable is false then 0 else a.amount end as amount,
+      0::numeric as uninvoiced
+    from public.harvest_archive_monthly a
+    where a.period_month between date_trunc('month', p_from)::date and p_to
+      and (p_client  is null or a.client_name  = p_client)
+      and (p_project is null or a.project_name = p_project)
+      and (p_person  is null or a.user_name    = p_person)
+      and (p_task    is null or a.task_name    = p_task)
+  ), everything as (
+    select * from live union all select * from arch
+  )
+  select e.key, e.label, e.sublabel,
+         sum(e.hours), sum(e.billable_hours), sum(e.amount), sum(e.uninvoiced)
+  from everything e
+  group by e.key, e.label, e.sublabel
+  order by case when p_group in ('day', 'week', 'month') then e.key end, sum(e.hours) desc, e.key;
+$$;
+
+-- Same shape for expenses. p_group: client, project, category, person,
+-- day, week, month. Uninvoiced means billable and not yet claimed.
+create or replace function public.report_expenses(
+  p_from date, p_to date, p_group text,
+  p_client text default null, p_project text default null,
+  p_person text default null, p_category text default null,
+  p_billable boolean default null
+)
+returns table (key text, label text, sublabel text, amount numeric, billable_amount numeric, uninvoiced_amount numeric)
+language sql stable
+set search_path = ''
+as $$
+  with grouped as (
+    select
+      case p_group
+        when 'client'   then c.name
+        when 'project'  then c.name || ' / ' || p.name
+        when 'category' then cat.name
+        when 'person'   then pr.full_name
+        when 'day'      then e.spent_on::text
+        when 'week'     then date_trunc('week', e.spent_on)::date::text
+        else date_trunc('month', e.spent_on)::date::text
+      end as key,
+      case p_group
+        when 'client'   then c.name
+        when 'project'  then p.name
+        when 'category' then cat.name
+        when 'person'   then pr.full_name
+        when 'day'      then e.spent_on::text
+        when 'week'     then date_trunc('week', e.spent_on)::date::text
+        else date_trunc('month', e.spent_on)::date::text
+      end as label,
+      case when p_group = 'project' then c.name end as sublabel,
+      sum(e.amount) as amount,
+      sum(case when e.is_billable then e.amount else 0 end) as billable_amount,
+      sum(case when e.is_billable and not e.is_locked then e.amount else 0 end) as uninvoiced_amount
+    from public.expenses e
+    join public.projects p on p.id = e.project_id
+    join public.clients c on c.id = p.client_id
+    join public.expense_categories cat on cat.id = e.category_id
+    join public.profiles pr on pr.id = e.user_id
+    where e.spent_on between p_from and p_to
+      and (p_client   is null or c.name = p_client)
+      and (p_project  is null or p.name = p_project)
+      and (p_person   is null or pr.full_name = p_person)
+      and (p_category is null or cat.name = p_category)
+      and (p_billable is null or e.is_billable = p_billable)
+    group by 1, 2, 3
+  )
+  select g.key, g.label, g.sublabel, g.amount, g.billable_amount, g.uninvoiced_amount
+  from grouped g
+  order by case when p_group in ('day', 'week', 'month') then g.key end, g.amount desc, g.key;
+$$;
+
+-- The strip above a report: one row of totals for the period under the
+-- same filters, so the strip and the table always agree.
+create or replace function public.report_rollup(
+  p_from date, p_to date,
+  p_client text default null, p_project text default null, p_person text default null,
+  p_task text default null, p_billable boolean default null
+)
+returns table (hours numeric, billable_hours numeric, billable_amount numeric, uninvoiced_amount numeric, expenses numeric)
+language sql stable
+set search_path = ''
+as $$
+  select
+    coalesce((select sum(t.hours) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
+    coalesce((select sum(t.billable_hours) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
+    coalesce((select sum(t.billable_amount) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
+    coalesce((select sum(t.uninvoiced_amount) from public.report_time(p_from, p_to, 'month', p_client, p_project, p_person, p_task, p_billable) t), 0),
+    coalesce((select sum(x.amount) from public.report_expenses(p_from, p_to, 'month', p_client, p_project, p_person, null, p_billable) x), 0);
+$$;
+
 -- ---------- Billing batches ----------
 
 -- Claim the given rows for a new draft batch, all or nothing. Rows that
@@ -1793,6 +1955,9 @@ revoke execute on function public.project_budgets()          from public, anon;
 revoke execute on function public.retainer_status()          from public, anon;
 revoke execute on function public.relink_harvest_archive()   from public, anon;
 revoke execute on function public.report_time_monthly(date, date, text, text, text, text[]) from public, anon;
+revoke execute on function public.report_time(date, date, text, text, text, text, text, boolean) from public, anon;
+revoke execute on function public.report_expenses(date, date, text, text, text, text, text, boolean) from public, anon;
+revoke execute on function public.report_rollup(date, date, text, text, text, text, boolean) from public, anon;
 revoke execute on function public.create_billing_batch(uuid, date, date, uuid[], uuid[], uuid) from public, anon;
 revoke execute on function public.void_billing_batch(uuid)  from public, anon;
 revoke execute on function public.unbilled_summary()        from public, anon;

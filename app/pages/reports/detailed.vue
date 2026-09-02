@@ -7,7 +7,7 @@ import type { CsvColumn } from '~/composables/useCsv'
 // monthly source, totals, and a CSV built from exactly the rows shown.
 // Saved reports store the configuration, not the output.
 definePageMeta({ middleware: 'admin' })
-useHead({ title: 'Reports' })
+useHead({ title: 'Detailed report' })
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
@@ -285,7 +285,8 @@ async function remove(r: Saved) {
 <template>
   <div class="space-y-4">
     <div class="flex items-center gap-4">
-      <h1 class="text-2xl font-semibold">Reports</h1>
+      <UButton to="/reports" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
+      <h1 class="text-2xl font-semibold">Detailed report</h1>
       <div class="ml-auto flex items-center gap-2">
         <UDropdownMenu v-if="saved?.length" :items="savedItems">
           <UButton variant="outline" color="neutral" trailing-icon="i-lucide-chevron-down">Saved reports</UButton>
