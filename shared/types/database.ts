@@ -18,6 +18,18 @@ export type Database = {
   }
   public: {
     Tables: {
+      assistant_conversations: {
+        Row: { created_at: string; id: string; title: string; updated_at: string; user_id: string }
+        Insert: { created_at?: string; id?: string; title: string; updated_at?: string; user_id: string }
+        Update: { created_at?: string; id?: string; title?: string; updated_at?: string; user_id?: string }
+        Relationships: []
+      }
+      assistant_messages: {
+        Row: { content: string; conversation_id: string; created_at: string; id: number; role: string }
+        Insert: { content: string; conversation_id: string; created_at?: string; id?: number; role: string }
+        Update: { content?: string; conversation_id?: string; created_at?: string; id?: number; role?: string }
+        Relationships: []
+      }
       ai_events: {
         Row: {
           created_at: string
@@ -489,6 +501,8 @@ export type Database = {
       }
       expenses: {
         Row: {
+          deleted_at: string | null
+          deleted_by: string | null
           amount: number
           batch_id: string | null
           category_id: string
@@ -505,6 +519,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           amount: number
           batch_id?: string | null
           category_id: string
@@ -521,6 +537,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           amount?: number
           batch_id?: string | null
           category_id?: string
@@ -2003,6 +2021,8 @@ export type Database = {
       }
       time_entries: {
         Row: {
+          deleted_at: string | null
+          deleted_by: string | null
           batch_id: string | null
           created_at: string
           ended_at: string | null
@@ -2022,6 +2042,8 @@ export type Database = {
           work_item_id: string | null
         }
         Insert: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           batch_id?: string | null
           created_at?: string
           ended_at?: string | null
@@ -2041,6 +2063,8 @@ export type Database = {
           work_item_id?: string | null
         }
         Update: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           batch_id?: string | null
           created_at?: string
           ended_at?: string | null
@@ -2254,6 +2278,8 @@ export type Database = {
       }
       work_item_comments: {
         Row: {
+          deleted_at: string | null
+          deleted_by: string | null
           author_id: string | null
           author_name: string | null
           body: string
@@ -2264,6 +2290,8 @@ export type Database = {
           work_item_id: string
         }
         Insert: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           author_id?: string | null
           author_name?: string | null
           body: string
@@ -2274,6 +2302,8 @@ export type Database = {
           work_item_id: string
         }
         Update: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           author_id?: string | null
           author_name?: string | null
           body?: string
@@ -2428,6 +2458,8 @@ export type Database = {
       }
       work_items: {
         Row: {
+          deleted_at: string | null
+          deleted_by: string | null
           clickup_id: string | null
           client_decision: string | null
           client_decision_at: string | null
@@ -2451,6 +2483,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           clickup_id?: string | null
           client_decision?: string | null
           client_decision_at?: string | null
@@ -2474,6 +2508,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          deleted_at?: string | null
+          deleted_by?: string | null
           clickup_id?: string | null
           client_decision?: string | null
           client_decision_at?: string | null
@@ -2893,6 +2929,22 @@ export type Database = {
       }
     }
     Functions: {
+      restore_deleted: {
+        Args: { p_table: string; p_id: string }
+        Returns: undefined
+      }
+      entry_history: {
+        Args: { p_table: string; p_id: string }
+        Returns: {
+          changed_at: string
+          changed_by: string | null
+          changed_by_name: string | null
+          action: string
+          changed_fields: string[] | null
+          old_data: Json | null
+          new_data: Json | null
+        }[]
+      }
       accept_quote: {
         Args: { p_email?: string; p_name: string; p_quote_id: string }
         Returns: string

@@ -45,7 +45,6 @@ const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settin
 const showSettings = computed(() => can('manage_settings') || can('manage_people'))
 const searchOpen = useState('search-open', () => false)
 const sheetOpen = useState('shortcut-sheet-open', () => false)
-const assistantOpen = useState('assistant-open', () => false)
 const tour = useTour()
 const helpItems = computed(() => [[
   ...(tour.pageTour.value ? [{ label: `Tour: ${tour.pageTour.value.title}`, icon: 'i-lucide-route', onSelect: () => tour.start(tour.pageTour.value!.id) }] : []),
@@ -105,11 +104,6 @@ watch(() => route.path, () => { mobileOpen.value = false })
         <UIcon :name="settings.icon" class="size-5 shrink-0" />
         <span class="hidden truncate group-hover:inline">{{ settings.label }}</span>
       </NuxtLink>
-      <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Assistant (Cmd+J)" @click="assistantOpen = true;">
-        <UIcon name="i-lucide-sparkles" class="size-5 shrink-0" />
-        <span class="hidden min-w-0 flex-1 truncate text-left group-hover:inline">Assistant</span>
-        <UKbd class="hidden group-hover:inline-flex" value="meta" /><UKbd class="hidden group-hover:inline-flex" value="j" />
-      </button>
       <NotificationBell />
       <UDropdownMenu :items="helpItems" :content="{ side: 'right', align: 'end' }">
         <button type="button" data-tour="help" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Help">

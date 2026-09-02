@@ -157,3 +157,30 @@ How:
 
 Depends on: nothing. Size: 1 day, verified by opening each drawer in the
 browser.
+
+## 5. Undo (parked 2026-09-02)
+
+What: a way back from the mistakes that hurt. Not a global undo and
+redo stack: every edit goes straight to Postgres and the rest of the
+team sees it at once, so "redo" across people has no clean meaning.
+
+Where it pays:
+- Deletes of tasks, time entries, expenses, and comments. Soft delete
+  (`deleted_at` column, RLS and views hide the row), and the toast that
+  follows a delete gets an Undo button for thirty seconds that clears
+  `deleted_at`. A nightly job purges rows older than thirty days.
+- Bulk task changes on the tasks list (status or priority across a
+  selection, a drag onto another group). The toast remembers the
+  before values and Undo writes them back.
+- Text: the description editor and comment boxes already have Cmd+Z
+  from the browser. Nothing to build.
+- Time entry edits: the audit trail from Phase 1 already records who
+  changed what; a small "History" link on an entry would show it, with
+  a "Restore this" on each old version.
+
+Not covered: undoing an invoice, a batch, or a sent quote. Those have
+void and are meant to be permanent.
+
+Depends on: nothing. Size: 1 day for soft delete plus toast undo on the
+four tables, half a day for bulk task changes, half a day for entry
+history. Luke chose to wait; start with "start undo".

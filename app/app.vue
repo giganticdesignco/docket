@@ -5,6 +5,9 @@ const inSettings = computed(() => route.path === '/admin' || route.path.startsWi
 // Clients get the portal page's own header, none of the staff shell.
 // The portal page carries its own header, even when staff preview it.
 const staff = computed(() => !!profile.value && profile.value.role !== 'client' && !route.path.startsWith('/portal'))
+// The Assistant is a panel beside the page, not over it: the page
+// makes room on wide screens so you can read both at once.
+const assistantOpen = useState('assistant-open', () => false)
 
 // A page's walkthrough starts on its first visit, after the page has
 // had a moment to render. Skippable, once per person.
@@ -19,12 +22,14 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
 </script>
 
 <template>
-  <UApp>
+  <!-- Toasts sit top right; the Assistant button has the bottom right corner. -->
+  <UApp :toaster="{ position: 'top-right' }">
     <AppSidebar v-if="staff" />
     <SearchPalette v-if="staff" />
     <AppShortcuts v-if="staff" />
     <AssistantDrawer v-if="staff" />
-    <div v-if="staff" class="app-shell md:pl-14">
+    <AssistantButton v-if="staff" />
+    <div v-if="staff" class="app-shell transition-[padding] duration-200 md:pl-14" :class="assistantOpen ? 'lg:pr-[26rem]' : ''">
       <DesktopUpdateBanner />
       <UContainer class="py-6">
         <SettingsNav v-if="inSettings" />

@@ -40,6 +40,7 @@ const { data: taskTypes } = __ad4
 const { data: doc, refresh: refreshDoc } = await useAsyncData(`quote-${id}-doc`, () => $fetch<QuoteDoc>(`/api/q/${quote.value!.public_token}`), fresh)
 
 useHead({ title: () => (quote.value ? `Quote ${quote.value.number}` : 'Quote') })
+useAssistantScreen(() => ({ quote: quote.value ? `Quote ${quote.value.number}` : undefined, client: quote.value?.clients?.name }))
 async function refreshAll() {
   await Promise.all([refreshQuote(), refreshLines(), refreshNodes()])
   await refreshDoc()

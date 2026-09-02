@@ -1441,3 +1441,81 @@ with a throwaway client (then deleted with the admin API). Luke then
 connected Claude for real: the Docket tools showed up in the Claude Code
 session and my_week returned his week through the connector, so the
 OAuth round trip works end to end.
+
+## Undo (2026-09-02)
+
+Deletes on tasks, time entries, expenses, and comments are soft. A
+BEFORE DELETE trigger (`soft_delete_row`) turns the delete into
+`deleted_at = now(), deleted_by = auth.uid()` after the delete policy
+has already allowed it, so app code still calls `.delete()`. Select
+policies hide marked rows; security definer aggregates
+(`project_budget(s)`, `retainer_status`, `unbilled_summary`,
+`create_billing_batch`, `create_invoice`, `run_reminders`) filter
+`deleted_at` themselves; security invoker views get it from RLS. The
+running-timer unique index ignores deleted rows. `restore_deleted(table,
+id)` clears the mark within thirty days for the deleter or someone with
+manage_tasks (tasks, comments) or see_all_time (time, expenses).
+`purge_deleted()` hard-deletes after thirty days from pg_cron at 09:30
+UTC, with `docket.purge` set so the trigger lets it through.
+
+App: `useUndo()` shows a toast with Undo for thirty seconds.
+`offerRestore` after deletes on Time, Expenses, the task page (task and
+comments), and the task list's bulk delete; `offer` with a hand-written
+put-back after a bulk status or priority change and after a drag onto
+another group on the task list. `EntryHistory.vue` (History button on a
+time entry row) lists the audit trail through `entry_history()`, with
+"Restore this" on an edit that writes the old values back through a
+normal update. Deletes and put-backs show as such. Migrations
+`undo_soft_delete`, `undo_filter_aggregates_1`, `undo_filter_aggregates_2`.
+
+Verified in the dev browser: delete a time entry, Undo puts it back;
+History shows created, deleted, put back, and an edit with Restore this
+returning the hours; delete a task from its page, Undo on the Tasks
+page reopens it. Bulk task undo and expense undo share the same code
+paths and were not clicked through. Test rows purged afterwards.
+
+Also today: the Assistant renders its markdown (bold, bullets, links)
+instead of showing it raw, the model is asked to name every link
+([Title](/tasks/id)), and the chips under a reply use those names.
+
+## Assistant: corner button, history, screen awareness (2026-09-02)
+
+The Assistant's button moved from the rail to a round button in the
+bottom right corner (`AssistantButton.vue`; toasts now sit top right so
+the two never overlap). Cmd+J still works. Conversations are kept per
+person in `assistant_conversations` and `assistant_messages` (own rows
+only); the drawer has History (pick one up, remove one) and New chat.
+"log:" time entries are not kept. Pages announce what they show with
+`useAssistantScreen()` (client, project, task, quote, invoice, report
+period), the drawer's suggested questions use those names, and the
+chat route tells the model what is on screen.
+
+## Assistant can act (2026-09-02)
+
+The chat route now hands the model the same tools as the MCP connector
+(`mcpTools`), so from the drawer it can log time, start or stop the
+timer, change a time entry, create or update a task, and comment, as
+the caller through RLS. It is told to act only on a clear ask, to ask
+one question when a project, task type, hours, or task is missing, and
+never to delete. `converse()` returns the tool names that ran; the
+route returns `acted` when a write tool ran and the drawer calls
+`refreshNuxtData()` so the page behind shows the change. Deletes stay
+out of reach on purpose.
+
+Later: the Assistant is a side panel, not an overlay. `AssistantDrawer.vue`
+renders a fixed `aside` on the right with no backdrop; app.vue gives the
+page `lg:pr-[26rem]` while it is open so both stay readable, and the
+page keeps working behind it. Escape inside the panel or Cmd+J closes
+it. The suggested questions follow the page while no chat is going;
+`useAssistantScreen` only clears its announcement if a newer page has
+not already replaced it (Nuxt sets up the next page before unmounting
+the old one). The assistant can also add clients and projects
+(`list_clients`, `create_client`, `create_project`, also on the MCP
+connector), gated by the manage reference data permission through RLS.
+
+Later: typing "/" in the Assistant box opens a picker over the full-text
+`search` RPC (clients, projects, tasks, quotes, invoices). Arrow keys,
+Enter or Tab, or a click puts the name in the message; the id travels
+with the request as a mention so the model acts on that exact record.
+Input and keydown are caught on the form, not the UTextarea, because
+listeners on the component did not reach the box.

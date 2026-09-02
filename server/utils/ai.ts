@@ -48,6 +48,7 @@ async function callModel(model: string, system: string, messages: Message[], too
 // Run a conversation to completion, letting the model call tools up to
 // a few times. Returns the final text and the token totals.
 export async function converse(c: Caller, job: string, model: string, system: string, messages: Message[], tools: Tool[] = [], maxTokens = 1500) {
+  const used: string[] = []  // tool names that ran, so the caller knows if anything changed
   let input = 0
   let output = 0
   const history: Message[] = [...messages]
@@ -63,6 +64,7 @@ export async function converse(c: Caller, job: string, model: string, system: st
     const results: Content[] = []
     for (const u of uses) {
       const tool = tools.find(t => t.name === u.name)
+      used.push(u.name)
       let out: unknown
       try { out = tool ? await tool.run(u.input) : { error: `No tool named ${u.name}` } } catch (e) { out = { error: (e as Error).message } }
       results.push({ type: 'tool_result', tool_use_id: u.id, content: JSON.stringify(out).slice(0, 20000) })
@@ -75,7 +77,7 @@ export async function converse(c: Caller, job: string, model: string, system: st
     prompt: typeof last?.content === 'string' ? last.content.slice(0, 4000) : JSON.stringify(last?.content).slice(0, 4000),
     response: text.slice(0, 8000),
   })
-  return { text, input, output }
+  return { text, input, output, used }
 }
 
 // Pull one JSON object out of a reply that may have prose around it.
@@ -159,5 +161,6 @@ export function docketTools(c: Caller): Tool[] {
 
 export function baseSystem(c: Caller) {
   return `You are Docket's assistant for Gigantic Design Co., a small design and web agency in Iowa. Docket is their internal app for time, tasks, quotes, and invoices. You are talking to ${c.name} (${c.role}). Today is ${today()} in America/Chicago.
-Be brief and concrete. Use the tools to look things up rather than guessing; if a tool returns nothing, say so. Money is US dollars; hours may be shown as h:mm. Never invent clients, projects, or numbers. When you answer with numbers, say which range and filter they cover. Do not use em dashes.`
+Be brief and concrete. Use the tools to look things up rather than guessing; if a tool returns nothing, say so. Money is US dollars; hours may be shown as h:mm. Never invent clients, projects, or numbers. When you answer with numbers, say which range and filter they cover. Do not use em dashes.
+Write in light markdown: short paragraphs, bullets, bold for names. When you mention a task, project, client, quote, or invoice that has an id, link it as [its name](/tasks/<id>) (or /projects, /clients, /quotes, /invoices). Never show a bare path or a raw id.`
 }

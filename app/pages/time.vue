@@ -150,15 +150,18 @@ async function act(id: string, fn: () => Promise<unknown>, failTitle: string) {
 const startRow = (e: Row) => act(e.id, () => timer.resume(e.id), 'Could not start timer')
 const stopRow = (e: Pick<Row, 'id'> & Parameters<typeof timer.stop>[0]) => act(e.id, () => timer.stop(e), 'Could not stop timer')
 
+const undo = useUndo()
 async function confirmDelete() {
   const e = deleting.value
   if (!e) return
   await act(e.id, async () => {
     const { error } = await supabase.from('time_entries').delete().eq('id', e.id)
     if (error) throw error
+    undo.offerRestore('Entry deleted', 'time_entries', e.id, refresh)
   }, 'Could not delete entry')
   deleting.value = null
 }
+const history = ref<Row | null>(null)
 </script>
 
 <template>
@@ -231,6 +234,7 @@ async function confirmDelete() {
               :disabled="e.is_locked || (!!busy && busy !== e.id)" :loading="busy === e.id"
               @click="startRow(e)"
             />
+            <UButton icon="i-lucide-history" variant="ghost" color="neutral" size="sm" aria-label="History" title="History" @click="history = e;" />
             <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" size="sm" aria-label="Edit" :disabled="e.is_locked" @click="editing = e;" />
             <UButton icon="i-lucide-trash-2" variant="ghost" color="neutral" size="sm" aria-label="Delete" :disabled="e.is_locked || isRunning(e)" @click="deleting = e;" />
           </div>
@@ -253,10 +257,11 @@ async function confirmDelete() {
       </template>
     </AppDrawer>
 
+    <EntryHistory table="time_entries" :id="history?.id ?? null" :locked="!!history?.is_locked" @close="history = null" @restored="refresh()" />
     <UModal :open="!!deleting" title="Delete entry?" @update:open="(v) => { if (!v) deleting = null }">
       <template #body>
         <p v-if="deleting" class="text-sm">
-          This removes {{ formatHours(deleting.hours) }} on {{ deleting.projects?.name }} ({{ deleting.tasks?.name }}). It cannot be undone.
+          This removes {{ formatHours(deleting.hours) }} on {{ deleting.projects?.name }} ({{ deleting.tasks?.name }}). You can undo it for thirty seconds afterwards.
         </p>
       </template>
       <template #footer>

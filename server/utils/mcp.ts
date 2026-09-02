@@ -56,6 +56,41 @@ export function writeTools(c: Caller, origin: string): Tool[] {
       run: async (i) => (await sb.from('project_tasks').select('task_id, tasks(name)').eq('project_id', String(i.project_id))).data?.map(r => ({ task_id: r.task_id, name: r.tasks?.name })),
     },
     {
+      name: 'list_clients',
+      description: 'Clients with ids. Optional q filters by name. Use the id with create_project.',
+      input_schema: { type: 'object', properties: { q: { type: 'string' } } },
+      run: async (i) => {
+        const { data } = await sb.from('clients').select('id, name, is_active').order('name').limit(500)
+        const q = str(i.q)?.toLowerCase()
+        return (data ?? []).filter(c => !q || c.name.toLowerCase().includes(q)).map(c => ({ id: c.id, name: c.name, is_active: c.is_active }))
+      },
+    },
+    {
+      name: 'create_client',
+      description: 'Make a new client. Check list_clients first so an existing one is not made twice. Needs the manage reference data permission.',
+      input_schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      run: async (i) => {
+        const name = String(i.name).trim()
+        if (!name) throw new Error('A client needs a name')
+        const { data, error } = await sb.from('clients').insert({ name }).select('id, name').single()
+        if (error) throw new Error(error.code === '42501' ? 'You cannot add clients' : error.message)
+        return { ...data, url: `${origin}/clients/${data.id}` }
+      },
+    },
+    {
+      name: 'create_project',
+      description: 'Make a project for a client (client_id from list_clients). Optional billing_method (hourly, fixed, retainer, non_billable; default hourly), hourly_rate, budget_hours, budget_amount, code. Needs the manage reference data permission.',
+      input_schema: { type: 'object', properties: { client_id: { type: 'string' }, name: { type: 'string' }, billing_method: { type: 'string', enum: ['hourly', 'fixed', 'retainer', 'non_billable'] }, hourly_rate: { type: 'number' }, budget_hours: { type: 'number' }, budget_amount: { type: 'number' }, code: { type: 'string' } }, required: ['client_id', 'name'] },
+      run: async (i) => {
+        const name = String(i.name).trim()
+        if (!name) throw new Error('A project needs a name')
+        const values: Record<string, unknown> = { client_id: String(i.client_id), name, billing_method: str(i.billing_method) ?? 'hourly', hourly_rate: num(i.hourly_rate) ?? null, budget_hours: num(i.budget_hours) ?? null, budget_amount: num(i.budget_amount) ?? null, code: str(i.code) ?? null }
+        const { data, error } = await sb.from('projects').insert(values as never).select('id, name').single()
+        if (error) throw new Error(error.code === '42501' ? 'You cannot add projects' : error.message)
+        return { ...data, url: `${origin}/projects/${data.id}` }
+      },
+    },
+    {
       name: 'people',
       description: 'Active team members with ids, for assigning tasks.',
       input_schema: { type: 'object', properties: {} },

@@ -84,6 +84,7 @@ const { data: budget, refresh: refreshBudget } = __ad7
 const { data: recent } = __ad8
 
 useHead({ title: () => project.value?.name ?? 'Project' })
+useAssistantScreen(() => ({ project: project.value?.name, client: project.value?.clients?.name }))
 
 // Lifetime breakdown by task type and by person, from the report
 // function under RLS: admins see everyone, staff their own time.

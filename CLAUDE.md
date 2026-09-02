@@ -58,6 +58,12 @@ migration; change both. Read it before writing queries. Not obvious:
   seconds. In `for all` policies put the cheap check first with CASE.
 - `user_views (user_id, key, state)` remembers how each person left each
   screen. `useViewState(key, defaults)` and `persisted(view, field)`.
+- **Deletes are soft** on tasks, time entries, expenses, and comments: a
+  BEFORE DELETE trigger sets `deleted_at`, RLS hides the row,
+  `restore_deleted()` brings it back within thirty days, pg_cron purges
+  after. App code still calls `.delete()` and then `useUndo().offerRestore`.
+  Any new security definer function that reads those tables must filter
+  `deleted_at is null` itself.
 
 ## Roles and permissions
 

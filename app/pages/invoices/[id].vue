@@ -44,6 +44,7 @@ const { data: doc, refresh: refreshDoc } = await useAsyncData(`invoice-${id}-doc
   $fetch<InvoiceDoc>(`/api/i/${invoice.value!.public_token}`), fresh)
 
 useHead({ title: () => (invoice.value ? `Invoice ${invoice.value.number}` : 'Invoice') })
+useAssistantScreen(() => ({ invoice: invoice.value ? `Invoice ${invoice.value.number}` : undefined, client: invoice.value?.clients?.name }))
 
 async function refreshAll() {
   await Promise.all([refreshInvoice(), refreshLines(), refreshPayments()])

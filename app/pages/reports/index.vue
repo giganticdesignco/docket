@@ -8,6 +8,7 @@ import type { CsvColumn } from '~/composables/useCsv'
 // lives in the URL so a view can be bookmarked or sent around.
 definePageMeta({ middleware: 'can', permission: 'see_all_time' })
 useHead({ title: 'Reports' })
+useAssistantScreen(() => ({ period: `${state.from} to ${state.to}`, client: state.client || undefined, project: state.project || undefined }))
 
 const supabase = useSupabaseClient()
 const route = useRoute()

@@ -647,7 +647,7 @@ create trigger time_entries_audit
 -- One running timer per person.
 create unique index one_running_timer_per_user
   on time_entries (user_id)
-  where ended_at is null and started_at is not null;
+  where ended_at is null and started_at is not null and deleted_at is null;
 
 create index time_entries_spent_on   on time_entries (spent_on);            -- reports over a date range
 create index time_entries_user_date    on time_entries (user_id, spent_on desc);
@@ -1414,6 +1414,7 @@ as $$
            coalesce(sum(case when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end), 0) as amount
     from public.time_entries te
     where te.project_id = p_project_id
+      and te.deleted_at is null
       and (te.ended_at is not null or te.started_at is null)
   ), arch as (
     select coalesce(sum(a.hours), 0) as hours,
@@ -1439,7 +1440,7 @@ as $$
            sum(case when te.is_billable then te.hours else 0 end) as billable_hours,
            sum(case when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end) as amount
     from public.time_entries te
-    where te.ended_at is not null or te.started_at is null
+    where te.deleted_at is null and (te.ended_at is not null or te.started_at is null)
     group by te.project_id
   ), arch as (
     select a.project_id, sum(a.hours) as hours, sum(a.billable_hours) as billable_hours, sum(a.amount) as amount
@@ -1487,6 +1488,7 @@ begin
              from public.time_entries te
              join public.projects p on p.id = te.project_id
              where p.client_id = x.client_id
+               and te.deleted_at is null
                and (x.project_id is null or p.id = x.project_id)
                and te.is_billable
                and te.spent_on between x.period_start and x.period_end
@@ -2085,7 +2087,7 @@ begin
   update public.time_entries te set batch_id = v_id, is_locked = true
   from public.projects p
   where te.id = any(p_time_entry_ids) and p.id = te.project_id and p.client_id = p_client_id
-    and te.is_billable and te.batch_id is null and not te.is_locked
+    and te.is_billable and te.batch_id is null and not te.is_locked and te.deleted_at is null
     and (te.ended_at is not null or te.started_at is null);
   get diagnostics v_got = row_count;
   if v_got <> v_want_time then
@@ -2095,7 +2097,7 @@ begin
   update public.expenses e set batch_id = v_id, is_locked = true
   from public.projects p
   where e.id = any(p_expense_ids) and p.id = e.project_id and p.client_id = p_client_id
-    and e.is_billable and e.batch_id is null and not e.is_locked;
+    and e.is_billable and e.batch_id is null and not e.is_locked and e.deleted_at is null;
   get diagnostics v_got = row_count;
   if v_got <> v_want_exp then
     raise exception 'Some expenses were already claimed or locked. Reload and try again.';
@@ -2137,14 +2139,14 @@ language sql security definer set search_path = '' stable as $$
     select p.client_id, sum(te.hours) as hours, sum(te.hours * coalesce(te.rate_snapshot, 0)) as amount,
            min(te.spent_on) as oldest, max(te.spent_on) as newest
     from public.time_entries te join public.projects p on p.id = te.project_id
-    where te.is_billable and te.batch_id is null and not te.is_locked
+    where te.is_billable and te.batch_id is null and not te.is_locked and te.deleted_at is null
       and (te.ended_at is not null or te.started_at is null)
     group by p.client_id
   ) t on t.client_id = c.id
   left join (
     select p.client_id, sum(ex.amount) as amount, min(ex.spent_on) as oldest, max(ex.spent_on) as newest
     from public.expenses ex join public.projects p on p.id = ex.project_id
-    where ex.is_billable and ex.batch_id is null and not ex.is_locked
+    where ex.is_billable and ex.batch_id is null and not ex.is_locked and ex.deleted_at is null
     group by p.client_id
   ) e on e.client_id = c.id
   where public.is_admin() and (t.client_id is not null or e.client_id is not null)
@@ -2274,7 +2276,7 @@ begin
       from public.time_entries te
       join public.projects p on p.id = te.project_id
       join public.tasks    t on t.id = te.task_id
-      where te.batch_id = p_batch_id
+      where te.batch_id = p_batch_id and te.deleted_at is null
       group by p.id, p.name, t.name, coalesce(te.rate_snapshot, 0)
       order by p.name, t.name, 4 desc
     loop
@@ -2287,7 +2289,7 @@ begin
       from public.expenses e
       join public.projects p on p.id = e.project_id
       join public.expense_categories c on c.id = e.category_id
-      where e.batch_id = p_batch_id
+      where e.batch_id = p_batch_id and e.deleted_at is null
       group by p.id, p.name, c.name
       order by p.name, c.name
     loop
@@ -2305,11 +2307,11 @@ begin
                 from (select t.name as task_name, sum(te2.hours) as h
                       from public.time_entries te2
                       join public.tasks t on t.id = te2.task_id
-                      where te2.batch_id = p_batch_id and te2.project_id = p.id
+                      where te2.batch_id = p_batch_id and te2.deleted_at is null and te2.project_id = p.id
                       group by t.name) x) as breakdown
       from public.time_entries te
       join public.projects p on p.id = te.project_id
-      where te.batch_id = p_batch_id
+      where te.batch_id = p_batch_id and te.deleted_at is null
       group by p.id, p.name
       order by p.name
     loop
@@ -2323,7 +2325,7 @@ begin
       select p.id as project_id, p.name as project_name, sum(e.amount) as amount
       from public.expenses e
       join public.projects p on p.id = e.project_id
-      where e.batch_id = p_batch_id
+      where e.batch_id = p_batch_id and e.deleted_at is null
       group by p.id, p.name
       order by p.name
     loop
@@ -2334,7 +2336,7 @@ begin
 
   else
     select sum(te.hours), sum(te.hours * coalesce(te.rate_snapshot, 0)) into v_hours, v_amount
-    from public.time_entries te where te.batch_id = p_batch_id;
+    from public.time_entries te where te.batch_id = p_batch_id and te.deleted_at is null;
     if v_hours is not null then
       v_pos := v_pos + 1;
       insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
@@ -2342,7 +2344,7 @@ begin
               'Design and development, ' || v_period || ' (' || public.hours_text(v_hours) || ' hours)',
               1, v_amount, b.project_id);
     end if;
-    select sum(e.amount) into v_amount from public.expenses e where e.batch_id = p_batch_id;
+    select sum(e.amount) into v_amount from public.expenses e where e.batch_id = p_batch_id and e.deleted_at is null;
     if v_amount is not null then
       v_pos := v_pos + 1;
       insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
@@ -2527,7 +2529,7 @@ create policy own_profile on profiles for update to authenticated
 -- ---------- Time: own unlocked rows, admins everything ----------
 
 create policy own_time_select on time_entries for select to authenticated
-  using (user_id = (select auth.uid()) or (select has_permission('see_all_time')));
+  using (deleted_at is null and (user_id = (select auth.uid()) or (select has_permission('see_all_time'))));
 
 create policy own_time_insert on time_entries for insert to authenticated
   with check ((user_id = auth.uid() and not is_client()) or is_admin());
@@ -2542,7 +2544,7 @@ create policy own_time_delete on time_entries for delete to authenticated
 -- ---------- Expenses: same shape ----------
 
 create policy own_exp_select on expenses for select to authenticated
-  using (user_id = (select auth.uid()) or (select has_permission('see_all_time')));
+  using (deleted_at is null and (user_id = (select auth.uid()) or (select has_permission('see_all_time'))));
 
 create policy own_exp_insert on expenses for insert to authenticated
   with check ((user_id = auth.uid() and not is_client()) or is_admin());
@@ -2599,6 +2601,7 @@ create policy manage_settings on work_statuses for all to authenticated using (h
 -- permission and client checks run once per query and the row parts
 -- use indexes (work_items is the biggest table people list).
 create policy visible_select on work_items for select to authenticated using (
+  deleted_at is null and
   case when (select is_client()) then
     shared_at is not null or exists (select 1 from projects p where p.id = work_items.project_id and p.client_visible)
   else
@@ -2624,7 +2627,7 @@ create policy visible_write  on work_item_assignees for all to authenticated
   with check (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);
 
 -- Clients see and write only comments marked visible to them.
-create policy visible_select on work_item_comments for select to authenticated using ((case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end) and (not (select is_client()) or visible_to_client));
+create policy visible_select on work_item_comments for select to authenticated using (deleted_at is null and (case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end) and (not (select is_client()) or visible_to_client));
 create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid() and task_visible(work_item_id) and (not is_client() or visible_to_client));
 create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or has_permission('manage_tasks')) with check (author_id = auth.uid() or has_permission('manage_tasks'));
 create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or has_permission('manage_tasks'));
@@ -2885,7 +2888,7 @@ begin
     join public.profiles pr on pr.id = te.user_id
     join public.projects  p  on p.id = te.project_id
     join public.tasks     t  on t.id = te.task_id
-    where te.started_at is not null and te.ended_at is null
+    where te.started_at is not null and te.ended_at is null and te.deleted_at is null
       and te.started_at < now() - interval '10 hours'
       and pr.is_active
   loop
@@ -2909,7 +2912,7 @@ begin
       from public.profiles pr
       where pr.is_active
         and not exists (select 1 from public.time_entries te
-                        where te.user_id = pr.id and te.spent_on = v_yesterday)
+                        where te.user_id = pr.id and te.spent_on = v_yesterday and te.deleted_at is null)
         and not exists (select 1 from public.time_off o
                         where (o.user_id = pr.id or o.user_id is null)
                           and v_yesterday between o.starts_on and o.ends_on)
@@ -3055,3 +3058,134 @@ create policy desktop_read   on storage.objects for select to anon, authenticate
 create policy desktop_insert on storage.objects for insert to authenticated with check (bucket_id = 'desktop' and has_permission('manage_settings'));
 create policy desktop_update on storage.objects for update to authenticated using (bucket_id = 'desktop' and has_permission('manage_settings'));
 create policy desktop_delete on storage.objects for delete to authenticated using (bucket_id = 'desktop' and has_permission('manage_settings'));
+
+-- ============================================================
+-- PHASE 3. UNDO
+-- Deletes on tasks, time entries, expenses, and comments are soft: a
+-- BEFORE DELETE trigger turns the delete into deleted_at = now() (after
+-- the delete policy has already said yes), the select policies hide
+-- marked rows, and restore_deleted() clears the mark within thirty
+-- days for the person who deleted or someone who manages that data.
+-- purge_deleted() removes marked rows for good after thirty days, with
+-- docket.purge set so the trigger lets the delete through. Security
+-- definer functions that aggregate these tables filter deleted_at
+-- themselves; security invoker views get it from RLS.
+-- ============================================================
+
+alter table time_entries       add column deleted_at timestamptz, add column deleted_by uuid references profiles(id) on delete set null;
+alter table expenses           add column deleted_at timestamptz, add column deleted_by uuid references profiles(id) on delete set null;
+alter table work_items         add column deleted_at timestamptz, add column deleted_by uuid references profiles(id) on delete set null;
+alter table work_item_comments add column deleted_at timestamptz, add column deleted_by uuid references profiles(id) on delete set null;
+
+create or replace function public.soft_delete_row()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if current_setting('docket.purge', true) = 'on' then return old; end if;
+  execute format('update public.%I set deleted_at = now(), deleted_by = $1 where id = $2', tg_table_name)
+    using auth.uid(), old.id;
+  return null;
+end;
+$$;
+create trigger soft_delete before delete on time_entries       for each row execute function public.soft_delete_row();
+create trigger soft_delete before delete on expenses           for each row execute function public.soft_delete_row();
+create trigger soft_delete before delete on work_items         for each row execute function public.soft_delete_row();
+create trigger soft_delete before delete on work_item_comments for each row execute function public.soft_delete_row();
+
+create or replace function public.restore_deleted(p_table text, p_id uuid)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_by uuid;
+  v_at timestamptz;
+  v_perm text := case when p_table in ('work_items', 'work_item_comments') then 'manage_tasks' else 'see_all_time' end;
+begin
+  if p_table not in ('time_entries', 'expenses', 'work_items', 'work_item_comments') then
+    raise exception 'Nothing to restore there';
+  end if;
+  execute format('select deleted_by, deleted_at from public.%I where id = $1', p_table) into v_by, v_at using p_id;
+  if v_at is null then return; end if;
+  if v_at < now() - interval '30 days' then raise exception 'Too old to restore'; end if;
+  if not (v_by = auth.uid() or public.has_permission(v_perm)) then raise exception 'Not yours to restore'; end if;
+  execute format('update public.%I set deleted_at = null, deleted_by = null where id = $1', p_table) using p_id;
+end;
+$$;
+revoke execute on function public.restore_deleted(text, uuid) from public, anon;
+grant execute on function public.restore_deleted(text, uuid) to authenticated;
+
+-- The audit trail for one time entry or expense, readable by its owner
+-- or anyone who sees all time. audit_log itself stays admin-only.
+create or replace function public.entry_history(p_table text, p_id uuid)
+returns table (changed_at timestamptz, changed_by uuid, changed_by_name text, action text, changed_fields text[], old_data jsonb, new_data jsonb)
+language plpgsql security definer
+set search_path = ''
+as $$
+declare v_ok boolean;
+begin
+  if p_table not in ('time_entries', 'expenses') then raise exception 'No history there'; end if;
+  execute format('select exists (select 1 from public.%I where id = $1 and (user_id = auth.uid() or public.has_permission(''see_all_time'')))', p_table) into v_ok using p_id;
+  if not v_ok then return; end if;
+  return query
+    select a.changed_at, a.changed_by, pr.full_name, a.action::text, a.changed_fields, a.old_data, a.new_data
+    from public.audit_log a
+    left join public.profiles pr on pr.id = a.changed_by
+    where a.table_name = p_table and a.record_id = p_id
+    order by a.changed_at desc
+    limit 100;
+end;
+$$;
+revoke execute on function public.entry_history(text, uuid) from public, anon;
+grant execute on function public.entry_history(text, uuid) to authenticated;
+
+create or replace function public.purge_deleted()
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  perform set_config('docket.purge', 'on', true);
+  delete from public.work_item_comments where deleted_at < now() - interval '30 days';
+  delete from public.work_items         where deleted_at < now() - interval '30 days';
+  delete from public.expenses           where deleted_at < now() - interval '30 days';
+  delete from public.time_entries       where deleted_at < now() - interval '30 days';
+end;
+$$;
+revoke execute on function public.purge_deleted() from public, anon, authenticated;
+
+do $$ begin
+  perform cron.schedule('docket-purge-deleted', '30 9 * * *', 'select public.purge_deleted()');
+exception when others then
+  raise notice 'pg_cron not available here, purge not scheduled: %', sqlerrm;
+end $$;
+
+-- The Assistant remembers its conversations per person. Own rows only.
+create table assistant_conversations (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references profiles(id) on delete cascade,
+  title      text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index assistant_conversations_user on assistant_conversations (user_id, updated_at desc);
+alter table assistant_conversations enable row level security;
+create policy own_conversations on assistant_conversations for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant select, insert, update, delete on assistant_conversations to authenticated;
+
+create table assistant_messages (
+  id              bigserial primary key,
+  conversation_id uuid not null references assistant_conversations(id) on delete cascade,
+  role            text not null check (role in ('user', 'assistant')),
+  content         text not null,
+  created_at      timestamptz not null default now()
+);
+create index assistant_messages_conversation on assistant_messages (conversation_id, id);
+alter table assistant_messages enable row level security;
+create policy own_messages on assistant_messages for all to authenticated
+  using (exists (select 1 from assistant_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())))
+  with check (exists (select 1 from assistant_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
+grant select, insert, update, delete on assistant_messages to authenticated;

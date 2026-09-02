@@ -68,6 +68,7 @@ const projectOptions = computed(() => (projects.value ?? []).map(p => ({ label: 
 const setProject = (projectId: string) => { if (projectId && projectId !== item.value?.project_id) patch({ project_id: projectId }) }
 
 useHead({ title: () => item.value?.title ?? 'Task' })
+useAssistantScreen(() => ({ task: item.value?.title, project: item.value?.projects?.name, client: item.value?.projects?.clients?.name }))
 
 type Item = NonNullable<typeof item.value>
 const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -277,10 +278,14 @@ async function addComment() {
     commenting.value = false
   }
 }
+const undo = useUndo()
 async function deleteComment(commentId: string) {
   const { error } = await supabase.from('work_item_comments').delete().eq('id', commentId)
   if (error) toast.add({ title: 'Could not remove', description: error.message, color: 'error' })
-  else await refreshComments()
+  else {
+    await refreshComments()
+    undo.offerRestore('Comment removed', 'work_item_comments', commentId, refreshComments)
+  }
 }
 
 // ---------- client review link ----------
@@ -451,7 +456,10 @@ const deleting = ref(false)
 async function deleteTask() {
   const { error } = await supabase.from('work_items').delete().eq('id', id)
   if (error) toast.add({ title: 'Could not delete', description: error.message, color: 'error' })
-  else await navigateTo('/tasks')
+  else {
+    await navigateTo('/tasks')
+    undo.offerRestore('Task deleted', 'work_items', id, () => navigateTo(`/tasks/${id}`))
+  }
 }
 
 // The activity panel is dragged wider or narrower from its left edge,

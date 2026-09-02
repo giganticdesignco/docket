@@ -10,6 +10,7 @@ const receipts = useReceipts()
 const toast = useToast()
 
 const year = ref(new Date().getFullYear())
+const undo = useUndo()
 const prefs = await useViewState('expenses', { everyone: false })
 const everyone = persisted(prefs, 'everyone')
 
@@ -74,9 +75,10 @@ async function confirmDelete() {
   try {
     const { error } = await supabase.from('expenses').delete().eq('id', e.id)
     if (error) throw error
-    if (e.receipt_path) await receipts.remove(e.receipt_path).catch(() => {})
+    // The receipt file stays until the purge, so Undo brings it back too.
     deleting.value = null
     await refresh()
+    undo.offerRestore('Expense deleted', 'expenses', e.id, refresh)
   } catch (err) {
     toast.add({ title: 'Could not delete expense', description: (err as Error).message, color: 'error' })
   } finally {
@@ -166,7 +168,7 @@ async function confirmDelete() {
     <UModal :open="!!deleting" title="Delete expense?" @update:open="(v) => { if (!v) deleting = null }">
       <template #body>
         <p v-if="deleting" class="text-sm">
-          This removes {{ money(deleting.amount) }} on {{ deleting.projects?.name }}<span v-if="deleting.receipt_path"> and its receipt</span>. It cannot be undone.
+          This removes {{ money(deleting.amount) }} on {{ deleting.projects?.name }}<span v-if="deleting.receipt_path"> and its receipt</span>. You can undo it for thirty seconds afterwards.
         </p>
       </template>
       <template #footer>

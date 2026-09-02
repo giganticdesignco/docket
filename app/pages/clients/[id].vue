@@ -76,6 +76,7 @@ const { data: docketInvoices } = __ad5
 const { data: invoices } = __ad6
 
 useHead({ title: () => client.value?.name ?? 'Client' })
+useAssistantScreen(() => ({ client: client.value?.name }))
 
 // Client contacts: people with a login for this client's portal.
 const { data: contacts, refresh: refreshContacts } = await useAsyncData(`client-${id}-contacts`, async () => {

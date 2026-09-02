@@ -141,10 +141,24 @@ async function pick(value: string) {
   closeMenu()
   if (!m) return
   const values = m.kind === 'status' ? { status: value } : { priority: value as Item['priority'] }
-  const ids = targets(m.item).map(t => t.id)
+  const rows = targets(m.item)
+  const ids = rows.map(t => t.id)
+  const before = rows.map(t => ({ id: t.id, status: t.status, priority: t.priority }))
   const { error } = await supabase.from('work_items').update(values).in('id', ids)
   if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
-  else await refresh()
+  else {
+    await refresh()
+    if (ids.length > 1) undo.offer(`Changed ${ids.length} tasks`, () => putBack(before), refresh)
+  }
+}
+// Undo for bulk changes writes each row's old values back.
+const undo = useUndo()
+async function putBack(rows: { id: string, status?: string, priority?: Item['priority'], due_on?: string | null, project_id?: string }[]) {
+  for (const r of rows) {
+    const { id, ...values } = r
+    const { error } = await supabase.from('work_items').update(values).eq('id', id)
+    if (error) throw error
+  }
 }
 // Assignees toggle one at a time and the menu stays open.
 async function toggleAssignee(userId: string) {
@@ -188,14 +202,17 @@ async function onDrop(g: Group) {
   dragging.value = null
   over.value = null
   if (!i) return
+  const was = { id: i.id, status: i.status, project_id: i.project_id, due_on: i.due_on }
+  let moved = false
   if (groupBy.value === 'status') {
-    if (i.status !== g.key) await patch(i, { status: g.key })
+    if (i.status !== g.key) { await patch(i, { status: g.key }); moved = true }
   } else if (groupBy.value === 'project') {
-    if (i.project_id !== g.key) await patch(i, { project_id: g.key })
+    if (i.project_id !== g.key) { await patch(i, { project_id: g.key }); moved = true }
   } else {
     const due = g.key === 'none' ? null : g.key === 'week' ? addDays(thisMonday, 4) : g.key === 'later' ? addDays(thisMonday, 7) : undefined
-    if (due !== undefined && due !== i.due_on) await patch(i, { due_on: due })
+    if (due !== undefined && due !== i.due_on) { await patch(i, { due_on: due }); moved = true }
   }
+  if (moved) undo.offer(`Moved ${i.title}`, () => putBack([was]), refresh)
 }
 
 // ---------- cards ----------
@@ -264,7 +281,7 @@ async function deleteSelected() {
   const { error } = await supabase.from('work_items').delete().in('id', ids)
   if (error) toast.add({ title: 'Could not delete', description: error.message, color: 'error' })
   else {
-    toast.add({ title: `Deleted ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'}`, color: 'success' })
+    undo.offerRestore(`Deleted ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'}`, 'work_items', ids, refresh)
     selected.value = new Set()
     focused.value = null
     await refresh()
