@@ -236,6 +236,7 @@ create table clients (
   id              uuid primary key default gen_random_uuid(),
   name            text not null,
   qbo_customer_id text unique,          -- QuickBooks Online Customer.Id
+  harvest_id      bigint unique,        -- Harvest client id, set by the import
   is_active       boolean not null default true,
   created_at      timestamptz not null default now()
 );
@@ -249,6 +250,7 @@ create table projects (
   budget_hours   numeric(10,2),         -- null = no budget
   budget_amount  numeric(12,2),
   hourly_rate    numeric(10,2),         -- project override
+  harvest_id     bigint unique,         -- Harvest project id, set by the import
   is_active      boolean not null default true,
   created_at     timestamptz not null default now(),
   unique (client_id, name)
@@ -258,6 +260,7 @@ create table projects (
 create table tasks (
   id                  uuid primary key default gen_random_uuid(),
   name                text not null unique,
+  harvest_id          bigint unique,       -- Harvest task id, set by the import
   qbo_item_id         text,             -- QuickBooks Service Item.Id for invoice lines
   is_billable_default boolean not null default true,
   is_active           boolean not null default true
@@ -316,6 +319,7 @@ create table time_entries (
   rate_snapshot numeric(10,2),          -- rate frozen at save; see resolve_rate()
   is_locked     boolean not null default false,   -- true once claimed by a batch
   batch_id      uuid references billing_batches(id) on delete set null,
+  harvest_id    bigint unique,          -- Harvest entry id, set by the import
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   check (ended_at is null or ended_at > started_at)
@@ -727,11 +731,13 @@ left join availability av
 where pr.is_active;
 
 -- Everything billable and not yet claimed by a batch.
+-- Locked with no batch means billed before the cutover (Harvest import).
 create view unbilled_time with (security_invoker = true) as
 select *
 from time_detail
 where is_billable
-  and batch_id is null;
+  and batch_id is null
+  and not is_locked;
 
 create view unbilled_expenses with (security_invoker = true) as
 select e.*, p.name as project_name, c.name as client_name, c.id as client_id
@@ -740,6 +746,18 @@ join projects p on p.id = e.project_id
 join clients  c on c.id = p.client_id
 where e.is_billable
   and e.batch_id is null;
+
+-- One row per year of the Harvest archive, for the import page.
+create view harvest_archive_yearly with (security_invoker = true) as
+select extract(year from period_month)::int as year,
+       count(*)::int      as row_count,
+       sum(hours)         as hours,
+       sum(billable_hours) as billable_hours,
+       sum(amount)        as amount,
+       min(period_month)  as first_month,
+       max(period_month)  as last_month
+from harvest_archive_monthly
+group by 1;
 
 -- ============================================================
 -- 4. ROW LEVEL SECURITY

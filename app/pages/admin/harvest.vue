@@ -1,0 +1,211 @@
+<script setup lang="ts">
+// Harvest import. Years before this one roll up into harvest_archive_monthly;
+// this year's entries come in live. Each month is one call to the server
+// route so a long run shows progress and survives a Vercel timeout.
+definePageMeta({ middleware: 'admin' })
+useHead({ title: 'Harvest import' })
+
+const supabase = useSupabaseClient()
+const toast = useToast()
+
+const now = new Date()
+const thisYear = now.getFullYear()
+const thisMonth = now.getMonth() + 1
+
+const { data: yearly, refresh: refreshYearly } = await useAsyncData('harvest-yearly', async () => {
+  const { data, error } = await supabase.from('harvest_archive_yearly').select('*').order('year')
+  if (error) throw error
+  return data
+}, fresh)
+
+const { data: liveCount, refresh: refreshLive } = await useAsyncData('harvest-live-count', async () => {
+  const { count, error } = await supabase
+    .from('time_entries')
+    .select('id', { count: 'exact', head: true })
+    .not('harvest_id', 'is', null)
+    .gte('spent_on', `${thisYear}-01-01`)
+  if (error) throw error
+  return count ?? 0
+}, fresh)
+
+const archiveFrom = ref(2015)
+const archiveTo = ref(thisYear - 1)
+const dryRun = ref(false)
+const running = ref(false)
+const stopRequested = ref(false)
+const progress = ref({ done: 0, total: 0, current: '' })
+
+type Result = {
+  month: string
+  mode: 'archive' | 'live'
+  dryRun: boolean
+  fetched: number
+  skippedRunning: number
+  rows?: number
+  hours?: number
+  amount?: number
+  imported?: number
+  deleted?: number
+  fixedRates?: number
+  skippedUsers?: string[]
+  created?: { clients: number, projects: number, tasks: number, project_tasks: number }
+}
+const log = ref<Result[]>([])
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+function months(fromYear: number, toYear: number, lastMonth = 12) {
+  const out: string[] = []
+  for (let y = fromYear; y <= toYear; y++) {
+    for (let m = 1; m <= (y === toYear ? lastMonth : 12); m++) out.push(`${y}-${pad(m)}`)
+  }
+  return out
+}
+
+async function run(mode: 'archive' | 'live', list: string[]) {
+  running.value = true
+  stopRequested.value = false
+  log.value = []
+  progress.value = { done: 0, total: list.length, current: '' }
+  try {
+    for (const month of list) {
+      if (stopRequested.value) break
+      progress.value.current = month
+      const res = await $fetch<Result>('/api/harvest/import', { method: 'POST', body: { month, mode, dryRun: dryRun.value } })
+      log.value.unshift(res)
+      progress.value.done++
+    }
+    toast.add({ title: stopRequested.value ? 'Stopped' : dryRun.value ? 'Dry run finished' : 'Import finished', color: 'success' })
+  } catch (e) {
+    const err = e as { data?: { statusMessage?: string }, message?: string }
+    toast.add({ title: `Import stopped at ${progress.value.current}`, description: err.data?.statusMessage ?? err.message, color: 'error' })
+  } finally {
+    running.value = false
+    refreshYearly()
+    refreshLive()
+  }
+}
+
+const importArchive = () => run('archive', months(archiveFrom.value, archiveTo.value))
+const syncLive = () => run('live', months(thisYear, thisYear, thisMonth))
+
+const skippedUsers = computed(() => [...new Set(log.value.flatMap(r => r.skippedUsers ?? []))])
+const num = (n: number | null | undefined) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
+const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+</script>
+
+<template>
+  <div class="space-y-6">
+    <div class="flex items-center gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold">Harvest import</h1>
+        <p class="text-sm text-muted">Past years roll up by month. This year comes in entry by entry and can be re-synced until Harvest is cancelled.</p>
+      </div>
+      <USwitch v-model="dryRun" label="Dry run" size="sm" class="ml-auto" :disabled="running" />
+    </div>
+
+    <div class="grid gap-6 md:grid-cols-2">
+      <UCard>
+        <template #header>
+          <h2 class="font-semibold">Archive (before {{ thisYear }})</h2>
+        </template>
+        <div class="space-y-4">
+          <div class="flex items-end gap-3">
+            <UFormField label="From year" class="w-28">
+              <UInput v-model.number="archiveFrom" type="number" :min="2010" :max="thisYear - 1" class="w-full" :disabled="running" />
+            </UFormField>
+            <UFormField label="To year" class="w-28">
+              <UInput v-model.number="archiveTo" type="number" :min="2010" :max="thisYear - 1" class="w-full" :disabled="running" />
+            </UFormField>
+            <UButton icon="i-lucide-download" :disabled="running || archiveFrom > archiveTo" @click="importArchive">Import archive</UButton>
+          </div>
+          <table class="w-full text-sm">
+            <thead class="text-left text-muted">
+              <tr class="border-b border-default">
+                <th class="px-2 py-1 font-medium">Year</th>
+                <th class="px-2 py-1 text-right font-medium">Rows</th>
+                <th class="px-2 py-1 text-right font-medium">Hours</th>
+                <th class="px-2 py-1 text-right font-medium">Billable</th>
+                <th class="px-2 py-1 text-right font-medium">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="y in yearly" :key="y.year!" class="border-b border-default last:border-0">
+                <td class="px-2 py-1">{{ y.year }}</td>
+                <td class="px-2 py-1 text-right tabular-nums">{{ num(y.row_count) }}</td>
+                <td class="px-2 py-1 text-right tabular-nums">{{ num(y.hours) }}</td>
+                <td class="px-2 py-1 text-right tabular-nums">{{ num(y.billable_hours) }}</td>
+                <td class="px-2 py-1 text-right tabular-nums">{{ money(y.amount) }}</td>
+              </tr>
+              <tr v-if="!yearly?.length">
+                <td colspan="5" class="px-2 py-4 text-center text-muted">Nothing imported yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </UCard>
+
+      <UCard>
+        <template #header>
+          <h2 class="font-semibold">Live ({{ thisYear }})</h2>
+        </template>
+        <div class="space-y-4">
+          <p class="text-sm">
+            <strong class="tabular-nums">{{ num(liveCount) }}</strong> entries this year came from Harvest.
+          </p>
+          <UButton icon="i-lucide-refresh-cw" :disabled="running" @click="syncLive">Sync January to {{ pad(thisMonth) }}</UButton>
+          <p class="text-xs text-muted">
+            Entries for people without a Docket profile are skipped and listed below. Add them in Supabase Auth, then sync again.
+          </p>
+        </div>
+      </UCard>
+    </div>
+
+    <UCard v-if="running || log.length">
+      <template #header>
+        <div class="flex items-center gap-4">
+          <h2 class="font-semibold">
+            <span v-if="running">Importing {{ progress.current }}</span>
+            <span v-else>Last run</span>
+          </h2>
+          <span class="text-sm text-muted tabular-nums">{{ progress.done }} / {{ progress.total }} months</span>
+          <UButton v-if="running" size="xs" variant="outline" color="neutral" class="ml-auto" @click="stopRequested = true;">Stop after this month</UButton>
+        </div>
+      </template>
+      <UProgress v-if="running" :value="progress.done" :max="progress.total" class="mb-4" />
+
+      <div v-if="skippedUsers.length" class="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
+        <strong>Skipped, no Docket profile:</strong> {{ skippedUsers.join(', ') }}
+      </div>
+
+      <table class="w-full text-sm">
+        <thead class="text-left text-muted">
+          <tr class="border-b border-default">
+            <th class="px-2 py-1 font-medium">Month</th>
+            <th class="px-2 py-1 font-medium">Mode</th>
+            <th class="px-2 py-1 text-right font-medium">Fetched</th>
+            <th class="px-2 py-1 text-right font-medium">Rows</th>
+            <th class="px-2 py-1 text-right font-medium">Hours</th>
+            <th class="px-2 py-1 text-right font-medium">Deleted</th>
+            <th class="px-2 py-1 font-medium">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in log" :key="r.month + r.mode" class="border-b border-default last:border-0">
+            <td class="px-2 py-1 tabular-nums">{{ r.month }}</td>
+            <td class="px-2 py-1">{{ r.mode }}<span v-if="r.dryRun" class="text-muted"> (dry)</span></td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.fetched }}<span v-if="r.skippedRunning" class="text-muted"> ({{ r.skippedRunning }} running)</span></td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? r.rows : r.imported }}</td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? num(r.hours) : '' }}</td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'live' ? r.deleted : '' }}</td>
+            <td class="px-2 py-1 text-muted">
+              <span v-if="r.created && (r.created.clients || r.created.projects || r.created.tasks || r.created.project_tasks)">
+                {{ r.created.clients }} clients, {{ r.created.projects }} projects, {{ r.created.tasks }} tasks, {{ r.created.project_tasks }} assignments
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </UCard>
+  </div>
+</template>

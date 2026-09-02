@@ -436,6 +436,7 @@ export type Database = {
       clients: {
         Row: {
           created_at: string
+          harvest_id: number | null
           id: string
           is_active: boolean
           name: string
@@ -443,6 +444,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          harvest_id?: number | null
           id?: string
           is_active?: boolean
           name: string
@@ -450,6 +452,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          harvest_id?: number | null
           id?: string
           is_active?: boolean
           name?: string
@@ -819,6 +822,7 @@ export type Database = {
           client_id: string
           code: string | null
           created_at: string
+          harvest_id: number | null
           hourly_rate: number | null
           id: string
           is_active: boolean
@@ -831,6 +835,7 @@ export type Database = {
           client_id: string
           code?: string | null
           created_at?: string
+          harvest_id?: number | null
           hourly_rate?: number | null
           id?: string
           is_active?: boolean
@@ -843,6 +848,7 @@ export type Database = {
           client_id?: string
           code?: string | null
           created_at?: string
+          harvest_id?: number | null
           hourly_rate?: number | null
           id?: string
           is_active?: boolean
@@ -1343,6 +1349,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          harvest_id: number | null
           id: string
           is_active: boolean
           is_billable_default: boolean
@@ -1350,6 +1357,7 @@ export type Database = {
           qbo_item_id: string | null
         }
         Insert: {
+          harvest_id?: number | null
           id?: string
           is_active?: boolean
           is_billable_default?: boolean
@@ -1357,6 +1365,7 @@ export type Database = {
           qbo_item_id?: string | null
         }
         Update: {
+          harvest_id?: number | null
           id?: string
           is_active?: boolean
           is_billable_default?: boolean
@@ -1370,6 +1379,7 @@ export type Database = {
           batch_id: string | null
           created_at: string
           ended_at: string | null
+          harvest_id: number | null
           hours: number
           id: string
           is_billable: boolean
@@ -1387,6 +1397,7 @@ export type Database = {
           batch_id?: string | null
           created_at?: string
           ended_at?: string | null
+          harvest_id?: number | null
           hours?: number
           id?: string
           is_billable?: boolean
@@ -1404,6 +1415,7 @@ export type Database = {
           batch_id?: string | null
           created_at?: string
           ended_at?: string | null
+          harvest_id?: number | null
           hours?: number
           id?: string
           is_billable?: boolean
@@ -1564,6 +1576,18 @@ export type Database = {
           user_id: string | null
           user_name: string | null
           week_start: string | null
+        }
+        Relationships: []
+      }
+      harvest_archive_yearly: {
+        Row: {
+          amount: number | null
+          billable_hours: number | null
+          first_month: string | null
+          hours: number | null
+          last_month: string | null
+          row_count: number | null
+          year: number | null
         }
         Relationships: []
       }

@@ -3,6 +3,11 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/ui', '@nuxtjs/supabase'],
   css: ['~/assets/css/main.css'],
+  runtimeConfig: {
+    // Server only. Set NUXT_HARVEST_ACCESS_TOKEN and NUXT_HARVEST_ACCOUNT_ID.
+    harvestAccessToken: '',
+    harvestAccountId: '',
+  },
   routeRules: {
     // The timesheet picks "today" and ticks a timer from the browser clock.
     // Rendering it on the server (UTC on Vercel) would show the wrong day
