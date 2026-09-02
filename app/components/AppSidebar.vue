@@ -40,6 +40,7 @@ const sections = computed<Section[]>(() => {
   return [daily, more]
 })
 const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
+const searchOpen = useState('search-open', () => false)
 
 const active = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
 
@@ -64,6 +65,11 @@ watch(() => route.path, () => { mobileOpen.value = false })
     </NuxtLink>
 
     <nav class="flex-1 overflow-y-auto overflow-x-hidden py-1">
+      <button type="button" class="mx-2 mb-1 flex h-9 w-[calc(100%-1rem)] items-center gap-3 rounded-md px-2 text-sm text-muted transition-colors hover:bg-elevated hover:text-highlighted" title="Search (Cmd+K)" @click="searchOpen = true;">
+        <UIcon name="i-lucide-search" class="size-5 shrink-0" />
+        <span class="hidden min-w-0 flex-1 truncate text-left group-hover:inline">Search</span>
+        <UKbd class="hidden group-hover:inline-flex" value="meta" /><UKbd class="hidden group-hover:inline-flex" value="k" />
+      </button>
       <div v-for="s in sections" :key="s.label" class="mb-1">
         <div v-if="s.label" class="mx-3 mt-2 mb-1 border-t border-default pt-2 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
           <span class="hidden group-hover:inline">{{ s.label }}</span>
@@ -107,8 +113,9 @@ watch(() => route.path, () => { mobileOpen.value = false })
   <header class="flex h-14 items-center gap-3 border-b border-default px-4 md:hidden">
     <UButton icon="i-lucide-menu" variant="ghost" color="neutral" aria-label="Menu" @click="mobileOpen = true;" />
     <NuxtLink to="/" class="font-semibold">Docket</NuxtLink>
+    <UButton icon="i-lucide-search" variant="ghost" color="neutral" size="sm" class="ml-auto" aria-label="Search" @click="searchOpen = true;" />
     <ClientOnly>
-      <UButton :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'" variant="ghost" color="neutral" size="sm" class="ml-auto" aria-label="Toggle theme" @click="isDark = !isDark;" />
+      <UButton :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'" variant="ghost" color="neutral" size="sm" aria-label="Toggle theme" @click="isDark = !isDark;" />
     </ClientOnly>
   </header>
 

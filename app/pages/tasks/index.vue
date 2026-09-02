@@ -173,6 +173,8 @@ async function onDrop(g: Group) {
 // ---------- new task ----------
 
 const creating = ref(false)
+// /tasks?new=1 (from search) opens the form straight away.
+if (useRoute().query.new) creating.value = true
 function created(id: string) {
   creating.value = false
   navigateTo(`/tasks/${id}`)

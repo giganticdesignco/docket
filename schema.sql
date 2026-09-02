@@ -303,6 +303,7 @@ create table clients (
   qbo_customer_id text unique,          -- QuickBooks Online Customer.Id
   harvest_id      bigint unique,        -- Harvest client id, set by the import
   is_active       boolean not null default true,
+  search          tsvector generated always as (to_tsvector('simple', coalesce(name, ''))) stored,
   created_at      timestamptz not null default now()
 );
 
@@ -317,6 +318,7 @@ create table projects (
   hourly_rate    numeric(10,2),         -- project override
   harvest_id     bigint unique,         -- Harvest project id, set by the import
   server_path    text,                  -- folder on the office server (smb:// or a path)
+  search         tsvector generated always as (to_tsvector('simple', coalesce(name, '') || ' ' || coalesce(code, ''))) stored,
   is_active      boolean not null default true,
   created_at     timestamptz not null default now(),
   unique (client_id, name)
@@ -384,6 +386,7 @@ create table work_items (
   priority       work_priority not null default 'normal',
   start_on       date,
   due_on         date,
+  search         tsvector generated always as (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, ''))) stored,
   estimate_hours numeric(6,2),
   position       int not null default 0,
   public_token   text not null unique
@@ -418,10 +421,19 @@ create table work_item_comments (
   author_id         uuid references profiles(id) on delete set null,  -- null = a client, via review link
   author_name       text,                                             -- what the client typed
   body              text not null,
+  search            tsvector generated always as (to_tsvector('simple', coalesce(body, ''))) stored,
   visible_to_client boolean not null default false,                   -- client comments are always true
   created_at        timestamptz not null default now()
 );
 create index work_item_comments_item on work_item_comments (work_item_id, created_at);
+
+-- Search (Cmd+K): generated tsvector columns above, GIN indexes here.
+create index work_items_search on work_items using gin (search);
+create index projects_search on projects using gin (search);
+create index clients_search on clients using gin (search);
+create index quotes_search on quotes using gin (search);
+create index invoices_search on invoices using gin (search);
+create index work_item_comments_search on work_item_comments using gin (search);
 
 -- A file is either an uploaded copy in Storage or a link to where it already
 -- lives on the office server (smb:// or a path), so nothing is stored twice.
@@ -604,6 +616,7 @@ create table invoices (
   batch_id         uuid references billing_batches(id) on delete set null,
   status           invoice_status not null default 'draft',
   subject          text,
+  search           tsvector generated always as (to_tsvector('simple', coalesce(number, '') || ' ' || coalesce(subject, ''))) stored,
   notes            text,
   issue_date       date not null default current_date,
   due_date         date not null,
@@ -668,6 +681,7 @@ create table quotes (
   project_id     uuid references projects(id) on delete set null, -- set on acceptance
   number         text not null unique,     -- Q-2026-014, from invoice_settings.next_quote_number
   title          text not null,
+  search         tsvector generated always as (to_tsvector('simple', coalesce(number, '') || ' ' || coalesce(title, ''))) stored,
   status         quote_status not null default 'draft',
   intro          text,                     -- scope narrative
   terms          text,
@@ -1430,6 +1444,58 @@ as $$
     coalesce((select sum(x.amount) from public.report_expenses(p_from, p_to, 'month', p_client, p_project, p_person, null, p_billable) x), 0);
 $$;
 
+-- Search across tasks, projects, clients, quotes, invoices, and task
+-- comments. Security invoker, so RLS decides what each caller sees.
+-- Every word must match, the last one as a prefix so results appear as
+-- you type. Numbers like Q-2026-014 also match by substring.
+create or replace function public.search(p_q text, p_kind text default null, p_limit int default 20)
+returns table (kind text, id uuid, title text, subtitle text, rank real)
+language sql stable
+set search_path = ''
+as $$
+  with terms as (
+    select array_remove(regexp_split_to_array(lower(trim(p_q)), '\s+'), '') as words
+  ), q as (
+    select case when cardinality(words) = 0 then null
+                else to_tsquery('simple', array_to_string(array(select quote_literal(w) || ':*' from unnest(words) w), ' & '))
+           end as tsq,
+           '%' || trim(p_q) || '%' as pat
+    from terms
+  ), hits as (
+    select 'task'::text as kind, w.id, w.title, c.name || ' / ' || p.name || ' · ' || coalesce(ws.label, w.status) as subtitle,
+           ts_rank(w.search, q.tsq) as rank
+    from public.work_items w
+    join public.projects p on p.id = w.project_id
+    join public.clients c on c.id = p.client_id
+    left join public.work_statuses ws on ws.key = w.status, q
+    where q.tsq is not null and w.search @@ q.tsq and (p_kind is null or p_kind = 'task')
+    union all
+    select 'project', p.id, p.name, c.name || coalesce(' · ' || p.code, ''), ts_rank(p.search, q.tsq) + 0.2
+    from public.projects p join public.clients c on c.id = p.client_id, q
+    where q.tsq is not null and p.search @@ q.tsq and (p_kind is null or p_kind = 'project')
+    union all
+    select 'client', c.id, c.name, case when c.is_active then 'Client' else 'Inactive client' end, ts_rank(c.search, q.tsq) + 0.3
+    from public.clients c, q
+    where q.tsq is not null and c.search @@ q.tsq and (p_kind is null or p_kind = 'client')
+    union all
+    select 'quote', qu.id, qu.number || ' ' || qu.title, c.name || ' · ' || qu.status, ts_rank(qu.search, q.tsq) + 0.1
+    from public.quotes qu join public.clients c on c.id = qu.client_id, q
+    where ((q.tsq is not null and qu.search @@ q.tsq) or qu.number ilike q.pat) and (p_kind is null or p_kind = 'quote')
+    union all
+    select 'invoice', i.id, i.number || coalesce(' ' || i.subject, ''), c.name || ' · ' || i.status, ts_rank(i.search, q.tsq) + 0.1
+    from public.invoices i join public.clients c on c.id = i.client_id, q
+    where ((q.tsq is not null and i.search @@ q.tsq) or i.number ilike q.pat) and (p_kind is null or p_kind = 'invoice')
+    union all
+    select 'comment', w.id, w.title, 'Comment: ' || left(regexp_replace(m.body, '\s+', ' ', 'g'), 80), ts_rank(m.search, q.tsq) - 0.1
+    from public.work_item_comments m join public.work_items w on w.id = m.work_item_id, q
+    where q.tsq is not null and m.search @@ q.tsq and (p_kind is null or p_kind = 'task')
+  )
+  select h.kind, h.id, h.title, h.subtitle, h.rank
+  from hits h
+  order by h.rank desc, h.title
+  limit greatest(1, least(p_limit, 50));
+$$;
+
 -- ---------- Billing batches ----------
 
 -- Claim the given rows for a new draft batch, all or nothing. Rows that
@@ -1958,6 +2024,7 @@ revoke execute on function public.report_time_monthly(date, date, text, text, te
 revoke execute on function public.report_time(date, date, text, text, text, text, text, boolean) from public, anon;
 revoke execute on function public.report_expenses(date, date, text, text, text, text, text, boolean) from public, anon;
 revoke execute on function public.report_rollup(date, date, text, text, text, text, boolean) from public, anon;
+revoke execute on function public.search(text, text, int) from public, anon;
 revoke execute on function public.create_billing_batch(uuid, date, date, uuid[], uuid[], uuid) from public, anon;
 revoke execute on function public.void_billing_batch(uuid)  from public, anon;
 revoke execute on function public.unbilled_summary()        from public, anon;

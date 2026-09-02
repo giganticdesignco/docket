@@ -35,7 +35,7 @@ How:
   open, recent items remembered in localStorage.
 - Prefix filters like `t:` tasks, `c:` clients, `#Q-2026` numbers.
 
-Depends on: nothing. Size: 3 days.
+Depends on: nothing. Size: 3 days. Built 2026-09-02.
 
 ## 2. Gantt for task scheduling and people
 

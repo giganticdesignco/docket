@@ -2619,6 +2619,16 @@ export type Database = {
       quote_recalc: { Args: { p_quote_id: string }; Returns: undefined }
       recalc_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
       relink_harvest_archive: { Args: never; Returns: number }
+      search: {
+        Args: { p_kind?: string; p_limit?: number; p_q: string }
+        Returns: {
+          id: string
+          kind: string
+          rank: number
+          subtitle: string
+          title: string
+        }[]
+      }
       report_expenses: {
         Args: {
           p_billable?: boolean

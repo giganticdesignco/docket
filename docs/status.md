@@ -1,5 +1,31 @@
 # Status
 
+## Phase 2, wave 2a: search (2026-09-02)
+
+Item 1 of `docs/phase-2.md`. Migrations `search` and
+`search_status_label`.
+
+- Generated `search tsvector` columns ('simple' config) with GIN indexes
+  on work_items (title, description), projects (name, code), clients
+  (name), quotes (number, title), invoices (number, subject), and
+  work_item_comments (body).
+- `search(p_q, p_kind, p_limit)`: security invoker, every word must
+  match with the last as a prefix, quote and invoice numbers also match
+  by substring; returns kind, id, title, subtitle, rank. Comments come
+  back as kind 'comment' with the task id. Task subtitles carry the
+  status label.
+- `SearchPalette.vue`: UModal plus UCommandPalette, mounted from
+  `app.vue`, opened by Cmd+K (`defineShortcuts`), the search button at
+  the top of the rail, or the phone bar. State is `useState('search-open')`.
+  Debounced 150 ms, results grouped by kind, prefixes t: p: c: q: i:
+  narrow the kind, Recent (last ten opened, localStorage) and Actions
+  (New task, Log time, Go to pages) show on an empty term. `/tasks?new=1`
+  and `/time?new=1` open the create dialogs.
+- Verified in the browser: typing, grouping, click to open, Recent,
+  prefix filter, and ArrowDown plus Enter through dispatched keyboard
+  events (the browser tool's own key presses did not reach the list).
+
+
 ## Phase 2, wave 2a: sidebar rework (2026-09-02)
 
 Item 14 of `docs/phase-2.md`. `AppSidebar.vue` now has two groups: the

@@ -13,6 +13,7 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
 <template>
   <UApp>
     <AppSidebar v-if="profile" />
+    <SearchPalette v-if="profile" />
     <div class="app-shell" :class="profile ? 'md:pl-14' : ''">
       <UContainer class="py-6">
         <SettingsNav v-if="profile && inSettings" />

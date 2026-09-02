@@ -98,6 +98,7 @@ const { data: workItem } = await useAsyncData('time-work-item', async () => {
   return data
 }, { ...fresh, watch: [() => route.query.item] })
 watch(workItem, (w) => { if (w) creating.value = true }, { immediate: true })
+if (route.query.new) creating.value = true
 const deleting = ref<Row | null>(null)
 const busy = ref<string | null>(null) // entry id with an action in flight
 
