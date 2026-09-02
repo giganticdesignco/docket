@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-02, local session, step 6 built and verified.
+Last updated: 2026-09-02, local session, step 7 built and verified.
 
 ## Where things stand
 
@@ -71,6 +71,41 @@ no rounding.
   no New client, New project, Edit, or Tasks buttons; no Tasks header link;
   no admin badge; /admin/tasks and /projects/<id>/settings both redirect
   to the home page. Restored to admin afterwards and confirmed in the header.
+
+## Step 7: reports + CSV
+
+- `/reports`, admin only (staff would see their own live time but the
+  whole Harvest archive through time_monthly_all, which is misleading, so
+  the page is behind the admin middleware and the Reports link is admin
+  only). One page instead of the index + builder pair in structure.md.
+- Sources: "Time by month" (time_monthly_all, live + archive, grouped in
+  SQL by `report_time_monthly()` on any of month / client / project /
+  person / task; migration `report_functions`), "Time entries"
+  (time_detail rows), "Expenses" (expenses with joins). Filters: date
+  range, client, project, person. Filter options come from live tables,
+  so archive-only clients show in results but cannot be picked as a
+  filter. Totals row for hours, billable hours, amount.
+- CSV is built in the browser from exactly the rows on screen
+  (`useCsv`), plain numbers, plus a Total line. No server route.
+- Saved reports store source, filters, and grouping in `saved_reports`
+  (own or shared); load from a dropdown, save with a name, delete your
+  own. Dates are saved as picked, not relative.
+- Reports typing note: `saved_reports.filters` is the recursive `Json`
+  type; hold rows in `shallowRef`, a deep `ref` makes vue-tsc blow up with
+  "type instantiation is excessively deep".
+
+Verified: June 2025 by client returned 91 rows with totals 1,713.40 h,
+1,648.80 billable, $197,380.35, the same figures as Harvest's own report
+and the archive import. The exported CSV had the 91 rows plus a Total
+line, and summing its rows reproduced the total line exactly. Saved and
+deleted a report.
+
+Not built: capacity_weekly and project_budget_status as report sources,
+relative date ranges ("this month"), scheduled or emailed reports.
+
+Next is step 8: QuickBooks push. Needs QBO Online confirmed, an app in
+the Intuit developer portal (client id/secret), and the OAuth callback
+URL, before anything can be verified.
 
 ## Step 6: reminders + email
 

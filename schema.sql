@@ -897,6 +897,40 @@ begin
 end;
 $$;
 
+-- Time by month with optional grouping, for the report builder. Runs as
+-- the caller under RLS, so it is for admins: a staff member would get
+-- their own live time plus the whole archive. Group keys not named in
+-- p_group_by come back null and collapse into one row. Filters are by
+-- name because the archive has no ids.
+create or replace function public.report_time_monthly(
+  p_from date, p_to date,
+  p_client text default null, p_project text default null, p_user text default null,
+  p_group_by text[] default array['client']
+)
+returns table (
+  period_month date, client_name text, project_name text, user_name text, task_name text,
+  hours numeric, billable_hours numeric, amount numeric
+)
+language sql stable
+set search_path = ''
+as $$
+  select
+    case when 'month'   = any(p_group_by) then t.period_month end,
+    case when 'client'  = any(p_group_by) then t.client_name end,
+    case when 'project' = any(p_group_by) then t.project_name end,
+    case when 'person'  = any(p_group_by) then t.user_name end,
+    case when 'task'    = any(p_group_by) then t.task_name end,
+    sum(t.hours), sum(t.billable_hours), sum(t.amount)
+  from public.time_monthly_all t
+  where t.period_month >= date_trunc('month', p_from)::date
+    and t.period_month <= p_to
+    and (p_client  is null or t.client_name  = p_client)
+    and (p_project is null or t.project_name = p_project)
+    and (p_user    is null or t.user_name    = p_user)
+  group by 1, 2, 3, 4, 5
+  order by 1, 2, 3, 4, 5;
+$$;
+
 -- ============================================================
 -- 4. ROW LEVEL SECURITY
 -- ============================================================
@@ -1051,6 +1085,7 @@ revoke execute on function public.resolve_rate(uuid, uuid, uuid) from public, an
 revoke execute on function public.project_budget(uuid)       from public, anon;
 revoke execute on function public.retainer_status()          from public, anon;
 revoke execute on function public.relink_harvest_archive()   from public, anon;
+revoke execute on function public.report_time_monthly(date, date, text, text, text, text[]) from public, anon;
 
 -- ============================================================
 -- 6. STORAGE

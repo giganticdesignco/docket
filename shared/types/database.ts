@@ -1828,6 +1828,26 @@ export type Database = {
         }[]
       }
       relink_harvest_archive: { Args: never; Returns: number }
+      report_time_monthly: {
+        Args: {
+          p_client?: string
+          p_from: string
+          p_group_by?: string[]
+          p_project?: string
+          p_to: string
+          p_user?: string
+        }
+        Returns: {
+          amount: number
+          billable_hours: number
+          client_name: string
+          hours: number
+          period_month: string
+          project_name: string
+          task_name: string
+          user_name: string
+        }[]
+      }
       resolve_rate: {
         Args: { p_project_id: string; p_task_id: string; p_user_id: string }
         Returns: number
@@ -1850,6 +1870,30 @@ export type Database = {
           rollover_cap: number
           used: number
         }[]
+      }
+      run_reminders: {
+        Args: { p_dry_run?: boolean }
+        Returns: {
+          email: string
+          kind: Database["public"]["Enums"]["reminder_kind"]
+          sent: boolean
+          subject: string
+        }[]
+      }
+      send_reminder: {
+        Args: {
+          p_body: string
+          p_dry_run?: boolean
+          p_for_date: string
+          p_kind: Database["public"]["Enums"]["reminder_kind"]
+          p_subject: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      vault_secret: {
+        Args: { p_default?: string; p_name: string }
+        Returns: string
       }
     }
     Enums: {

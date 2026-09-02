@@ -1,12 +1,13 @@
 <script setup lang="ts">
 const { profile, isAdmin, signOut } = useCurrentUser()
 
-const links = [
+const links = computed(() => [
   { label: 'Time', to: '/time' },
   { label: 'Expenses', to: '/expenses' },
   { label: 'Clients', to: '/clients' },
   { label: 'Projects', to: '/projects' },
-]
+  ...(isAdmin.value ? [{ label: 'Reports', to: '/reports' }] : []),
+])
 
 // Admin pages live in one menu so the bar stays short as they accumulate.
 const adminItems = [[
