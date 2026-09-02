@@ -736,6 +736,110 @@ export type Database = {
           },
         ]
       }
+      harvest_invoices: {
+        Row: {
+          amount: number
+          client_id: string | null
+          client_name: string
+          closed_at: string | null
+          currency: string | null
+          discount_amount: number | null
+          due_amount: number
+          due_date: string | null
+          harvest_id: number
+          harvest_updated_at: string
+          id: string
+          issue_date: string
+          line_items: Json
+          number: string
+          paid_at: string | null
+          paid_date: string | null
+          period_end: string | null
+          period_start: string | null
+          sent_at: string | null
+          state: string
+          subject: string | null
+          tax_amount: number | null
+        }
+        Insert: {
+          amount: number
+          client_id?: string | null
+          client_name: string
+          closed_at?: string | null
+          currency?: string | null
+          discount_amount?: number | null
+          due_amount: number
+          due_date?: string | null
+          harvest_id: number
+          harvest_updated_at: string
+          id?: string
+          issue_date: string
+          line_items?: Json
+          number: string
+          paid_at?: string | null
+          paid_date?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          sent_at?: string | null
+          state: string
+          subject?: string | null
+          tax_amount?: number | null
+        }
+        Update: {
+          amount?: number
+          client_id?: string | null
+          client_name?: string
+          closed_at?: string | null
+          currency?: string | null
+          discount_amount?: number | null
+          due_amount?: number
+          due_date?: string | null
+          harvest_id?: number
+          harvest_updated_at?: string
+          id?: string
+          issue_date?: string
+          line_items?: Json
+          number?: string
+          paid_at?: string | null
+          paid_date?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          sent_at?: string | null
+          state?: string
+          subject?: string | null
+          tax_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "harvest_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harvest_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "harvest_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_expenses"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "harvest_invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1707,6 +1811,7 @@ export type Database = {
           client_id: string | null
           client_name: string | null
           created_at: string | null
+          harvest_id: number | null
           id: string | null
           is_billable: boolean | null
           is_locked: boolean | null
@@ -1824,6 +1929,17 @@ export type Database = {
       }
     }
     Functions: {
+      create_billing_batch: {
+        Args: {
+          p_client_id: string
+          p_expense_ids: string[]
+          p_period_end: string
+          p_period_start: string
+          p_project_id?: string
+          p_time_entry_ids: string[]
+        }
+        Returns: string
+      }
       is_admin: { Args: never; Returns: boolean }
       project_budget: {
         Args: { p_project_id: string }
@@ -1906,10 +2022,23 @@ export type Database = {
         }
         Returns: boolean
       }
+      unbilled_summary: {
+        Args: never
+        Returns: {
+          client_id: string
+          client_name: string
+          expense_amount: number
+          hours: number
+          newest: string
+          oldest: string
+          time_amount: number
+        }[]
+      }
       vault_secret: {
         Args: { p_default?: string; p_name: string }
         Returns: string
       }
+      void_billing_batch: { Args: { p_batch_id: string }; Returns: undefined }
     }
     Enums: {
       audit_action: "insert" | "update" | "delete"

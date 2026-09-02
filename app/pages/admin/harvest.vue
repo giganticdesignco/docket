@@ -38,6 +38,12 @@ const { data: expenseCount, refresh: refreshExpenses } = await useAsyncData('har
   return count ?? 0
 }, fresh)
 
+const { data: invoiceCount, refresh: refreshInvoices } = await useAsyncData('harvest-invoice-count', async () => {
+  const { count, error } = await supabase.from('harvest_invoices').select('id', { count: 'exact', head: true })
+  if (error) throw error
+  return count ?? 0
+}, fresh)
+
 const archiveFrom = ref(2015)
 const archiveTo = ref(thisYear - 1)
 const expensesFrom = ref(thisYear)
@@ -46,7 +52,7 @@ const running = ref(false)
 const stopRequested = ref(false)
 const progress = ref({ done: 0, total: 0, current: '' })
 
-type Mode = 'archive' | 'live' | 'projects' | 'expenses'
+type Mode = 'archive' | 'live' | 'projects' | 'expenses' | 'invoices'
 type Step = { month: string, mode: Mode }
 type Result = {
   month: string
@@ -65,6 +71,9 @@ type Result = {
   relinkError?: string | null
   receipts?: number
   receiptErrors?: string[]
+  openAmount?: number
+  byState?: Record<string, number>
+  unlinkedClients?: string[]
   error?: string
   skippedUsers?: string[]
   created?: { clients: number, projects: number, tasks: number, project_tasks: number, categories?: number }
@@ -91,7 +100,7 @@ async function run(steps: Step[]) {
     for (const step of steps) {
       if (stopRequested.value) break
       mode = step.mode
-      progress.value.current = step.mode === 'projects' ? 'project details' : step.month
+      progress.value.current = step.mode === 'projects' ? 'project details' : step.mode === 'invoices' ? 'invoices' : step.month
       const res = await $fetch<Result>('/api/harvest/import', { method: 'POST', body: { month: step.month, mode: step.mode, dryRun: dryRun.value } })
       log.value.unshift(res)
       progress.value.done++
@@ -108,6 +117,7 @@ async function run(steps: Step[]) {
     refreshYearly()
     refreshLive()
     refreshExpenses()
+    refreshInvoices()
   }
 }
 
@@ -119,10 +129,13 @@ const syncLive = () => run([
   { month: thisMonthKey, mode: 'projects' as const },
 ])
 const syncProjects = () => run([{ month: thisMonthKey, mode: 'projects' as const }])
+const importInvoices = () => run([{ month: thisMonthKey, mode: 'invoices' as const }])
 const syncExpenses = () => run(months(expensesFrom.value, thisYear, thisMonth).map(month => ({ month, mode: 'expenses' as const })))
 
 const skippedUsers = computed(() => [...new Set(log.value.flatMap(r => r.skippedUsers ?? []))])
 const receiptErrors = computed(() => log.value.flatMap(r => r.receiptErrors ?? []))
+const unlinkedClients = computed(() => [...new Set(log.value.flatMap(r => r.unlinkedClients ?? []))])
+const stateSummary = (by: Record<string, number>) => ['open', 'paid', 'closed', 'draft'].filter(k => by[k]).map(k => `${by[k]} ${k}`).join(', ')
 const num = (n: number | null | undefined) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
 const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 </script>
@@ -217,6 +230,22 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
           </p>
         </div>
       </UCard>
+
+      <UCard>
+        <template #header>
+          <h2 class="font-semibold">Invoices</h2>
+        </template>
+        <div class="space-y-4">
+          <p class="text-sm">
+            <strong class="tabular-nums">{{ num(invoiceCount) }}</strong> Harvest invoices are on file.
+          </p>
+          <UButton icon="i-lucide-file-text" :disabled="running" @click="importInvoices">Import invoices</UButton>
+          <p class="text-xs text-muted">
+            Copies every Harvest invoice (number, dates, amounts, paid state, line items) so the history survives cancelling Harvest.
+            Whole history each run, so paid and closed states stay current. Needs a token that can see invoices: a manager token without invoice access gets "Not authorized".
+          </p>
+        </div>
+      </UCard>
     </div>
 
     <UCard v-if="running || log.length">
@@ -234,6 +263,9 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
 
       <div v-if="skippedUsers.length" class="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
         <strong>Skipped, no Docket profile:</strong> {{ skippedUsers.join(', ') }}
+      </div>
+      <div v-if="unlinkedClients.length" class="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
+        <strong>Invoices for clients not in Docket:</strong> {{ unlinkedClients.join(', ') }}
       </div>
       <div v-if="receiptErrors.length" class="mb-4 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
         <strong>Receipts not copied:</strong>
@@ -256,11 +288,11 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
         </thead>
         <tbody>
           <tr v-for="r in log" :key="r.month + r.mode" class="border-b border-default last:border-0">
-            <td class="px-2 py-1 tabular-nums">{{ r.mode === 'projects' ? 'Projects' : r.month }}</td>
+            <td class="px-2 py-1 tabular-nums">{{ r.mode === 'projects' ? 'Projects' : r.mode === 'invoices' ? 'Invoices' : r.month }}</td>
             <td class="px-2 py-1">{{ r.mode }}<span v-if="r.dryRun" class="text-muted"> (dry)</span></td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.fetched }}<span v-if="r.skippedRunning" class="text-muted"> ({{ r.skippedRunning }} running)</span></td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? r.rows : r.mode === 'projects' ? r.updatedProjects : r.imported }}</td>
-            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? num(r.hours) + ' h' : r.mode === 'expenses' ? money(r.amount) : '' }}</td>
+            <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'archive' ? num(r.hours) + ' h' : r.mode === 'expenses' || r.mode === 'invoices' ? money(r.amount) : '' }}</td>
             <td class="px-2 py-1 text-right tabular-nums">{{ r.mode === 'live' || r.mode === 'expenses' ? r.deleted : '' }}</td>
             <td class="px-2 py-1 text-muted">
               <span v-if="r.error" class="text-error">Failed: {{ r.error }}</span>
@@ -270,6 +302,7 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
                 <template v-else>{{ r.created.tasks }} tasks, {{ r.created.project_tasks }} assignments</template>
               </span>
               <span v-if="r.mode === 'expenses' && r.receipts" class="text-muted"> {{ r.receipts }} receipts{{ r.dryRun ? ' to copy' : ' copied' }}</span>
+              <span v-if="r.mode === 'invoices' && r.byState">{{ stateSummary(r.byState) }}, {{ money(r.openAmount) }} outstanding</span>
               <span v-if="r.relinkError" class="text-warning"> Archive relink skipped: {{ r.relinkError }}</span>
             </td>
           </tr>

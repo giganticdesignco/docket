@@ -88,6 +88,61 @@ keys) in `.env` and on Vercel. Without it the button returns a clear
 error. No email is sent; tell the person to sign in with Google.
 Verified by creating and deleting a throwaway account.
 
+## Billing batches UI and Harvest invoice import (added 2026-09-02)
+
+Built after Luke learned billing runs through Harvest (see step 7's
+"Next"). Both fit any of the three invoicing options.
+
+Billing (`/billing`, admin only, "Billing" link in the header):
+
+- Unbilled per client from a new security definer `unbilled_summary()`:
+  hours, time amount (hours x rate_snapshot), expense amount, oldest and
+  newest dates. Locked rows (Harvest-invoiced) and batched rows are out.
+  Verified against a direct Harvest pull of uninvoiced 2026 time and
+  expenses: 136 clients, $1,222,508.53 total, top clients to the cent.
+- `/billing/new?client=`: client, optional project, period (defaults to
+  last month), then every unbilled time entry and expense in range with
+  checkboxes (all ticked), totals, and a warning when a picked entry has
+  no rate. Creating calls `create_billing_batch(p_client_id,
+  p_period_start, p_period_end, p_time_entry_ids, p_expense_ids,
+  p_project_id default null)`: inserts the draft batch and sets
+  batch_id + is_locked on exactly the rows given, all or nothing. Rows
+  that are not that client's, not billable, already claimed, locked, or
+  running make the whole call fail with a reload message. Subtotals:
+  `subtotal_hours` and `subtotal_amount` (time amount plus expenses).
+- `/billing/[id]`: header, locked rows, CSV export of the lines, and Void
+  (draft or failed only) via `void_billing_batch()`, which releases the
+  rows and keeps the batch as `void`. `unbilled_expenses` now excludes
+  `is_locked` like `unbilled_time` (the view had to be dropped and
+  recreated because `expenses` gained `harvest_id` after it was made).
+- Migrations `billing_batches_ui` and
+  `create_billing_batch_optional_project`, mirrored in schema.sql; the
+  schema TODO 1 and the billing_batches comment now describe the reopened
+  invoicing question.
+
+Verified as luke@: created a batch for Dupaco (May to July: one entry,
+one expense, $43.50), DB showed both rows locked with batch_id set and
+subtotals 0.25 h / 43.50, voided it, both rows returned to unbilled and
+the list showed the batch as void. The test batch was then deleted.
+
+Harvest invoices (`invoices` mode on the import, Invoices card on
+`/admin/harvest`, table `harvest_invoices`, admin-only RLS):
+
+- Copies every invoice (number, client, subject, state, issue/due/period
+  dates, amount, due_amount, tax and discount amounts, sent/paid/closed
+  timestamps, line items as JSON) keyed on harvest_id, whole history each
+  run so paid state stays current. Client linked by harvest_id then name;
+  unmatched client names are listed on the page.
+- Client page gets a "Harvest invoices" card (admins) with an overdue
+  badge for open invoices past due.
+- NOT VERIFIED WITH DATA: Luke's token is a Harvest Manager token and
+  `/v2/invoices` returns 403 (the Harvest connector in Claude sees zero
+  invoices for him too). The page shows a clear "This Harvest token
+  cannot see invoices" message, which is what was tested. Run it with a
+  personal access token from a Harvest administrator (Sean or Tom), or
+  after an admin grants Luke invoice access; the field mapping follows
+  the API docs and may need a tweak on first real run.
+
 ## Harvest expense import (added 2026-09-02)
 
 Luke asked "can we import expenses?". New `expenses` mode on
@@ -210,12 +265,10 @@ pick:
    /api/qbo/callback) and whoever does billing works in QBO from then on.
 3. Keep Harvest for invoicing only. Cheapest, but Harvest stays paid for.
 
-Either way, import Harvest's invoice history (`/v2/invoices`: number,
-client, dates, amounts, paid status) before cancelling so AR history
-survives; that is a small addition to the import page. The
-billing_batches UI (pick a client and period, see unbilled time and
-expenses, build a draft batch, lock the rows) is needed under options 1
-and 2 and is pure Supabase, so it can be built before the decision.
+Either way, import Harvest's invoice history before cancelling so AR
+history survives. Both the batch UI and the invoice import are now
+built (see "Billing batches UI and Harvest invoice import" above); the
+invoice import is waiting on a token that can see invoices.
 
 ## Step 6: reminders + email
 

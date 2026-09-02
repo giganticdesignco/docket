@@ -11,20 +11,23 @@ import type { Database } from '~~/shared/types/database'
 //   expenses: upsert one month's expenses into expenses keyed on harvest_id,
 //             creating clients, projects, and categories as needed, and file
 //             each receipt in the owner's folder of the receipts bucket
+//   invoices: copy every Harvest invoice (header plus line items) into
+//             harvest_invoices, keyed on harvest_id
 // Runs as the signed-in admin through RLS. The only secret is the Harvest
 // token. Re-runnable: importing the same month again is safe.
 
-type Mode = 'archive' | 'live' | 'projects' | 'expenses'
+type Mode = 'archive' | 'live' | 'projects' | 'expenses' | 'invoices'
 type Body = { month?: string, mode?: Mode, dryRun?: boolean }
 type Db = SupabaseClient<Database>
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event)
   const month = body?.month ?? ''
-  if (body.mode !== 'archive' && body.mode !== 'live' && body.mode !== 'projects' && body.mode !== 'expenses') {
-    throw createError({ statusCode: 400, statusMessage: 'mode must be archive, live, projects, or expenses' })
+  const modes: Mode[] = ['archive', 'live', 'projects', 'expenses', 'invoices']
+  if (!modes.includes(body.mode as Mode)) {
+    throw createError({ statusCode: 400, statusMessage: `mode must be one of ${modes.join(', ')}` })
   }
-  if (body.mode !== 'projects' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+  if (body.mode !== 'projects' && body.mode !== 'invoices' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     throw createError({ statusCode: 400, statusMessage: 'month must be YYYY-MM' })
   }
   const dryRun = !!body.dryRun
@@ -36,6 +39,9 @@ export default defineEventHandler(async (event) => {
 
   if (body.mode === 'projects') {
     return { month, mode: body.mode, dryRun, fetched: 0, skippedRunning: 0, ...(await importProjects(supabase, dryRun)) }
+  }
+  if (body.mode === 'invoices') {
+    return { month, mode: body.mode, dryRun, skippedRunning: 0, ...(await importInvoices(supabase, dryRun)) }
   }
 
   const from = `${month}-01`
@@ -495,4 +501,63 @@ async function importExpenses(supabase: Db, from: string, to: string, dryRun: bo
 
   const amount = round2(rows.reduce((sum, r) => sum + r.amount, 0))
   return { fetched: all.length, imported: rows.length, amount, deleted, receipts, receiptErrors, skippedUsers: [...skippedUsers.values()], created }
+}
+
+// ---------- invoices ----------
+
+// Whole history every run; Harvest is the source of truth until the
+// cutover, and a paid invoice changes state without a new row.
+async function importInvoices(supabase: Db, dryRun: boolean) {
+  let harvest: HarvestInvoice[]
+  try {
+    harvest = await harvestInvoices()
+  } catch (e) {
+    if (String((e as Error).message).startsWith('Harvest 403')) {
+      throw createError({ statusCode: 502, statusMessage: 'This Harvest token cannot see invoices. Use a personal access token from a Harvest administrator, or have one grant invoice access to this one.' })
+    }
+    throw e
+  }
+  const clients = await selectAll(supabase.from('clients').select('id, name, harvest_id'))
+  type Row = Database['public']['Tables']['harvest_invoices']['Insert']
+  const rows: Row[] = harvest.map(inv => ({
+    harvest_id: inv.id,
+    number: inv.number,
+    client_name: inv.client.name,
+    client_id: (clients.find(c => c.harvest_id === inv.client.id) ?? clients.find(c => same(c.name, inv.client.name)))?.id ?? null,
+    subject: inv.subject || null,
+    state: inv.state,
+    issue_date: inv.issue_date,
+    due_date: inv.due_date,
+    period_start: inv.period_start,
+    period_end: inv.period_end,
+    amount: round2(inv.amount),
+    due_amount: round2(inv.due_amount),
+    tax_amount: inv.tax_amount,
+    discount_amount: inv.discount_amount,
+    currency: inv.currency,
+    sent_at: inv.sent_at,
+    paid_at: inv.paid_at,
+    paid_date: inv.paid_date,
+    closed_at: inv.closed_at,
+    line_items: inv.line_items.map(li => ({
+      kind: li.kind,
+      description: li.description,
+      quantity: li.quantity,
+      unit_price: li.unit_price,
+      amount: li.amount,
+      taxed: li.taxed,
+      project: li.project ? { harvest_id: li.project.id, name: li.project.name, code: li.project.code } : null,
+    })),
+    harvest_updated_at: inv.updated_at,
+  }))
+  if (!dryRun) {
+    for (const chunk of chunks(rows, 200)) {
+      fail((await supabase.from('harvest_invoices').upsert(chunk, { onConflict: 'harvest_id' })).error)
+    }
+  }
+  const byState: Record<string, number> = {}
+  for (const r of rows) byState[r.state] = (byState[r.state] ?? 0) + 1
+  const amount = round2(rows.reduce((sum, r) => sum + r.amount, 0))
+  const openAmount = round2(rows.filter(r => r.state === 'open').reduce((sum, r) => sum + r.due_amount, 0))
+  return { fetched: harvest.length, imported: rows.length, amount, openAmount, byState, unlinkedClients: [...new Set(rows.filter(r => !r.client_id).map(r => r.client_name))] }
 }

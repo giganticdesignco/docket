@@ -13,10 +13,13 @@
 -- ============================================================
 -- OPEN QUESTIONS / TODO
 -- ============================================================
--- 1. INVOICING: RESOLVED. Billing goes to QuickBooks Online, not built
---    here. This app owns time + expenses; QBO owns invoices, numbering,
---    AR, and payment status.
---    Still to confirm before step 8:
+-- 1. INVOICING: REOPENED 2026-09-02. Gigantic bills entirely through
+--    Harvest today (invoices and payment follow-up), not QuickBooks, so
+--    "QBO owns invoices" was the wrong premise. Open decision: Docket
+--    invoices itself, billing moves to QBO, or Harvest stays for
+--    invoicing only. Until then billing_batches is a draft-and-lock
+--    grouping (see create_billing_batch) and harvest_invoices keeps the
+--    Harvest history. If QBO wins, still to confirm:
 --      a. ASSUMED: QuickBooks ONLINE (REST API). If Desktop, step 8
 --         becomes a CSV/IIF export instead.
 --      b. Whether QBO already has a customer list. If so, populate
@@ -29,8 +32,9 @@
 -- 3. RESOLVED in step 5: retainer_status() chains contiguous periods
 --    (same client, project, name) and carries leftover forward when the
 --    earlier period has rollover on, capped by its rollover_cap.
--- 4. No invoice tables by design (see 1). CSV export is app-side;
---    saved_reports stores definitions, not output.
+-- 4. No Docket invoice tables yet (see 1). harvest_invoices is imported
+--    history only. CSV export is app-side; saved_reports stores
+--    definitions, not output.
 -- 5. capacity_weekly counts time off across all 7 days of a week.
 --    A full week of PTO shows as 56h against a 40h base. Decide whether
 --    to count weekdays only before step 9.
@@ -284,9 +288,10 @@ create table project_tasks (
 
 -- ---------- QuickBooks handoff ----------
 -- Defined before time_entries/expenses because they reference it.
--- We do NOT invoice here. A batch groups unbilled time + expenses,
--- pushes them to QuickBooks Online as an invoice, and stores the
--- reference back. QBO owns invoice numbering, AR, and payment status.
+-- A batch groups unbilled time + expenses and locks them. The QBO push
+-- and its columns below are the original plan; see TODO 1 for the open
+-- invoicing decision. create_billing_batch() / void_billing_batch() are
+-- the only writers of batch_id and is_locked.
 
 create table billing_batches (
   id              uuid primary key default gen_random_uuid(),
@@ -484,6 +489,36 @@ create table harvest_archive_monthly (
 
 create index harvest_archive_period on harvest_archive_monthly (period_month);
 create index harvest_archive_client on harvest_archive_monthly (client_name);
+
+-- Harvest invoice history (header plus line items as JSON), imported by
+-- the invoices mode of the Harvest import so AR history survives the
+-- cancellation. Admin only. Needs a token that can see invoices.
+create table harvest_invoices (
+  id                 uuid primary key default gen_random_uuid(),
+  harvest_id         bigint not null unique,
+  number             text not null,
+  client_name        text not null,
+  client_id          uuid references clients(id) on delete set null,
+  subject            text,
+  state              text not null check (state in ('draft', 'open', 'paid', 'closed')),
+  issue_date         date not null,
+  due_date           date,
+  period_start       date,
+  period_end         date,
+  amount             numeric(12,2) not null,
+  due_amount         numeric(12,2) not null,
+  tax_amount         numeric(12,2),
+  discount_amount    numeric(12,2),
+  currency           text,
+  sent_at            timestamptz,
+  paid_at            timestamptz,
+  paid_date          date,
+  closed_at          timestamptz,
+  line_items         jsonb not null default '[]'::jsonb,
+  harvest_updated_at timestamptz not null
+);
+create index harvest_invoices_client on harvest_invoices (client_id, issue_date desc);
+create index harvest_invoices_state  on harvest_invoices (state, due_date);
 
 -- ---------- Time off ----------
 -- No approval workflow: people log it, it reduces capacity.
@@ -759,7 +794,8 @@ from expenses e
 join projects p on p.id = e.project_id
 join clients  c on c.id = p.client_id
 where e.is_billable
-  and e.batch_id is null;
+  and e.batch_id is null
+  and not e.is_locked;
 
 -- One row per year of the Harvest archive, for the import page.
 create view harvest_archive_yearly with (security_invoker = true) as
@@ -968,6 +1004,102 @@ as $$
   order by 1, 2, 3, 4, 5;
 $$;
 
+-- ---------- Billing batches ----------
+
+-- Claim the given rows for a new draft batch, all or nothing. Rows that
+-- are not this client's, not billable, already claimed, locked, or still
+-- running are refused and the whole call fails. p_project_id null means
+-- all of the client's work.
+create or replace function public.create_billing_batch(
+  p_client_id uuid, p_period_start date, p_period_end date,
+  p_time_entry_ids uuid[], p_expense_ids uuid[], p_project_id uuid default null
+) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_id        uuid;
+  v_want_time int := (select count(distinct x) from unnest(p_time_entry_ids) x);
+  v_want_exp  int := (select count(distinct x) from unnest(p_expense_ids) x);
+  v_got       int;
+  v_hours     numeric;
+  v_time_amt  numeric;
+  v_exp_amt   numeric;
+begin
+  if not public.is_admin() then raise exception 'Admins only'; end if;
+  if v_want_time + v_want_exp = 0 then raise exception 'Pick at least one entry'; end if;
+
+  insert into public.billing_batches (client_id, project_id, period_start, period_end, created_by)
+  values (p_client_id, p_project_id, p_period_start, p_period_end, auth.uid())
+  returning id into v_id;
+
+  update public.time_entries te set batch_id = v_id, is_locked = true
+  from public.projects p
+  where te.id = any(p_time_entry_ids) and p.id = te.project_id and p.client_id = p_client_id
+    and te.is_billable and te.batch_id is null and not te.is_locked
+    and (te.ended_at is not null or te.started_at is null);
+  get diagnostics v_got = row_count;
+  if v_got <> v_want_time then
+    raise exception 'Some time entries were already claimed, locked, or still running. Reload and try again.';
+  end if;
+
+  update public.expenses e set batch_id = v_id, is_locked = true
+  from public.projects p
+  where e.id = any(p_expense_ids) and p.id = e.project_id and p.client_id = p_client_id
+    and e.is_billable and e.batch_id is null and not e.is_locked;
+  get diagnostics v_got = row_count;
+  if v_got <> v_want_exp then
+    raise exception 'Some expenses were already claimed or locked. Reload and try again.';
+  end if;
+
+  select coalesce(sum(hours), 0), coalesce(sum(hours * coalesce(rate_snapshot, 0)), 0)
+    into v_hours, v_time_amt from public.time_entries where batch_id = v_id;
+  select coalesce(sum(amount), 0) into v_exp_amt from public.expenses where batch_id = v_id;
+  update public.billing_batches
+     set subtotal_hours = v_hours, subtotal_amount = v_time_amt + v_exp_amt
+   where id = v_id;
+  return v_id;
+end $$;
+
+-- Release a draft or failed batch's rows. Pushed batches stay as they are.
+create or replace function public.void_billing_batch(p_batch_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare v_status public.billing_batch_status;
+begin
+  if not public.is_admin() then raise exception 'Admins only'; end if;
+  select status into v_status from public.billing_batches where id = p_batch_id for update;
+  if v_status is null then raise exception 'Batch not found'; end if;
+  if v_status not in ('draft', 'failed') then raise exception 'Only draft or failed batches can be voided'; end if;
+  update public.time_entries set batch_id = null, is_locked = false where batch_id = p_batch_id;
+  update public.expenses     set batch_id = null, is_locked = false where batch_id = p_batch_id;
+  update public.billing_batches set status = 'void' where id = p_batch_id;
+end $$;
+
+-- Unbilled work per client, for the billing page. Admins only; staff get
+-- no rows.
+create or replace function public.unbilled_summary()
+returns table (client_id uuid, client_name text, hours numeric, time_amount numeric, expense_amount numeric, oldest date, newest date)
+language sql security definer set search_path = '' stable as $$
+  select c.id, c.name,
+         coalesce(t.hours, 0), coalesce(t.amount, 0), coalesce(e.amount, 0),
+         least(t.oldest, e.oldest), greatest(t.newest, e.newest)
+  from public.clients c
+  left join (
+    select p.client_id, sum(te.hours) as hours, sum(te.hours * coalesce(te.rate_snapshot, 0)) as amount,
+           min(te.spent_on) as oldest, max(te.spent_on) as newest
+    from public.time_entries te join public.projects p on p.id = te.project_id
+    where te.is_billable and te.batch_id is null and not te.is_locked
+      and (te.ended_at is not null or te.started_at is null)
+    group by p.client_id
+  ) t on t.client_id = c.id
+  left join (
+    select p.client_id, sum(ex.amount) as amount, min(ex.spent_on) as oldest, max(ex.spent_on) as newest
+    from public.expenses ex join public.projects p on p.id = ex.project_id
+    where ex.is_billable and ex.batch_id is null and not ex.is_locked
+    group by p.client_id
+  ) e on e.client_id = c.id
+  where public.is_admin() and (t.client_id is not null or e.client_id is not null)
+  order by coalesce(t.amount, 0) + coalesce(e.amount, 0) desc
+$$;
+
 -- ============================================================
 -- 4. ROW LEVEL SECURITY
 -- ============================================================
@@ -986,6 +1118,7 @@ alter table quotes                 enable row level security;
 alter table quote_line_items       enable row level security;
 alter table quote_sitemap_nodes    enable row level security;
 alter table harvest_archive_monthly enable row level security;
+alter table harvest_invoices       enable row level security;
 alter table time_off               enable row level security;
 alter table availability           enable row level security;
 alter table clickup_assignments    enable row level security;
@@ -1066,6 +1199,7 @@ create policy admin_write on quote_sitemap_nodes for all to authenticated using 
 
 create policy read_all    on harvest_archive_monthly for select to authenticated using (true);
 create policy admin_write on harvest_archive_monthly for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_all   on harvest_invoices for all to authenticated using (is_admin()) with check (is_admin());
 
 -- ---------- Time off, capacity ----------
 
@@ -1124,6 +1258,9 @@ revoke execute on function public.project_budgets()          from public, anon;
 revoke execute on function public.retainer_status()          from public, anon;
 revoke execute on function public.relink_harvest_archive()   from public, anon;
 revoke execute on function public.report_time_monthly(date, date, text, text, text, text[]) from public, anon;
+revoke execute on function public.create_billing_batch(uuid, date, date, uuid[], uuid[], uuid) from public, anon;
+revoke execute on function public.void_billing_batch(uuid)  from public, anon;
+revoke execute on function public.unbilled_summary()        from public, anon;
 
 -- ============================================================
 -- 6. STORAGE

@@ -36,6 +36,18 @@ const { data: retainers, refresh: refreshRetainers } = await useAsyncData(`clien
   return data.filter(r => r.client_id === id).sort((a, b) => b.period_start.localeCompare(a.period_start))
 }, fresh)
 
+// Harvest invoice history. RLS gives staff nothing, so no admin check here.
+const { data: invoices } = await useAsyncData(`client-${id}-invoices`, async () => {
+  const { data, error } = await supabase
+    .from('harvest_invoices')
+    .select('id, number, subject, state, issue_date, due_date, amount, due_amount')
+    .eq('client_id', id)
+    .order('issue_date', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data
+}, fresh)
+
 useHead({ title: () => client.value?.name ?? 'Client' })
 
 const projectName = (projectId: string | null) => projects.value?.find(p => p.id === projectId)?.name ?? 'All projects'
@@ -72,6 +84,10 @@ async function confirmDeleteRetainer() {
 }
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
+const invoiceColor = (inv: { state: string, due_date: string | null }) =>
+  inv.state === 'paid' ? 'success' : inv.state === 'open' ? (inv.due_date && inv.due_date < todayString() ? 'error' : 'warning') : 'neutral'
+const invoiceLabel = (inv: { state: string, due_date: string | null }) =>
+  inv.state === 'open' && inv.due_date && inv.due_date < todayString() ? 'overdue' : inv.state
 </script>
 
 <template>
@@ -149,6 +165,37 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
       </ul>
       <p v-else class="px-4 py-6 text-center text-sm text-muted">No retainers for this client.</p>
     </UCard>
+
+    <template v-if="isAdmin">
+      <h2 class="text-lg font-semibold">Harvest invoices</h2>
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <table v-if="invoices?.length" class="w-full text-sm">
+          <thead class="text-left text-muted">
+            <tr class="border-b border-default">
+              <th class="px-4 py-2 font-medium">Number</th>
+              <th class="px-2 py-2 font-medium">Subject</th>
+              <th class="px-2 py-2 font-medium">Issued</th>
+              <th class="px-2 py-2 font-medium">Due</th>
+              <th class="px-2 py-2 text-right font-medium">Amount</th>
+              <th class="px-2 py-2 text-right font-medium">Outstanding</th>
+              <th class="px-4 py-2 font-medium">State</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="inv in invoices" :key="inv.id" class="border-b border-default last:border-0">
+              <td class="px-4 py-2 font-medium tabular-nums">{{ inv.number }}</td>
+              <td class="max-w-sm truncate px-2 py-2 text-muted" :title="inv.subject ?? ''">{{ inv.subject }}</td>
+              <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.issue_date) }}</td>
+              <td class="px-2 py-2 tabular-nums">{{ inv.due_date ? shortDate(inv.due_date) : '' }}</td>
+              <td class="px-2 py-2 text-right tabular-nums">{{ money(inv.amount) }}</td>
+              <td class="px-2 py-2 text-right tabular-nums">{{ inv.due_amount ? money(inv.due_amount) : '' }}</td>
+              <td class="px-4 py-2"><UBadge :color="invoiceColor(inv)" variant="subtle" size="sm">{{ invoiceLabel(inv) }}</UBadge></td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No Harvest invoices on file for this client. Import them from Admin, Harvest import.</p>
+      </UCard>
+    </template>
 
     <UModal v-model:open="creatingRetainer" title="New retainer">
       <template #body>

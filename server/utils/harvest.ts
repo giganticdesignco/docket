@@ -52,6 +52,41 @@ export type HarvestExpense = {
   expense_category: HarvestRef & { unit_price: number | null, unit_name: string | null }
 }
 
+export type HarvestInvoiceLine = {
+  id: number
+  kind: string
+  description: string | null
+  quantity: number
+  unit_price: number
+  amount: number
+  taxed: boolean
+  taxed2: boolean
+  project: (HarvestRef & { code: string | null }) | null
+}
+
+export type HarvestInvoice = {
+  id: number
+  number: string
+  subject: string | null
+  state: 'draft' | 'open' | 'paid' | 'closed'
+  issue_date: string
+  due_date: string | null
+  period_start: string | null
+  period_end: string | null
+  amount: number
+  due_amount: number
+  tax_amount: number | null
+  discount_amount: number | null
+  currency: string | null
+  sent_at: string | null
+  paid_at: string | null
+  paid_date: string | null
+  closed_at: string | null
+  updated_at: string
+  client: HarvestRef
+  line_items: HarvestInvoiceLine[]
+}
+
 export type HarvestUser = {
   id: number
   email: string
@@ -112,6 +147,11 @@ export const harvestTimeEntries = (from: string, to: string) =>
 
 export const harvestExpenses = (from: string, to: string) =>
   harvestAll<'expenses', HarvestExpense>('/expenses', 'expenses', { from, to })
+
+// Invoices need a token from a Harvest administrator (or invoice access
+// on a manager token); otherwise Harvest answers 403.
+export const harvestInvoices = () =>
+  harvestAll<'invoices', HarvestInvoice>('/invoices', 'invoices', {})
 
 export const harvestProjects = () =>
   harvestAll<'projects', HarvestProject>('/projects', 'projects', {})
