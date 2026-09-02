@@ -13,6 +13,12 @@ const { data: project, refresh } = await useAsyncData(`project-${id}`, async () 
   return data
 })
 
+const { data: projectTasks } = await useAsyncData(`project-${id}-tasks-named`, async () => {
+  const { data, error } = await supabase.from('project_tasks').select('hourly_rate, tasks(name)').eq('project_id', id)
+  if (error) throw error
+  return data
+})
+
 const { data: clients } = await useAsyncData('clients-for-projects', async () => {
   const { data, error } = await supabase.from('clients').select('id, name').order('name')
   if (error) throw error
@@ -34,7 +40,10 @@ const money = (n: number | null) => (n == null ? 'Not set' : `$${n.toLocaleStrin
         <NuxtLink :to="`/clients/${project.client_id}`" class="text-sm text-muted hover:underline">{{ project.clients?.name }}</NuxtLink>
       </div>
       <UBadge v-if="!project.is_active" color="neutral" variant="subtle">Inactive</UBadge>
-      <UButton v-if="isAdmin" class="ml-auto" variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
+      <div v-if="isAdmin" class="ml-auto flex gap-2">
+        <UButton variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
+        <UButton :to="`/projects/${id}/settings`" variant="outline" icon="i-lucide-settings">Tasks</UButton>
+      </div>
     </div>
 
     <UCard>
@@ -47,7 +56,24 @@ const money = (n: number | null) => (n == null ? 'Not set' : `$${n.toLocaleStrin
       </dl>
     </UCard>
 
-    <p class="text-sm text-muted">Tasks and rate overrides come in the next increment. Budget burn arrives in step 5.</p>
+    <UCard>
+      <template #header>
+        <h2 class="font-semibold">Tasks</h2>
+      </template>
+      <ul v-if="projectTasks?.length" class="divide-y divide-default text-sm">
+        <li v-for="pt in projectTasks" :key="pt.tasks?.name" class="flex justify-between py-2">
+          <span>{{ pt.tasks?.name }}</span>
+          <span class="tabular-nums text-muted">{{ pt.hourly_rate == null ? 'Project rate' : money(pt.hourly_rate) }}</span>
+        </li>
+      </ul>
+      <p v-else class="text-sm text-muted">
+        No tasks assigned yet.
+        <span v-if="isAdmin">Use the Tasks button above to add some.</span>
+        <span v-else>Ask an admin to add some before logging time.</span>
+      </p>
+    </UCard>
+
+    <p class="text-sm text-muted">Budget burn arrives in step 5.</p>
 
     <UModal v-model:open="editing" title="Edit project">
       <template #body>
