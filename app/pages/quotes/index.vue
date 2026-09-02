@@ -49,7 +49,6 @@ const creating = ref(false)
 const newClientId = ref<string | undefined>()
 const newTitle = ref('')
 const busy = ref(false)
-const clientOptions = computed(() => (clients.value ?? []).map(c => ({ label: c.name, value: c.id })))
 async function create() {
   if (!newClientId.value || !newTitle.value.trim()) return
   busy.value = true
@@ -122,7 +121,7 @@ async function create() {
       <template #body>
         <div class="space-y-4">
           <UFormField label="Client">
-            <USelectMenu v-model="newClientId" :items="clientOptions" value-key="value" class="w-full" placeholder="Pick a client" />
+            <ClientPicker v-model="newClientId" :clients="clients ?? []" @created="c => clients?.push(c)" />
           </UFormField>
           <UFormField label="Title" help="Becomes the project name when accepted.">
             <UInput v-model="newTitle" class="w-full" placeholder="Website redesign" />

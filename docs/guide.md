@@ -94,10 +94,13 @@ sees hours.
   hold Shift while dragging to bring along everything that waits on it.
   Unscheduled tasks sit under the chart with a Schedule button. Hover a
   bar or a cut-off name for the full details.
-- **Capacity** compares each person's week (weekdays minus meetings from
-  their Google Calendar minus time off) to what is logged (past weeks)
-  or what their tasks need (coming weeks, estimates split across
-  assignees).
+- **Capacity** shows who has room. Each person's available hours are
+  their weekly hours minus time off minus meetings from their Google
+  Calendar. Past weeks show what was logged against that; this week
+  and the coming ones show the hours still free after the tasks due
+  that week (estimates split across assignees). Click a cell to see
+  the tasks behind it. "Nothing planned" can also mean the tasks have
+  no estimates yet.
 - **Time off** is logged by each person; admins log anyone's and company
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.
@@ -111,6 +114,14 @@ sees hours.
   task types it accepts time against with per-project rates, and a
   server folder. The budget bar shows what has been used, including
   Harvest history.
+- **A baseline for the budget.** As you type a new project's name, the
+  form lists completed projects with similar names, from Docket and the
+  Harvest years, with the hours and amount each took, and the typical
+  figure across them. "Use as budget" drops that into the budget fields.
+- **No client yet?** Type the name into the client picker on a new
+  project, quote, or invoice and choose "Create client". It is saved and
+  selected without leaving the form (needs the manage reference data
+  permission).
 - **Task types** (Design, Development, Meeting, and so on) are the
   categories time is logged under. Admins manage the master list; each
   project picks which apply.
@@ -145,25 +156,33 @@ the next one what it needs, so nothing is typed twice.
    job in as a line with its description and amount. Design and web
    lines are typed by hand, with hours and a rate, or the Assistant can
    draft them from a short brief using what similar work cost before.
-   Web quotes can carry a sitemap the client will see. Add an intro,
-   terms, and a valid-until date.
-4. **Send it.** Send emails the client a link to the quote page, which
+   Add an intro, terms, and a valid-until date.
+4. **Map the site.** For web work, build the sitemap as a tree on the
+   quote: a card per page with its title and path, a child or a sibling
+   from the card, drag a card onto another to move it. Give each page a
+   template (Home, Landing, Interior, Listing, Detail, Form, Blog post,
+   set up in Settings with the hours each usually takes) and the hours
+   follow; type over them on a page that is bigger or smaller. "Price
+   the sitemap" writes one scope line per template ("6 x Interior
+   pages", 18 hours) and keeps those lines in step if the tree changes.
+   The client sees the page list on the quote.
+5. **Send it.** Send emails the client a link to the quote page, which
    opens without a sign-in. The quote moves from Draft to Sent. It shows
    as Expired once the valid-until date passes.
-5. **The client decides.** On the quote page they type their name and
+6. **The client decides.** On the quote page they type their name and
    accept or decline; a note comes back with a decline. You can also
    accept or decline on their behalf when the answer came by phone or
    email. Either way the quote records who decided and when, and the
    quote's creator gets a notification.
-6. **Accepting makes the project.** Docket creates the project under
+7. **Accepting makes the project.** Docket creates the project under
    the client with the quote's title, sets its budget to the quoted
    hours and amount, and copies each quoted task type and rate into the
    project's rate table. The quote and the project link to each other.
-7. **Work and log time.** Time logs against the project like any
+8. **Work and log time.** Time logs against the project like any
    other, at the quoted rates, and the project's budget bar shows how
    much of the quote has been used. Tasks for the job live on the
    project too.
-8. **Bill it.** Unbilled shows the project's billable time and
+9. **Bill it.** Unbilled shows the project's billable time and
    expenses. A batch locks them, Create invoice turns the batch into an
    invoice with lines summarised by task type, project, or one line,
    and Send emails the client the invoice page. Fixed-fee work that

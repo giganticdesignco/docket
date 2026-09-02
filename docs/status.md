@@ -1528,3 +1528,45 @@ renders it with `marked` from a `?raw` import, with a contents list from
 the h2 headings, and the rail's question mark menu links to it as "User
 guide". Keep the guide current when a screen changes; it is the same
 file in the repo and in the app.
+
+## Capacity page reworked (2026-09-02)
+
+Each cell now answers one question with a label: past weeks "33:30
+logged of 30:00" (neutral, a record), this week and coming weeks "24:00
+free" or "3:00 over" with what is logged and planned under it. Column
+headers say Logged, This week, Coming up. Two weeks back, six ahead. The
+Team row reads the same way. The footnote became a "How the numbers are
+worked out" disclosure, and the stale "meetings are not synced" line is
+gone. Guide updated.
+
+## Similar projects on the New project form (2026-09-02)
+
+`project_history()` (security invoker) returns every finished project with time
+on it (inactive live ones and Harvest-only history), with hours, amount (null without
+see_money), and first and last activity. `SimilarProjects.vue` sits
+under the budget fields of a new project: as the name is typed it
+scores past projects by shared words (dates and job-number suffixes
+stripped, same client boosted), shows the typical hours and amount
+across the matches with the top matches listed, and "Use as budget"
+fills the budget fields. Nothing is stored; it is a hint at typing time.
+
+## Create a client from any picker (2026-09-02)
+
+`ClientPicker.vue` wraps USelectMenu with `create-item`: a name that is
+not in the list offers "Create client", inserts it (RLS: manage
+reference data), selects it, and emits `created` so the parent's list
+gains the row. Used on the project form, New quote, and Blank invoice.
+
+## Sitemap canvas, page templates, pages to tasks (2026-09-02)
+
+The quote's sitemap is now a tree on a canvas (`SitemapCanvas.vue`):
+a card per page (title, path, template, hours), tidy top-down layout
+with elbow connectors, add child or sibling from the card, Enter and
+Tab on the keyboard, drag a card onto another to reparent, zoom and
+fit. `page_templates` (Settings, Page templates: name, hours, rate,
+task type, colour) give a page its hours unless overridden
+(`quote_sitemap_nodes.template_id`, `hours`). "Price the sitemap" on
+the quote makes or updates one scope line per template
+(`quote_line_items.template_id`) and links the pages to it.
+`accept_quote()` now also creates a task per page on the new project
+with the page's hours as the estimate. Guide updated.

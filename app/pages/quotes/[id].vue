@@ -32,7 +32,13 @@ const __ad4 = useAsyncData('task-types-for-quotes', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const __ad5 = useAsyncData('page-templates', async () => {
+  const { data, error } = await supabase.from('page_templates').select('id, name, hours, rate, task_id, color').eq('is_active', true).order('position').order('name')
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
+const { data: templates } = __ad5
 const { data: quote, refresh: refreshQuote } = __ad1
 const { data: lines, refresh: refreshLines } = __ad2
 const { data: nodes, refresh: refreshNodes } = __ad3
@@ -60,8 +66,8 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
 
 // ---------- editor ----------
 
-type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string }
-type NodeDraft = { id: string, parent_id: string | null, line_item_id: string | null, title: string, path: string, template: string }
+type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null }
+type NodeDraft = { id: string, parent_id: string | null, line_item_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
 const form = reactive({ title: '', intro: '', terms: '', valid_until: '' })
 const draftLines = ref<LineDraft[]>([])
 const draftNodes = ref<NodeDraft[]>([])
@@ -76,8 +82,8 @@ function loadEditor() {
   form.intro = q.intro ?? ''
   form.terms = q.terms ?? ''
   form.valid_until = q.valid_until ?? ''
-  draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount }))
-  draftNodes.value = (nodes.value ?? []).map(n => ({ id: n.id, parent_id: n.parent_id, line_item_id: n.line_item_id, title: n.title, path: n.path ?? '', template: n.template ?? '' }))
+  draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id }))
+  draftNodes.value = (nodes.value ?? []).map(n => ({ id: n.id, parent_id: n.parent_id, line_item_id: n.line_item_id, title: n.title, path: n.path ?? '', template: n.template ?? '', template_id: n.template_id, hours: n.hours }))
   removedLines.clear()
   removedNodes.clear()
   snapshot.value = JSON.stringify([form, draftLines.value, draftNodes.value])
@@ -89,10 +95,9 @@ const dirty = computed(() => JSON.stringify([form, draftLines.value, draftNodes.
 const lineAmount = (l: LineDraft) => (l.hours !== '' && l.rate !== '' ? round2(Number(l.hours) * Number(l.rate)) : Number(l.amount) || 0)
 const editorTotal = computed(() => round2(draftLines.value.reduce((s, l) => s + lineAmount(l), 0)))
 const taskOptions = computed(() => [{ label: 'No task type', value: '__none__' }, ...(taskTypes.value ?? []).map(t => ({ label: t.name, value: t.id }))])
-const lineOptions = computed(() => [{ label: 'Not priced', value: '__none__' }, ...draftLines.value.map(l => ({ label: l.description || 'Untitled line', value: l.id }))])
 
 function addLine() {
-  draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '' })
+  draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '', template_id: null })
 }
 
 // ---------- assistant ----------
@@ -118,7 +123,7 @@ async function draftLinesFromBrief() {
   drafting.value = 'lines'
   try {
     const r = await $fetch<{ lines: { description: string, task_id: string | null, hours: number, rate: number }[], notes: string }>('/api/ai/quote-draft', { method: 'POST', body: { quoteId: id, brief: brief.value } })
-    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '' })
+    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '', template_id: null })
     briefNotes.value = r.notes
     briefOpen.value = false
     toast.add({ title: `${r.lines.length} lines proposed`, description: 'Edit them, then save the quote.', color: 'success' })
@@ -135,7 +140,8 @@ function removeLine(i: number) {
   for (const n of draftNodes.value) if (n.line_item_id === l.id) n.line_item_id = null
 }
 
-// Sitemap: a flat list with parent links, shown indented.
+// Sitemap: a flat list with parent links; the canvas edits it in place
+// and reports what it removed. Saving writes parents before children.
 type Flat = { node: NodeDraft, depth: number }
 const flatNodes = computed<Flat[]>(() => {
   const byParent = new Map<string | null, NodeDraft[]>()
@@ -143,18 +149,47 @@ const flatNodes = computed<Flat[]>(() => {
   const walk = (parent: string | null, depth: number): Flat[] => (byParent.get(parent) ?? []).flatMap(n => [{ node: n, depth }, ...walk(n.id, depth + 1)])
   return walk(null, 0)
 })
-function addNode(parent: NodeDraft | null) {
-  draftNodes.value.push({ id: crypto.randomUUID(), parent_id: parent?.id ?? null, line_item_id: parent?.line_item_id ?? null, title: '', path: '', template: parent?.template ?? '' })
-}
-function removeNode(n: NodeDraft) {
-  const ids = new Set<string>([n.id])
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const x of draftNodes.value) if (x.parent_id && ids.has(x.parent_id) && !ids.has(x.id)) { ids.add(x.id); grew = true }
+function nodesRemoved(ids: string[]) { for (const x of ids) removedNodes.add(x) }
+const templateById = computed(() => new Map((templates.value ?? []).map(t => [t.id, t])))
+const nodeHours = (n: NodeDraft) => (n.hours !== null && n.hours !== '' ? Number(n.hours) : (n.template_id ? templateById.value.get(n.template_id)?.hours ?? 0 : 0))
+// Pages grouped by template, for the summary and for pricing.
+const pageGroups = computed(() => {
+  const g = new Map<string | null, { template: { id: string, name: string, task_id: string | null, rate: number | null } | null, pages: NodeDraft[], hours: number }>()
+  for (const n of draftNodes.value) {
+    const t = n.template_id ? templateById.value.get(n.template_id) ?? null : null
+    const key = t?.id ?? null
+    const e = g.get(key) ?? { template: t, pages: [], hours: 0 }
+    e.pages.push(n)
+    e.hours += nodeHours(n)
+    g.set(key, e)
   }
-  for (const x of ids) removedNodes.add(x)
-  draftNodes.value = draftNodes.value.filter(x => !ids.has(x.id))
+  return [...g.values()].sort((a, b) => b.hours - a.hours)
+})
+// One scope line per template: "4 x Interior pages", the pages' hours,
+// the template's rate (or the rate already used for that task type on
+// this quote). Run again after changing the sitemap and it updates the
+// same lines instead of adding more.
+function priceSitemap() {
+  let made = 0, updated = 0
+  for (const g of pageGroups.value) {
+    if (!g.template || !g.pages.length) continue
+    const desc = `${g.pages.length} x ${g.template.name} ${g.pages.length === 1 ? 'page' : 'pages'}`
+    const hours = round2(g.hours)
+    let line = draftLines.value.find(l => l.template_id === g.template!.id)
+    if (line) {
+      line.description = desc
+      line.hours = hours
+      updated++
+    } else {
+      const sameTask = draftLines.value.find(l => l.task_id && l.task_id === g.template!.task_id && l.rate !== '')
+      line = { id: crypto.randomUUID(), description: desc, task_id: g.template.task_id, hours, rate: g.template.rate ?? (sameTask ? sameTask.rate : ''), amount: '', template_id: g.template.id }
+      draftLines.value.push(line)
+      made++
+    }
+    for (const n of g.pages) n.line_item_id = line.id
+  }
+  const untyped = pageGroups.value.find(g => !g.template)?.pages.length ?? 0
+  toast.add({ title: `${made} ${made === 1 ? 'line' : 'lines'} added, ${updated} updated`, description: untyped ? `${untyped} ${untyped === 1 ? 'page has' : 'pages have'} no template and ${untyped === 1 ? 'was' : 'were'} left out.` : 'Check the rates, then save.', color: 'success' })
 }
 const pagesFor = (lineId: string) => draftNodes.value.filter(n => n.line_item_id === lineId).length
 
@@ -179,7 +214,7 @@ async function save(): Promise<boolean> {
     }
     if (draftLines.value.length) {
       const { error } = await supabase.from('quote_line_items').upsert(draftLines.value.map((l, i) => ({
-        id: l.id, quote_id: id, sort_order: i + 1, description: l.description.trim(), task_id: l.task_id,
+        id: l.id, quote_id: id, sort_order: i + 1, description: l.description.trim(), task_id: l.task_id, template_id: l.template_id,
         hours: l.hours === '' ? null : Number(l.hours), rate: l.rate === '' ? null : Number(l.rate), amount: lineAmount(l),
       })), { onConflict: 'id' })
       if (error) throw error
@@ -190,6 +225,7 @@ async function save(): Promise<boolean> {
       const { error } = await supabase.from('quote_sitemap_nodes').upsert(ordered.map(n => ({
         id: n.id, quote_id: id, parent_id: n.parent_id, line_item_id: n.line_item_id, sort_order: n.sort_order,
         title: n.title.trim(), path: n.path.trim() || null, template: n.template.trim() || null,
+        template_id: n.template_id, hours: n.hours === null || n.hours === '' ? null : Number(n.hours),
       })), { onConflict: 'id' })
       if (error) throw error
     }
@@ -306,6 +342,7 @@ async function deleteQuote() {
         <div class="grid gap-4 md:grid-cols-4">
           <UFormField label="Title" class="md:col-span-3" help="Becomes the project name when accepted.">
             <UInput v-model="form.title" class="w-full" />
+            <SimilarProjects v-if="editable" :name="form.title" :client-name="quote?.clients?.name" hide-use class="mt-2" />
           </UFormField>
           <UFormField label="Valid until">
             <UInput v-model="form.valid_until" type="date" class="w-full" />
@@ -368,38 +405,19 @@ async function deleteQuote() {
         </table>
       </UCard>
 
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-4">
         <h2 class="text-lg font-semibold">Sitemap</h2>
-        <span class="text-sm text-muted">Pages the site will have. Link pages to a scope line so the line shows its page count.</span>
-        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" class="ml-auto" @click="addNode(null)">Add page</UButton>
+        <span class="text-sm text-muted">The pages the site will have, as a tree. Give each a template and the hours follow.</span>
+        <UButton v-if="editable && draftNodes.length" size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" @click="priceSitemap">Price the sitemap</UButton>
       </div>
-      <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <table class="w-full text-sm">
-          <thead class="text-left text-muted">
-            <tr class="border-b border-default">
-              <th class="px-4 py-2 font-medium">Page</th>
-              <th class="w-44 px-2 py-2 font-medium">Path</th>
-              <th class="w-36 px-2 py-2 font-medium">Template</th>
-              <th class="w-48 px-2 py-2 font-medium">Priced by</th>
-              <th class="w-20 px-2 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="{ node, depth } in flatNodes" :key="node.id" class="border-b border-default last:border-0">
-              <td class="px-4 py-1.5"><div :style="{ paddingLeft: `${depth * 1.25}rem` }"><UInput v-model="node.title" size="sm" class="w-full" placeholder="About us" /></div></td>
-              <td class="px-2 py-1.5"><UInput v-model="node.path" size="sm" class="w-full" placeholder="/about" /></td>
-              <td class="px-2 py-1.5"><UInput v-model="node.template" size="sm" class="w-full" placeholder="Landing" /></td>
-              <td class="px-2 py-1.5"><USelect :model-value="node.line_item_id ?? '__none__'" :items="lineOptions" size="sm" class="w-full" @update:model-value="node.line_item_id = $event === '__none__' ? null : ($event as string)" /></td>
-              <td class="px-2 py-1.5 text-right whitespace-nowrap">
-                <UButton icon="i-lucide-corner-down-right" variant="ghost" color="neutral" size="xs" aria-label="Add child page" title="Add a page under this one" @click="addNode(node)" />
-                <UButton icon="i-lucide-x" variant="ghost" color="neutral" size="xs" aria-label="Remove page" @click="removeNode(node)" />
-              </td>
-            </tr>
-            <tr v-if="!flatNodes.length">
-              <td colspan="5" class="px-4 py-6 text-center text-muted">No pages yet. Optional; useful for website quotes.</td>
-            </tr>
-          </tbody>
-        </table>
+      <UCard>
+        <SitemapCanvas :nodes="draftNodes" :templates="templates ?? []" :editable="editable" @removed="nodesRemoved" />
+        <div v-if="draftNodes.length" class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+          <span v-for="g in pageGroups" :key="g.template?.id ?? 'none'">
+            <span class="font-medium text-default">{{ g.pages.length }}</span> {{ g.template?.name ?? 'untyped' }}, {{ formatHours(g.hours) }}
+          </span>
+          <span class="ml-auto">Pages become tasks on the project when the quote is accepted.</span>
+        </div>
       </UCard>
       <p v-if="dirty" class="text-sm text-warning">Unsaved changes. Save before sending; the preview shows the saved version.</p>
     </template>

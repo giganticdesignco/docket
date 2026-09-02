@@ -91,6 +91,17 @@ export function writeTools(c: Caller, origin: string): Tool[] {
       },
     },
     {
+      name: 'similar_projects',
+      description: 'Completed projects whose names share words with the one given (Docket and Harvest years), with hours, amount, and when they ran. A baseline for quoting or budgeting new work: compare a few, then suggest hours.',
+      input_schema: { type: 'object', properties: { name: { type: 'string', description: 'The new project or job, e.g. "Website redesign" or "Trade show banners"' } }, required: ['name'] },
+      run: async (i) => {
+        const words = String(i.name).toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ').filter(w => w.length > 1 && !['and', 'the', 'of', 'for', 'new', 'project'].includes(w))
+        if (!words.length) return []
+        const { data } = await sb.rpc('project_history', { p_words: words })
+        return (data ?? []).map(r => ({ ...r, shared: words.filter(w => r.name.toLowerCase().includes(w)).length })).sort((a, b) => b.shared - a.shared || (b.last_on ?? '').localeCompare(a.last_on ?? '')).slice(0, 25)
+      },
+    },
+    {
       name: 'people',
       description: 'Active team members with ids, for assigning tasks.',
       input_schema: { type: 'object', properties: {} },

@@ -18,6 +18,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      page_templates: {
+        Row: { color: string; created_at: string; description: string | null; hours: number; id: string; is_active: boolean; name: string; position: number; rate: number | null; task_id: string | null }
+        Insert: { color?: string; created_at?: string; description?: string | null; hours?: number; id?: string; is_active?: boolean; name: string; position?: number; rate?: number | null; task_id?: string | null }
+        Update: { color?: string; created_at?: string; description?: string | null; hours?: number; id?: string; is_active?: boolean; name?: string; position?: number; rate?: number | null; task_id?: string | null }
+        Relationships: []
+      }
       assistant_conversations: {
         Row: { created_at: string; id: string; title: string; updated_at: string; user_id: string }
         Insert: { created_at?: string; id?: string; title: string; updated_at?: string; user_id: string }
@@ -1484,6 +1490,7 @@ export type Database = {
       }
       quote_line_items: {
         Row: {
+          template_id: string | null
           amount: number
           created_at: string
           description: string
@@ -1496,6 +1503,7 @@ export type Database = {
           task_id: string | null
         }
         Insert: {
+          template_id?: string | null
           amount?: number
           created_at?: string
           description: string
@@ -1508,6 +1516,7 @@ export type Database = {
           task_id?: string | null
         }
         Update: {
+          template_id?: string | null
           amount?: number
           created_at?: string
           description?: string
@@ -1538,6 +1547,8 @@ export type Database = {
       }
       quote_sitemap_nodes: {
         Row: {
+          template_id: string | null
+          hours: number | null
           created_at: string
           id: string
           line_item_id: string | null
@@ -1550,6 +1561,8 @@ export type Database = {
           title: string
         }
         Insert: {
+          template_id?: string | null
+          hours?: number | null
           created_at?: string
           id?: string
           line_item_id?: string | null
@@ -1562,6 +1575,8 @@ export type Database = {
           title: string
         }
         Update: {
+          template_id?: string | null
+          hours?: number | null
           created_at?: string
           id?: string
           line_item_id?: string | null
@@ -2929,6 +2944,18 @@ export type Database = {
       }
     }
     Functions: {
+      project_history: {
+        Args: { p_words: string[] }
+        Returns: {
+          project_id: string | null
+          name: string
+          client_name: string
+          hours: number
+          amount: number | null
+          first_on: string | null
+          last_on: string | null
+        }[]
+      }
       restore_deleted: {
         Args: { p_table: string; p_id: string }
         Returns: undefined

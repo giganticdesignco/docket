@@ -831,6 +831,32 @@ create table quotes (
 
 create index quotes_client_status on quotes (client_id, status);
 
+-- Page templates: what a kind of page usually takes. A sitemap page
+-- picks one and inherits its hours (or overrides them), and "Price the
+-- sitemap" turns the pages into scope lines per template. On accept,
+-- every page becomes a task on the new project.
+create table page_templates (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null unique,
+  hours       numeric(8,2) not null default 0,
+  rate        numeric(10,2),
+  task_id     uuid references tasks(id) on delete set null,
+  description text,
+  color       text not null default 'neutral',
+  position    int not null default 0,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+insert into page_templates (name, hours, description, color, position) values
+  ('Home',         8, 'The front page: hero, sections, calls to action.',            'primary', 1),
+  ('Landing',      6, 'A campaign or product page with its own layout.',              'info',    2),
+  ('Interior',     3, 'A standard content page on the site template.',                'neutral', 3),
+  ('Listing',      4, 'A page that lists things: services, team, locations, posts.', 'success', 4),
+  ('Detail',       3, 'One item from a listing: a service, a person, a location.',    'success', 5),
+  ('Form',         3, 'Contact, application, or request form with its handling.',     'warning', 6),
+  ('Blog post',    1, 'A post or article on the blog template.',                      'neutral', 7)
+on conflict (name) do nothing;
+
 create table quote_line_items (
   id          uuid primary key default gen_random_uuid(),
   quote_id    uuid not null references quotes(id) on delete cascade,
@@ -841,6 +867,7 @@ create table quote_line_items (
   rate        numeric(10,2),
   amount      numeric(12,2) not null default 0,  -- hours * rate, or flat
   details     jsonb,                              -- the estimator job behind a signage line
+  template_id uuid references page_templates(id) on delete set null,  -- made by "Price the sitemap"
   created_at  timestamptz not null default now()
 );
 
@@ -863,6 +890,8 @@ create table quote_sitemap_nodes (
   path         text,                    -- /about/team
   template     text,                    -- template name, for dedupe
   notes        text,
+  template_id  uuid references page_templates(id) on delete set null,  -- the page's kind
+  hours        numeric(8,2),                                          -- override; null = the template's
   created_at   timestamptz not null default now()
 );
 
@@ -2427,6 +2456,20 @@ begin
     on conflict do nothing;
   end loop;
 
+  -- Every sitemap page becomes a task, with the page's hours as the estimate.
+  for r in
+    select n.title, n.path, coalesce(n.hours, t.hours) as hours, t.name as template_name, n.sort_order
+    from public.quote_sitemap_nodes n
+    left join public.page_templates t on t.id = n.template_id
+    where n.quote_id = q.id
+    order by n.sort_order
+  loop
+    insert into public.work_items (project_id, title, description, estimate_hours, created_by)
+    values (v_project, r.title,
+            concat_ws(E'\n', nullif(r.path, ''), case when r.template_name is not null then r.template_name || ' page' end, 'From quote ' || q.number),
+            nullif(r.hours, 0), q.created_by);
+  end loop;
+
   update public.quotes set status = 'accepted', accepted_at = now(), accepted_by = trim(p_name),
     accepted_email = nullif(trim(coalesce(p_email, '')), ''), project_id = v_project, updated_at = now()
   where id = q.id;
@@ -3189,3 +3232,51 @@ create policy own_messages on assistant_messages for all to authenticated
   using (exists (select 1 from assistant_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())))
   with check (exists (select 1 from assistant_conversations c where c.id = conversation_id and c.user_id = (select auth.uid())));
 grant select, insert, update, delete on assistant_messages to authenticated;
+
+-- Every finished project that had time on it (live ones marked inactive,
+-- plus Harvest-only history), with total hours and amount and when it
+-- ran. The New project form uses it to show what similar projects took.
+-- Amount is null without see_money.
+create or replace function public.project_history(p_words text[])
+returns table (project_id uuid, name text, client_name text, hours numeric, amount numeric, first_on date, last_on date)
+language sql stable
+set search_path = ''
+as $$
+  -- Only names sharing a word with the one being typed, so the form
+  -- does not pull every project that ever existed.
+  with pat as (
+    select '(' || string_agg(regexp_replace(w, '[^a-z0-9]', '', 'g'), '|') || ')' as re
+    from unnest(p_words) w where length(regexp_replace(w, '[^a-z0-9]', '', 'g')) > 1
+  ), live as (
+    select p.id as project_id, p.name, c.name as client_name,
+           coalesce(b.hours_used, 0) as hours,
+           b.amount_used as amount,
+           least(p.created_at::date,
+                 (select min(te.spent_on) from public.time_entries te where te.project_id = p.id and te.deleted_at is null),
+                 (select min(a.period_month) from public.harvest_archive_monthly a where a.project_id = p.id)) as first_on,
+           greatest((select max(te.spent_on) from public.time_entries te where te.project_id = p.id and te.deleted_at is null),
+                    (select max(a.period_month) from public.harvest_archive_monthly a where a.project_id = p.id)) as last_on
+    from public.projects p
+    join public.clients c on c.id = p.client_id
+    left join public.project_budgets() b on b.project_id = p.id
+    where not p.is_active and p.name ~* (select re from pat)  -- finished projects only
+  ), arch as (
+    select null::uuid as project_id, a.project_name as name, a.client_name,
+           sum(a.hours) as hours,
+           case when (select public.has_permission('see_money')) then sum(a.amount) end as amount,
+           min(a.period_month) as first_on, max(a.period_month) as last_on
+    from public.harvest_archive_monthly a
+    where a.project_id is null and a.project_name ~* (select re from pat)
+    group by a.project_name, a.client_name
+  )
+  select * from live where hours > 0
+  union all
+  select * from arch where hours > 0
+  limit 300;
+$$;
+
+alter table page_templates enable row level security;
+create policy read_all on page_templates for select to authenticated using (not (select is_client()));
+create policy manage_settings on page_templates for all to authenticated
+  using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+grant select, insert, update, delete on page_templates to authenticated;

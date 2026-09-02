@@ -9,8 +9,9 @@ const supabase = useSupabaseClient()
 const ws = await useWorkStatuses()
 
 const thisWeek = weekDays(todayString())[0]!
+// Two weeks back for the recent record, six ahead for planning.
 const from = addDays(thisWeek, -14)
-const to = addDays(thisWeek, 7 * 8)
+const to = addDays(thisWeek, 7 * 6)
 
 const { data: cells, refresh } = await useAsyncData('capacity', async () => {
   const { data, error } = await supabase
@@ -36,21 +37,50 @@ const people = computed(() => {
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
 })
 
+// Each week answers one question. Past: how much did they log against
+// what they had? This week: how much is left, given what is logged and
+// what is still planned? Coming weeks: how much room is there after the
+// tasks due that week? "Available" is base hours minus time off minus
+// meetings from their calendar.
 const available = (c: Cell) => Math.max(0, (c.base_hours ?? 0) - (c.time_off_hours ?? 0) - (c.meeting_hours ?? 0))
 const isPast = (week: string) => week < thisWeek
-const used = (c: Cell) => (isPast(c.week_start!) ? c.logged_hours ?? 0 : c.booked_hours ?? 0)
+const kind = (week: string) => (isPast(week) ? 'past' : week === thisWeek ? 'now' : 'coming')
+// What fills the week: logged hours in the past, the larger of logged
+// and planned this week, planned (task estimates due that week) ahead.
+const used = (c: Cell) => {
+  const k = kind(c.week_start!)
+  if (k === 'past') return c.logged_hours ?? 0
+  if (k === 'now') return Math.max(c.logged_hours ?? 0, c.booked_hours ?? 0)
+  return c.booked_hours ?? 0
+}
+const free = (c: Cell) => available(c) - used(c)
 const pct = (c: Cell) => (available(c) > 0 ? used(c) / available(c) * 100 : used(c) > 0 ? 200 : 0)
-const color = (c: Cell) => (pct(c) > 100 ? 'error' : pct(c) > 85 ? 'warning' : isPast(c.week_start!) ? 'neutral' : 'primary')
+// Past weeks are a record, not a warning; only the weeks you can still
+// change go amber and red.
+const color = (c: Cell) => (kind(c.week_start!) === 'past' ? 'neutral' : pct(c) > 100 ? 'error' : pct(c) > 85 ? 'warning' : 'primary')
 const h = (n: number | null | undefined) => formatHours(n ?? 0)
 const weekLabel = (w: string) => `${shortDate(w)} to ${shortDate(addDays(w, 4))}`
+const headline = (c: Cell) => {
+  const k = kind(c.week_start!)
+  if (k === 'past') return `${h(c.logged_hours)} logged`
+  const f = free(c)
+  return f >= 0 ? `${h(f)} free` : `${h(-f)} over`
+}
+const detail = (c: Cell) => {
+  const k = kind(c.week_start!)
+  if (k === 'past') return `of ${h(available(c))}`
+  if (k === 'now') return `${h(c.logged_hours)} logged, ${h(c.booked_hours)} planned`
+  return c.booked_hours ? `${h(c.booked_hours)} planned in ${c.booked_tasks} ${c.booked_tasks === 1 ? 'task' : 'tasks'}` : 'nothing planned yet'
+}
 const tip = (c: Cell) => [
-  `${h(c.base_hours)} base`,
+  `${h(c.base_hours)} a week`,
   c.time_off_hours ? `${h(c.time_off_hours)} off` : '',
-  c.meeting_hours ? `${h(c.meeting_hours)} meetings` : '',
+  c.meeting_hours ? `${h(c.meeting_hours)} in meetings` : '',
   `${h(available(c))} available`,
-  isPast(c.week_start!) ? `${h(c.logged_hours)} logged` : `${h(c.booked_hours)} booked in ${c.booked_tasks} tasks`,
-  c.week_start === thisWeek ? `${h(c.logged_hours)} logged so far` : '',
+  `${h(c.logged_hours)} logged`,
+  `${h(c.booked_hours)} planned from ${c.booked_tasks} tasks due this week`,
 ].filter(Boolean).join(', ')
+const baseNote = (p: { cells: Map<string, Cell> }) => { const c = p.cells.get(thisWeek) ?? [...p.cells.values()][0]; return c ? `${h(c.base_hours)} a week` : '' }
 
 // Column totals, so the week as a whole has a number too.
 const weekTotals = computed(() => Object.fromEntries(weeks.value.map((w) => {
@@ -83,7 +113,7 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Capacity</h1>
-        <p class="text-sm text-muted">Hours available each week after time off and meetings. Past weeks show what was logged; coming weeks show what tasks have due.</p>
+        <p class="text-sm text-muted">Who has room. Past weeks show what was logged; this week and the coming ones show the hours still free after time off, meetings, and the tasks due that week.</p>
       </div>
       <UButton to="/tasks" variant="outline" icon="i-lucide-list-todo" class="ml-auto">Tasks</UButton>
     </div>
@@ -94,23 +124,23 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
           <thead class="text-left text-muted">
             <tr class="border-b border-default">
               <th class="sticky left-0 bg-default px-4 py-2 font-medium">Person</th>
-              <th v-for="w in weeks" :key="w" class="min-w-32 px-2 py-2 text-center font-medium" :class="w === thisWeek ? 'text-highlighted' : ''">
+              <th v-for="w in weeks" :key="w" class="min-w-36 px-2 py-2 text-center font-medium" :class="w === thisWeek ? 'text-highlighted' : ''">
+                <div class="text-[10px] font-semibold uppercase tracking-wider" :class="kind(w) === 'now' ? 'text-primary' : 'text-dimmed'">{{ kind(w) === 'past' ? 'Logged' : kind(w) === 'now' ? 'This week' : 'Coming up' }}</div>
                 {{ weekLabel(w) }}
-                <div class="text-xs font-normal">{{ isPast(w) ? 'logged' : 'booked' }} / available</div>
               </th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="p in people" :key="p.id" class="border-b border-default last:border-0">
-              <td class="sticky left-0 bg-default px-4 py-2 font-medium whitespace-nowrap">{{ p.name }}</td>
+              <td class="sticky left-0 bg-default px-4 py-2 whitespace-nowrap">
+                <div class="font-medium">{{ p.name }}</div>
+                <div class="text-xs text-muted">{{ baseNote(p) }}</div>
+              </td>
               <td v-for="w in weeks" :key="w" class="px-2 py-2 align-top" :class="w === thisWeek ? 'bg-elevated/40' : ''">
                 <button v-if="p.cells.get(w)" type="button" class="w-full rounded px-1 text-left hover:bg-elevated" :title="tip(p.cells.get(w)!)" @click="open = { person: p.id, week: w };">
-                  <div class="flex justify-between tabular-nums">
-                    <span :class="pct(p.cells.get(w)!) > 100 ? 'text-error' : ''">{{ h(used(p.cells.get(w)!)) }}</span>
-                    <span class="text-muted">{{ h(available(p.cells.get(w)!)) }}</span>
-                  </div>
+                  <div class="tabular-nums" :class="kind(w) !== 'past' && free(p.cells.get(w)!) < 0 ? 'font-medium text-error' : kind(w) === 'past' ? '' : 'font-medium'">{{ headline(p.cells.get(w)!) }}</div>
                   <UProgress :model-value="Math.min(pct(p.cells.get(w)!), 100)" :color="color(p.cells.get(w)!)" size="xs" class="mt-1" />
-                  <div v-if="w === thisWeek" class="mt-0.5 text-xs text-muted tabular-nums">{{ h(p.cells.get(w)!.logged_hours) }} logged so far</div>
+                  <div class="mt-0.5 truncate text-xs text-muted tabular-nums">{{ detail(p.cells.get(w)!) }}</div>
                 </button>
               </td>
             </tr>
@@ -121,16 +151,25 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
           <tfoot v-if="people.length" class="text-muted">
             <tr class="border-t border-default">
               <td class="sticky left-0 bg-default px-4 py-2 font-medium">Team</td>
-              <td v-for="w in weeks" :key="w" class="px-2 py-2 text-center tabular-nums">{{ h(weekTotals[w]?.used) }} / {{ h(weekTotals[w]?.available) }}</td>
+              <td v-for="w in weeks" :key="w" class="px-2 py-2 text-center tabular-nums">
+                <template v-if="kind(w) === 'past'">{{ h(weekTotals[w]?.used) }} logged of {{ h(weekTotals[w]?.available) }}</template>
+                <template v-else>{{ h(Math.max(0, (weekTotals[w]?.available ?? 0) - (weekTotals[w]?.used ?? 0))) }} free of {{ h(weekTotals[w]?.available) }}</template>
+              </td>
             </tr>
           </tfoot>
         </table>
       </div>
     </UCard>
 
-    <p class="text-xs text-muted">
-      Weekly hours are set per person on the People page; time off on the Time off page. A task's estimate is split evenly between its assignees and counted in the week it is due; completed and on-hold tasks do not count. Tasks with no estimate show in the list at zero hours. Meetings are not synced yet.
-    </p>
+    <details class="text-xs text-muted">
+      <summary class="cursor-pointer select-none">How the numbers are worked out</summary>
+      <ul class="mt-2 list-disc space-y-1 pl-4">
+        <li><span class="font-medium">Available</span> is a person's weekly hours (People page) minus time off (Time off page, weekdays only) minus meetings from their connected Google Calendar.</li>
+        <li><span class="font-medium">Planned</span> is the estimate of each open task due that week, split evenly between its assignees. Completed and on-hold tasks do not count, and a task with no estimate counts as zero, so "nothing planned" can also mean "no estimates yet". Click a cell to see the tasks.</li>
+        <li><span class="font-medium">This week</span> uses the larger of what is logged so far and what is planned.</li>
+        <li>Amber means over 85% full, red means over. Past weeks are a record and are not coloured.</li>
+      </ul>
+    </details>
 
     <AppDrawer :open="!!open" :title="open ? `${openName}, week of ${shortDate(open.week)}` : ''" @update:open="(v) => { if (!v) open = null }">
       <template #body>

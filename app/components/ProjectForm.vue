@@ -27,6 +27,9 @@ const state = reactive({
   is_active: props.project?.is_active ?? true,
 })
 const saving = ref(false)
+// Clients made from the picker join the list the parent handed us.
+const extraClients = ref<{ id: string, name: string }[]>([])
+const allClients = computed(() => [...props.clients, ...extraClients.value])
 
 // New projects start with the folder the settings template produces.
 // Stops filling in once someone edits the field by hand.
@@ -62,18 +65,17 @@ async function dropFolderDesktop(e: Event) {
 }
 function useFolderName(name: string | null) {
   if (!name) return
-  const client = props.clients.find(c => c.id === state.client_id)?.name
+  const client = allClients.value.find(c => c.id === state.client_id)?.name
   const base = folderBase(root.value, client, state.server_path)
   state.server_path = base ? `${base}/${name}` : name
   folderTouched.value = true
 }
 watch(() => [state.client_id, state.code, state.name, root.value], () => {
   if (folderTouched.value || !root.value) return
-  const client = props.clients.find(c => c.id === state.client_id)?.name
+  const client = allClients.value.find(c => c.id === state.client_id)?.name
   state.server_path = fillFolderTemplate(root.value, { client, code: state.code.trim(), name: state.name.trim() })
 }, { immediate: true })
 
-const clientOptions = computed(() => props.clients.map(c => ({ label: c.name, value: c.id })))
 
 function validate(s: typeof state) {
   const errors = []
@@ -120,7 +122,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
 <template>
   <UForm :state="state" :validate="validate" class="space-y-4" @submit="onSubmit">
     <UFormField label="Client" name="client_id" required>
-      <USelectMenu v-model="state.client_id" :items="clientOptions" value-key="value" class="w-full" placeholder="Pick a client" />
+      <ClientPicker v-model="state.client_id" :clients="allClients" @created="c => extraClients.push(c)" />
     </UFormField>
     <UFormField label="Name" name="name" required>
       <UInput v-model="state.name" class="w-full" />
@@ -134,8 +136,8 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
       </UFormField>
     </div>
     <div class="grid grid-cols-3 gap-4">
-      <UFormField label="Hourly rate" name="hourly_rate" hint="Overrides user default">
-        <UInput v-model="state.hourly_rate" type="number" step="0.01" min="0" class="w-full" />
+      <UFormField label="Hourly rate" name="hourly_rate">
+        <UInput v-model="state.hourly_rate" type="number" step="0.01" min="0" class="w-full" placeholder="Person's rate" />
       </UFormField>
       <UFormField label="Budget hours" name="budget_hours">
         <UInput v-model="state.budget_hours" type="number" step="0.25" min="0" class="w-full" />
@@ -144,6 +146,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <UInput v-model="state.budget_amount" type="number" step="0.01" min="0" class="w-full" />
       </UFormField>
     </div>
+    <SimilarProjects v-if="!project" :name="state.name" :client-name="allClients.find(c => c.id === state.client_id)?.name" @use="(h, a) => { state.budget_hours = h; if (a != null) state.budget_amount = a }" />
     <UFormField label="Server folder" name="server_path" help="Where this project's files live on the office server. New task file links start here.">
       <div class="flex gap-2" @dragover.prevent @drop.prevent="dropFolder" @desktop-drop="dropFolderDesktop">
         <USelect v-if="roots.length > 1" v-model="root" :items="roots" class="w-36 shrink-0" aria-label="Volume" />

@@ -60,7 +60,6 @@ const badge = (i: Pick<Row, 'status' | 'due_date'>): { label: string, color: 'ne
 const creating = ref(false)
 const newClientId = ref<string | undefined>()
 const busy = ref(false)
-const clientOptions = computed(() => (clients.value ?? []).map(c => ({ label: c.name, value: c.id })))
 async function createBlank() {
   if (!newClientId.value) return
   busy.value = true
@@ -140,7 +139,7 @@ async function createBlank() {
     <AppDrawer v-model:open="creating" title="Blank invoice">
       <template #body>
         <UFormField label="Client" help="For a fixed fee, a deposit, or anything not built from tracked time.">
-          <USelectMenu v-model="newClientId" :items="clientOptions" value-key="value" class="w-full" placeholder="Pick a client" />
+          <ClientPicker v-model="newClientId" :clients="clients ?? []" @created="c => clients?.push(c)" />
         </UFormField>
       </template>
       <template #footer>
