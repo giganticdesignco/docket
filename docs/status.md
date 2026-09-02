@@ -1437,5 +1437,7 @@ native title tooltips. `tipBar`, `tipIfCut`, and a teleported card in
 Update, later on 2026-09-02: Luke enabled the OAuth server, set the
 Authorization Path, turned on dynamic registration, and set Site URL to
 the live site. Discovery answers, and dynamic registration was checked
-with a throwaway client (then deleted with the admin API). The consent
-round trip with a real Claude client is Luke's to run; not seen yet.
+with a throwaway client (then deleted with the admin API). Luke then
+connected Claude for real: the Docket tools showed up in the Claude Code
+session and my_week returned his week through the connector, so the
+OAuth round trip works end to end.
