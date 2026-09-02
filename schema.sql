@@ -1667,25 +1667,38 @@ begin
   return v::text;
 end $$;
 
--- New draft invoice for a client. With a draft batch, its time becomes one
--- line per project, task, and rate, its expenses one line per project and
--- category, and the batch is marked invoiced.
-create or replace function public.create_invoice(p_client_id uuid, p_batch_id uuid default null) returns uuid
+-- Hours in summary lines read 1.25, 0.5, 8, not 1 and 0.
+create or replace function public.hours_text(h numeric) returns text
+language sql immutable set search_path = '' as $$
+  select rtrim(rtrim(round(coalesce(h, 0), 2)::text, '0'), '.');
+$$;
+
+-- How much detail the lines carry when a batch becomes an invoice:
+--   task     one line per project, task type, and rate (hours x rate)
+--   project  one line per project, hours by task type in the text
+--   summary  one line for all the work, one for all the expenses
+-- Lines stay editable on the invoice afterwards.
+create or replace function public.create_invoice(p_client_id uuid, p_batch_id uuid default null, p_detail text default 'task') returns uuid
 language plpgsql security definer set search_path = '' as $$
 declare
-  v_id    uuid;
-  s       record;
-  b       record;
-  r       record;
-  v_pos   int := 0;
+  v_id     uuid;
+  s        record;
+  b        record;
+  r        record;
+  v_pos    int := 0;
+  v_period text;
+  v_hours  numeric;
+  v_amount numeric;
 begin
   if not public.is_admin() then raise exception 'Admins only'; end if;
+  if p_detail not in ('task', 'project', 'summary') then raise exception 'Unknown detail level %', p_detail; end if;
   select * into s from public.invoice_settings where id;
   if p_batch_id is not null then
     select * into b from public.billing_batches where id = p_batch_id for update;
     if b.id is null then raise exception 'Batch not found'; end if;
     if b.status <> 'draft' then raise exception 'Only a draft batch can be invoiced'; end if;
     if b.client_id <> p_client_id then raise exception 'That batch belongs to another client'; end if;
+    v_period := to_char(b.period_start, 'Mon FMDD') || ' to ' || to_char(b.period_end, 'Mon FMDD, YYYY');
   end if;
 
   insert into public.invoices (number, client_id, batch_id, issue_date, due_date, tax_rate, notes, created_by)
@@ -1693,7 +1706,9 @@ begin
           current_date + s.default_terms_days, s.default_tax_rate, s.default_notes, auth.uid())
   returning id into v_id;
 
-  if p_batch_id is not null then
+  if p_batch_id is null then return v_id; end if;
+
+  if p_detail = 'task' then
     for r in
       select p.id as project_id, p.name as project_name, t.name as task_name,
              coalesce(te.rate_snapshot, 0) as rate, sum(te.hours) as hours
@@ -1721,8 +1736,62 @@ begin
       insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
       values (v_id, v_pos, 'expense', r.project_name || ' / ' || r.category_name, 1, r.amount, r.project_id);
     end loop;
-    update public.billing_batches set status = 'invoiced' where id = p_batch_id;
+
+  elsif p_detail = 'project' then
+    for r in
+      select p.id as project_id, p.name as project_name,
+             sum(te.hours) as hours,
+             sum(te.hours * coalesce(te.rate_snapshot, 0)) as amount,
+             (select string_agg(x.task_name || ' ' || public.hours_text(x.h) || 'h', ', ' order by x.h desc)
+                from (select t.name as task_name, sum(te2.hours) as h
+                      from public.time_entries te2
+                      join public.tasks t on t.id = te2.task_id
+                      where te2.batch_id = p_batch_id and te2.project_id = p.id
+                      group by t.name) x) as breakdown
+      from public.time_entries te
+      join public.projects p on p.id = te.project_id
+      where te.batch_id = p_batch_id
+      group by p.id, p.name
+      order by p.name
+    loop
+      v_pos := v_pos + 1;
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      values (v_id, v_pos, 'service',
+              r.project_name || ': ' || public.hours_text(r.hours) || ' hours (' || r.breakdown || ')',
+              1, r.amount, r.project_id);
+    end loop;
+    for r in
+      select p.id as project_id, p.name as project_name, sum(e.amount) as amount
+      from public.expenses e
+      join public.projects p on p.id = e.project_id
+      where e.batch_id = p_batch_id
+      group by p.id, p.name
+      order by p.name
+    loop
+      v_pos := v_pos + 1;
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      values (v_id, v_pos, 'expense', r.project_name || ': expenses', 1, r.amount, r.project_id);
+    end loop;
+
+  else
+    select sum(te.hours), sum(te.hours * coalesce(te.rate_snapshot, 0)) into v_hours, v_amount
+    from public.time_entries te where te.batch_id = p_batch_id;
+    if v_hours is not null then
+      v_pos := v_pos + 1;
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      values (v_id, v_pos, 'service',
+              'Design and development, ' || v_period || ' (' || public.hours_text(v_hours) || ' hours)',
+              1, v_amount, b.project_id);
+    end if;
+    select sum(e.amount) into v_amount from public.expenses e where e.batch_id = p_batch_id;
+    if v_amount is not null then
+      v_pos := v_pos + 1;
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      values (v_id, v_pos, 'expense', 'Expenses, ' || v_period, 1, v_amount, b.project_id);
+    end if;
   end if;
+
+  update public.billing_batches set status = 'invoiced' where id = p_batch_id;
   return v_id;
 end $$;
 
@@ -2032,7 +2101,7 @@ revoke execute on function public.recalc_invoice(uuid)       from public, anon, 
 revoke execute on function public.invoice_children_changed() from public, anon, authenticated;
 revoke execute on function public.invoice_tax_changed()      from public, anon, authenticated;
 revoke execute on function public.next_invoice_number()      from public, anon, authenticated;
-revoke execute on function public.create_invoice(uuid, uuid) from public, anon;
+revoke execute on function public.create_invoice(uuid, uuid, text) from public, anon;
 revoke execute on function public.void_invoice(uuid)         from public, anon;
 
 -- ============================================================

@@ -2585,7 +2585,7 @@ export type Database = {
         Returns: string
       }
       create_invoice: {
-        Args: { p_batch_id?: string; p_client_id: string }
+        Args: { p_batch_id?: string; p_client_id: string; p_detail?: string }
         Returns: string
       }
       create_quote: {

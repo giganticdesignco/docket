@@ -1,5 +1,19 @@
 # Status
 
+## Invoice detail level (2026-09-02)
+
+Luke: "there are times when we'd like to summarize the work done instead
+of a large line-item list." `create_invoice(p_client_id, p_batch_id,
+p_detail)` now takes `task` (one line per project, task type, and rate,
+as before), `project` (one line per project, hours by task type in the
+text, quantity 1), or `summary` (one "Design and development, <period>
+(n hours)" line plus one expenses line). Migrations
+`invoice_detail_level` and `invoice_detail_hours_text` (`hours_text()`
+prints 1.25, 0.5, 8). The batch page asks which on Create invoice; lines
+stay editable on the invoice. Verified with a Visit Galena test batch
+in all three modes; batch and invoices deleted, counter reset to 1.
+
+
 ## Phase 2, wave 2a: search (2026-09-02)
 
 Item 1 of `docs/phase-2.md`. Migrations `search` and

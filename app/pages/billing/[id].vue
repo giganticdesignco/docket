@@ -58,13 +58,21 @@ const statusColor: Record<string, 'neutral' | 'warning' | 'success' | 'error'> =
 }
 const canVoid = computed(() => batch.value?.status === 'draft' || batch.value?.status === 'failed')
 
+// How much the invoice lines say. Lines stay editable on the invoice.
+const choosingDetail = ref(false)
+const detail = ref<'task' | 'project' | 'summary'>('task')
+const DETAIL = [
+  { value: 'task', label: 'By task type', description: 'One line per project and task type, hours times rate. What Harvest did.' },
+  { value: 'project', label: 'By project', description: 'One line per project with the hours by task type in the text.' },
+  { value: 'summary', label: 'One line', description: 'All the work on one line for the period, expenses on another.' },
+]
 const invoicing = ref(false)
 async function createInvoice() {
   const b = batch.value
   if (!b) return
   invoicing.value = true
   try {
-    const { data, error } = await supabase.rpc('create_invoice', { p_client_id: b.client_id, p_batch_id: b.id })
+    const { data, error } = await supabase.rpc('create_invoice', { p_client_id: b.client_id, p_batch_id: b.id, p_detail: detail.value })
     if (error) throw error
     await navigateTo(`/invoices/${data}`)
   } catch (e) {
@@ -125,7 +133,7 @@ async function voidBatch() {
       <UBadge :color="statusColor[batch.status]" variant="subtle">{{ batch.status }}</UBadge>
       <div class="ml-auto flex gap-2">
         <UButton v-if="invoice" :to="`/invoices/${invoice.id}`" variant="outline" icon="i-lucide-file-text">Invoice {{ invoice.number }}</UButton>
-        <UButton v-else-if="batch.status === 'draft'" icon="i-lucide-file-plus" :loading="invoicing" @click="createInvoice">Create invoice</UButton>
+        <UButton v-else-if="batch.status === 'draft'" icon="i-lucide-file-plus" :loading="invoicing" @click="choosingDetail = true;">Create invoice</UButton>
         <UButton variant="outline" color="neutral" icon="i-lucide-download" :disabled="!time?.length && !expenses?.length" @click="exportCsv">Export CSV</UButton>
         <UButton v-if="canVoid" variant="outline" color="error" icon="i-lucide-undo-2" @click="confirmingVoid = true;">Void batch</UButton>
       </div>
@@ -218,6 +226,18 @@ async function voidBatch() {
         </tbody>
       </table>
     </UCard>
+
+    <UModal v-model:open="choosingDetail" title="Create invoice" description="How much should the lines say? You can edit them on the invoice afterwards.">
+      <template #body>
+        <URadioGroup v-model="detail" :items="DETAIL" variant="card" />
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="choosingDetail = false;">Cancel</UButton>
+          <UButton :loading="invoicing" icon="i-lucide-file-plus" @click="createInvoice">Create invoice</UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal v-model:open="confirmingVoid" title="Void this batch?">
       <template #body>
