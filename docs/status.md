@@ -1,5 +1,29 @@
 # Status
 
+## Phase 2, wave 2a: project server folder (2026-09-02)
+
+First 2a item from `docs/phase-2.md`. Migration `project_server_folder`:
+`projects.server_path text` and
+`invoice_settings.project_folder_template text`.
+
+- Invoice settings page has a "Project folders" card with the template
+  (`{client}`, `{code}`, `{name}`; a missing value drops out with its
+  space, doubled slashes collapse). `fillFolderTemplate()` in
+  `app/utils/folder.ts`. Luke still needs to set the real template.
+- ProjectForm has a "Server folder" field. New projects prefill it from
+  the template as client, code, and name change; a hand edit stops the
+  prefill. "Choose" opens the browser folder dialog and "drop the
+  folder here" works too; both only give the folder's *name* (browsers
+  hide absolute paths), so the name goes under the template's directory
+  or the directory already typed.
+- Project page shows a Server folder card with Copy and, for smb://,
+  afp://, or file:// paths, Open (`folderHref()`).
+- Task Attach dialog prefills the link path with the project folder plus
+  a slash; Choose or drop a file appends its name.
+- Verified in the browser with a test project and task, both deleted.
+  `npm run typecheck` passes.
+
+
 Last updated: 2026-09-02, local session, step 7 done and the 2026 Harvest sync run.
 
 ## Deployed (2026-09-02)

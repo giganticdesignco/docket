@@ -898,6 +898,7 @@ export type Database = {
           next_invoice_number: number
           next_quote_number: number
           payment_instructions: string | null
+          project_folder_template: string | null
           quote_terms: string | null
           quote_valid_days: number
           remind_every_days: number
@@ -915,6 +916,7 @@ export type Database = {
           next_invoice_number?: number
           next_quote_number?: number
           payment_instructions?: string | null
+          project_folder_template?: string | null
           quote_terms?: string | null
           quote_valid_days?: number
           remind_every_days?: number
@@ -932,6 +934,7 @@ export type Database = {
           next_invoice_number?: number
           next_quote_number?: number
           payment_instructions?: string | null
+          project_folder_template?: string | null
           quote_terms?: string | null
           quote_valid_days?: number
           remind_every_days?: number
@@ -1178,6 +1181,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          server_path: string | null
         }
         Insert: {
           billing_method?: Database["public"]["Enums"]["billing_method"]
@@ -1191,6 +1195,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          server_path?: string | null
         }
         Update: {
           billing_method?: Database["public"]["Enums"]["billing_method"]
@@ -1204,6 +1209,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          server_path?: string | null
         }
         Relationships: [
           {

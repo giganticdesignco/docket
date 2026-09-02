@@ -22,9 +22,41 @@ const state = reactive({
   hourly_rate: props.project?.hourly_rate ?? undefined,
   budget_hours: props.project?.budget_hours ?? undefined,
   budget_amount: props.project?.budget_amount ?? undefined,
+  server_path: props.project?.server_path ?? '',
   is_active: props.project?.is_active ?? true,
 })
 const saving = ref(false)
+
+// New projects start with the folder the settings template produces.
+// Stops filling in once someone edits the field by hand.
+const { data: settings } = await useAsyncData('project-folder-template', async () => {
+  const { data } = await supabase.from('invoice_settings').select('project_folder_template').eq('id', true).maybeSingle()
+  return data?.project_folder_template ?? ''
+}, fresh)
+const folderTouched = ref(!!props.project)
+
+// The folder dialog only tells us the folder's name. It goes under the
+// template's directory, or under whatever directory is already typed.
+async function chooseFolder() {
+  useFolderName(await pickFolderName())
+}
+function dropFolder(e: DragEvent) {
+  useFolderName(droppedName(e))
+}
+function useFolderName(name: string | null) {
+  if (!name) return
+  const client = props.clients.find(c => c.id === state.client_id)?.name
+  const fromTemplate = settings.value ? fillFolderTemplate(settings.value, { client }).replace(/\/[^/]*$/, '') : ''
+  const typed = state.server_path.trim().replace(/\/+$/, '')
+  const base = fromTemplate || (typed.includes('/') ? typed.replace(/\/[^/]*$/, '') : '')
+  state.server_path = base ? `${base}/${name}` : name
+  folderTouched.value = true
+}
+watch(() => [state.client_id, state.code, state.name], () => {
+  if (folderTouched.value || !settings.value) return
+  const client = props.clients.find(c => c.id === state.client_id)?.name
+  state.server_path = fillFolderTemplate(settings.value, { client, code: state.code.trim(), name: state.name.trim() })
+}, { immediate: true })
 
 const clientOptions = computed(() => props.clients.map(c => ({ label: c.name, value: c.id })))
 
@@ -52,6 +84,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     hourly_rate: num(state.hourly_rate),
     budget_hours: num(state.budget_hours),
     budget_amount: num(state.budget_amount),
+    server_path: state.server_path.trim() || null,
     is_active: state.is_active,
   }
   const query = props.project
@@ -95,6 +128,12 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <UInput v-model="state.budget_amount" type="number" step="0.01" min="0" class="w-full" />
       </UFormField>
     </div>
+    <UFormField label="Server folder" name="server_path" help="Where this project's files live on the office server. New task file links start here.">
+      <div class="flex gap-2" @dragover.prevent @drop.prevent="dropFolder">
+        <UInput v-model="state.server_path" class="w-full" placeholder="smb://server/Jobs/Client/1234 Project, or drop the folder here" @input="folderTouched = true" />
+        <UButton variant="outline" color="neutral" icon="i-lucide-folder-open" title="Choose the folder. The browser only gives its name, so it goes under the template's path." @click="chooseFolder">Choose</UButton>
+      </div>
+    </UFormField>
     <UFormField name="is_active">
       <USwitch v-model="state.is_active" label="Active" />
     </UFormField>

@@ -28,6 +28,7 @@ const form = reactive({
   next_quote_number: settings.value?.next_quote_number ?? 1,
   quote_valid_days: settings.value?.quote_valid_days ?? 30,
   quote_terms: settings.value?.quote_terms ?? '',
+  project_folder_template: settings.value?.project_folder_template ?? '',
 })
 
 const saving = ref(false)
@@ -49,6 +50,7 @@ async function save() {
       next_quote_number: Number(form.next_quote_number) || 1,
       quote_valid_days: Math.max(1, Number(form.quote_valid_days) || 30),
       quote_terms: form.quote_terms.trim() || null,
+      project_folder_template: form.project_folder_template.trim() || null,
     }).eq('id', true)
     if (error) throw error
     toast.add({ title: 'Invoice settings saved', color: 'success' })
@@ -64,7 +66,7 @@ async function save() {
   <div class="max-w-2xl space-y-6">
     <div>
       <h1 class="text-2xl font-semibold">Invoice settings</h1>
-      <p class="text-sm text-muted">What prints on every invoice and quote, defaults for new ones, and overdue reminders.</p>
+      <p class="text-sm text-muted">What prints on every invoice and quote, defaults for new ones, overdue reminders, and the project folder template.</p>
     </div>
 
     <UCard>
@@ -130,6 +132,13 @@ async function save() {
           <UTextarea v-model="form.quote_terms" :rows="4" class="w-full" />
         </UFormField>
       </div>
+    </UCard>
+
+    <UCard>
+      <template #header><h2 class="font-semibold">Project folders</h2></template>
+      <UFormField label="Folder template" help="Fills the server folder on new projects. Use {client}, {code}, and {name}; a missing job code drops out.">
+        <UInput v-model="form.project_folder_template" class="w-full font-mono" placeholder="smb://server/Jobs/{client}/{code} {name}" />
+      </UFormField>
     </UCard>
 
     <div class="flex justify-end">

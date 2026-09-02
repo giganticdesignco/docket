@@ -76,6 +76,17 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
 const money = (n: number | null) => (n == null ? 'Not set' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 const pct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : 0)
 const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
+
+const toast = useToast()
+async function copyFolder() {
+  if (!project.value?.server_path) return
+  try {
+    await navigator.clipboard.writeText(project.value.server_path)
+    toast.add({ title: 'Folder path copied', color: 'success' })
+  } catch {
+    toast.add({ title: 'Could not copy', description: 'Select the path and copy it by hand.', color: 'error' })
+  }
+}
 </script>
 
 <template>
@@ -101,6 +112,21 @@ const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'pr
         <div><dt class="text-muted">Budget hours</dt><dd>{{ project.budget_hours ?? 'No budget' }}</dd></div>
         <div><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
       </dl>
+    </UCard>
+
+    <UCard>
+      <div class="flex flex-wrap items-center gap-3">
+        <UIcon name="i-lucide-folder" class="shrink-0 text-muted" />
+        <div class="min-w-0 flex-1">
+          <div class="text-sm text-muted">Server folder</div>
+          <div v-if="project.server_path" class="truncate font-mono text-sm" :title="project.server_path">{{ project.server_path }}</div>
+          <div v-else class="text-sm text-muted">Not set.<template v-if="isAdmin"> Edit the project to add it.</template></div>
+        </div>
+        <div v-if="project.server_path" class="flex gap-2">
+          <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-copy" @click="copyFolder">Copy</UButton>
+          <UButton v-if="folderHref(project.server_path)" size="sm" variant="outline" color="neutral" icon="i-lucide-external-link" :to="folderHref(project.server_path)!" external>Open</UButton>
+        </div>
+      </div>
     </UCard>
 
     <UCard>

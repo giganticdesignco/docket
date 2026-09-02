@@ -18,7 +18,7 @@ const ws = await useWorkStatuses()
 const { data: item, refresh } = await useAsyncData(`task-${id}`, async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('*, projects(id, name, clients(id, name)), profiles!work_items_created_by_fkey(full_name), work_item_assignees(user_id, profiles(full_name))')
+    .select('*, projects(id, name, server_path, clients(id, name)), profiles!work_items_created_by_fkey(full_name), work_item_assignees(user_id, profiles(full_name))')
     .eq('id', id)
     .single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
@@ -207,9 +207,29 @@ const attachOpen = ref(false)
 const attachKind = ref<'upload' | 'link'>('link')
 const linkPath = ref('')
 const linkName = ref('')
+// Start the path at the project's server folder so people type only the
+// file name. Cleared after each add, so the next one starts there too.
+watch(attachOpen, (open) => {
+  const folder = item.value?.projects?.server_path
+  if (open && !linkPath.value && folder) linkPath.value = folder.replace(/\/+$/, '') + '/'
+})
 const fileInput = ref<HTMLInputElement | null>(null)
 const attaching = ref(false)
 
+// The file dialog only gives the file's name; it goes after whatever
+// folder is typed, which starts as the project's server folder.
+async function chooseServerFile() {
+  useServerFileName(await pickFileName())
+}
+function dropServerFile(e: DragEvent) {
+  useServerFileName(droppedName(e))
+}
+function useServerFileName(name: string | null) {
+  if (!name) return
+  const typed = linkPath.value.trim()
+  const dir = typed.endsWith('/') ? typed : typed.includes('/') ? typed.replace(/\/[^/]*$/, '/') : ''
+  linkPath.value = dir + name
+}
 async function attachLink() {
   const link = linkPath.value.trim()
   if (!link) return
@@ -490,8 +510,11 @@ async function deleteTask() {
             <UButton size="sm" :variant="attachKind === 'upload' ? 'solid' : 'ghost'" :color="attachKind === 'upload' ? 'primary' : 'neutral'" icon="i-lucide-upload" @click="attachKind = 'upload';">Upload a copy</UButton>
           </div>
           <template v-if="attachKind === 'link'">
-            <UFormField label="Path on the server" help="Paste the path or an smb:// link. Nothing is copied; people outside the office cannot open it.">
-              <UInput v-model="linkPath" class="w-full" placeholder="smb://server/Jobs/Client/file.indd" />
+            <UFormField label="Path on the server" help="Paste the path, drop the file from Finder, or choose it. Dropped and chosen files only give their name, so it goes after the project folder. Nothing is copied; people outside the office cannot open it.">
+              <div class="flex gap-2" @dragover.prevent @drop.prevent="dropServerFile">
+                <UInput v-model="linkPath" class="w-full" placeholder="smb://server/Jobs/Client/file.indd, or drop the file here" />
+                <UButton variant="outline" color="neutral" icon="i-lucide-folder-open" title="Choose the file. The browser only gives its name, so it goes after the folder typed here." @click="chooseServerFile">Choose</UButton>
+              </div>
             </UFormField>
             <UFormField label="Name" help="Optional. Defaults to the file name in the path.">
               <UInput v-model="linkName" class="w-full" />

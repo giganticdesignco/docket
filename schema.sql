@@ -316,6 +316,7 @@ create table projects (
   budget_amount  numeric(12,2),
   hourly_rate    numeric(10,2),         -- project override
   harvest_id     bigint unique,         -- Harvest project id, set by the import
+  server_path    text,                  -- folder on the office server (smb:// or a path)
   is_active      boolean not null default true,
   created_at     timestamptz not null default now(),
   unique (client_id, name)
@@ -589,7 +590,9 @@ create table invoice_settings (
   -- Quotes share this row: numbering, how long a quote stays open, terms.
   next_quote_number    int not null default 1,
   quote_valid_days     int not null default 30,
-  quote_terms          text
+  quote_terms          text,
+  -- Fills projects.server_path for new projects: {client} {code} {name}.
+  project_folder_template text
 );
 insert into invoice_settings (id) values (true) on conflict do nothing;
 
