@@ -26,6 +26,7 @@ const sections = computed<Section[]>(() => {
     label: 'More',
     links: [
       { label: 'Schedule', to: '/schedule', icon: 'i-lucide-gantt-chart' },
+      { label: 'Estimator', to: '/estimator', icon: 'i-lucide-calculator' },
       { label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' },
       { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
       ...(can('manage_billing') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),

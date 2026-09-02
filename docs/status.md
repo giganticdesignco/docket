@@ -1,5 +1,35 @@
 # Status
 
+## Phase 2, wave 2c: signage estimator (2026-09-02)
+
+Item 10 of `docs/phase-2.md`. Migration `estimator`.
+
+- The old tool (estimator.giganticdesign.com, Vue 2 not Angular) was
+  read from its script and data endpoints. Model: a material is a roll
+  or sheet (width x length in inches) with a cost and a markup_pct
+  (925 = 9.25x); cost per sq in = cost / area. Layer rules: printable
+  primary (media + ink 0.0016099/sq in) x material markup; cut vinyl
+  x3.5; overlaminate x material markup; transfer tape and banner tape
+  x default markup 9.25; substrate x2.5; mounting tape (height x tape
+  width x columns) x1.25. `shared/estimator.ts` (`priceJob`,
+  `describeJob`) reproduces it; a 3-up 24x36 sticker with overlam and
+  transfer tape prices $189.49 in both. One deliberate difference:
+  banner and mounting tape are multiplied by quantity (the old tool
+  priced one unit).
+- Tables `estimator_materials` (71 rows seeded with legacy ids) and
+  `estimator_settings` (ink cost and the four markups); read by staff,
+  edited with manage_settings on `/admin/estimator` (table, add/edit,
+  pricing rules card). `quote_line_items.details` keeps the job.
+- `/estimator` (rail: More): six material pickers, quantity, width,
+  height, size presets, "Show our cost", details, a jobs list with a
+  project total, Print, and for billing people "Add to quote" which
+  inserts one flat line per job on a draft quote and opens it. The
+  quote page has an "Add signage job" button that opens the estimator
+  with the quote picked.
+- Luke should compare three real jobs against the old tool before
+  retiring it; material prices are as of 2026-09-02.
+
+
 ## Tasks: cards view (2026-09-02)
 
 A co-worker asked for "card based, 5 across by client, then drill in".

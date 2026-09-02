@@ -839,6 +839,7 @@ create table quote_line_items (
   hours       numeric(8,2),
   rate        numeric(10,2),
   amount      numeric(12,2) not null default 0,  -- hours * rate, or flat
+  details     jsonb,                              -- the estimator job behind a signage line
   created_at  timestamptz not null default now()
 );
 
@@ -1036,6 +1037,107 @@ create table google_tokens (
 create view calendar_connections with (security_invoker = true) as
 select g.user_id, g.google_email, g.connected_at, g.last_synced_at, g.last_error
 from google_tokens g;
+
+-- ---------- Signage estimator ----------
+-- Materials from estimator.giganticdesign.com: a roll or sheet with a
+-- cost, so cost per square inch is cost / (width x length). markup_pct
+-- is the old tool's number (925 = 9.25x). Pricing rules live in
+-- shared/estimator.ts; estimator_settings holds the knobs. Edited on
+-- /admin/estimator; the calculator is /estimator.
+create table estimator_materials (
+  id         uuid primary key default gen_random_uuid(),
+  legacy_id  int unique,                  -- entry id in the old tool
+  name       text not null,
+  types      text[] not null,             -- Print Vinyl, Cut Vinyl, Overlaminate, Transfer Tape, Banner Tape, Substrate, Mounting Tape
+  width_in   numeric(8,2) not null,
+  length_in  numeric(8,2) not null,
+  cost       numeric(10,2) not null,
+  markup_pct int not null default 925,
+  printable  boolean not null default false,
+  is_active  boolean not null default true,
+  position   int not null default 0
+);
+create table estimator_settings (
+  id                   boolean primary key default true check (id),
+  ink_sq_in_cost       numeric(10,7) not null default 0.0016099,  -- based on a $160.99 cartridge
+  default_markup       numeric(6,2) not null default 9.25,
+  cut_vinyl_markup     numeric(6,2) not null default 3.5,
+  substrate_markup     numeric(6,2) not null default 2.5,
+  mounting_tape_markup numeric(6,2) not null default 1.25
+);
+insert into estimator_settings (id) values (true) on conflict do nothing;
+insert into estimator_materials (legacy_id, name, types, width_in, length_in, cost, markup_pct, printable, position) values
+(116, 'Alumalite® 10mm White (Double Thick AluPanels)', array['Substrate'], 48, 96, 214.86, 925, false, 0),
+(106, 'ALUPANEL / White / ALPHAPANEL - 4 ft x 8 ft x 3 mm', array['Substrate'], 96, 48, 50.51, 925, false, 1),
+(107, 'ALUPANEL / White / ALPHAPANEL - 4 ft x 8 ft x 6 mm', array['Substrate'], 96, 48, 90.09, 925, false, 2),
+(33, 'Banner Stand / White / Luster Polyester / Alpha Banner Film - 10 mil', array['Print Vinyl'], 36, 1200, 174.56, 925, true, 3),
+(82, 'Banners / White / Matte  / Lumina Matte White Mesh Banner - 9 oz', array['Print Vinyl'], 54, 1800, 204.37, 925, true, 4),
+(58, 'Beige / Gloss / Lumina® 2100/2200 Cast Vinyl', array['Cut Vinyl'], 24, 360, 92.44, 925, false, 5),
+(111, 'Black / Gloss / ALPHA Cast Vinyl 2163 Black', array['Cut Vinyl'], 24, 1800, 354.89, 925, false, 6),
+(83, 'Black / Matte / ALPHA Vinyl 1040', array['Cut Vinyl'], 24, 1800, 98.5, 925, false, 7),
+(67, 'Black / Matte / Heat Press / Siser EasyWeed - 3.5 Mil', array['Cut Vinyl'], 15, 180, 38, 925, false, 8),
+(108, 'Cascade Blue / Cast Cut Vinyl / Avery Dennison® SC950', array['Cut Vinyl'], 24, 360, 76.04, 925, false, 9),
+(48, 'Chrome Yellow / Gloss / Gerber 220 High Performance 220-145', array['Cut Vinyl'], 15, 1800, 271.37, 925, false, 10),
+(72, 'Corrugated Plastic / 6 mm / White', array['Substrate'], 96, 48, 31.33, 925, false, 11),
+(50, 'Dark Grey / Gloss / Oracal® 751C High Performance Cast Vinyl Film', array['Cut Vinyl'], 24, 1800, 348.12, 925, false, 12),
+(63, 'Fire Red / Gloss / Avery Dennison® SC950', array['Cut Vinyl'], 24, 1800, 358.55, 925, false, 13),
+(110, 'Foam Board', array['Substrate'], 24, 36, 12.84, 925, false, 14),
+(115, 'GATORFOAM', array['Substrate'], 48, 96, 84.19, 925, false, 15),
+(113, 'Geranium Red / Gloss / ORACAL 951 Premium Cast Vinyl', array['Cut Vinyl'], 24, 1800, 441.51, 925, false, 16),
+(90, 'Gray / Cast Cut Vinyl / ORACAL® 751C High Performance Cast Vinyl', array['Cut Vinyl'], 24, 360, 80.34, 925, false, 17),
+(23, 'Hanging Banner / White / Gloss / Alpha Premium Frontlit Banner - 13oz', array['Print Vinyl'], 54, 1440, 155.11, 925, true, 18),
+(6, 'Hanging Banner / White / Matte / Alpha Premium Frontlit Banner - 13oz', array['Print Vinyl'], 54, 1440, 155.11, 925, true, 19),
+(47, 'Heat Press / White / Semi-Gloss / Siser Colorprint Solvent Easy Printable HTV', array['Print Vinyl'], 20, 360, 76.64, 925, true, 20),
+(68, 'Heat Press / White / Semi-Gloss / Siser EasyWeed - 3.5 Mil', array['Cut Vinyl'], 15, 180, 38, 925, false, 21),
+(89, 'Komatsu Grey / Cast Cut Vinyl / ORACAL® 751C High Performance Cast Vinyl', array['Cut Vinyl'], 24, 360, 80.34, 925, false, 22),
+(3, 'Laminate / Clear / Gloss / Arlon 3420 Premium Calendered Overlam - 3 mil', array['Overlaminate'], 54, 1800, 256.66, 925, false, 23),
+(19, 'Laminate / Clear / Matte / Arlon 3220 Premium Calendered Overlam - 2 mil', array['Overlaminate'], 54, 1800, 492.43, 925, false, 24),
+(20, 'Laminate / Clear / Matte / Arlon 3420 Premium Calendered Overlam - 3 mil', array['Overlaminate'], 54, 1800, 256.66, 500, false, 25),
+(30, 'Laminate / Clear / Textured / MacTac PermaFlex Luster Textured Floor Overlam - 5 mil', array['Overlaminate'], 54, 1200, 298.31, 100, false, 26),
+(96, 'Laminate / Gloss / Arlon 3220 Premium Cast Overlaminate - 2 mil', array['Overlaminate'], 54, 900, 296.69, 925, false, 27),
+(94, 'Laminate / Matte / PERMACOLOR RAYZOR Matte Laminate - 1.5 mil', array['Overlaminate'], 54, 1800, 417, 925, false, 28),
+(114, 'Orange / Gloss / Avery Dennison® SC950 Bright Orange', array['Cut Vinyl'], 24, 360, 77.94, 925, false, 29),
+(71, 'Orange / Satin / Avery Dennison SW900 Wrap Film', array['Cut Vinyl'], 60, 900, 739.1, 925, false, 30),
+(117, 'Outdoor Signage / Arlon OMNI Cast Wrap Gloss White Vinyl', array['Print Vinyl'], 54, 1800, 769.07, 925, true, 31),
+(104, 'Peacock Red / Cast Cut Vinyl / Arlon 2100 Cast Vinyl 223', array['Cut Vinyl'], 24, 360, 82.85, 925, false, 32),
+(15, 'Poster Paper / White / Matte / SIHL - Pacifica II Photo Paper 180 - 7 Mil (30 in)', array['Print Vinyl'], 30, 1800, 112.45, 925, true, 33),
+(86, 'Poster Paper / White / Matte / SIHL - Pacifica II Photo Paper 180 - 7 Mil (36 in)', array['Print Vinyl'], 36, 1800, 161, 925, true, 34),
+(57, 'Red / Gloss / Avery Dennison SW900 Wrap Film', array['Cut Vinyl'], 60, 900, 615.91, 925, false, 35),
+(103, 'Rough Surface (Cinder Block) / White / Gloss / IMAGin RoughRAP Cast Vinyl', array['Print Vinyl'], 54, 1800, 477, 925, true, 36),
+(55, 'Rough Surface / White / Satin / Arlon DPF 8200 High Tack Calendared Film - 3.5mil', array['Print Vinyl'], 54, 1800, 482.6, 925, true, 37),
+(70, 'Sintra® / 10mm / Black / Masked PVC', array['Substrate'], 48, 96, 95.83, 925, false, 38),
+(41, 'Sintra® / 12mm / Black / Masked PVC', array['Substrate'], 48, 96, 105.72, 925, false, 39),
+(43, 'Sintra® / 3mm / Black / Masked PVC', array['Substrate'], 48, 96, 51.5, 925, false, 40),
+(42, 'Sintra® / 6mm / Black / Masked PVC', array['Substrate'], 48, 96, 97.2, 925, false, 41),
+(16, 'Smooth Surface / Frosted / MacTac Frosted Window Film - 3.1 mil', array['Cut Vinyl'], 54, 900, 329.87, 925, false, 42),
+(64, 'Smooth Surface / Frosted / MacTac Frosted Window Film - 3.1 mil', array['Print Vinyl'], 54, 900, 370.35, 925, true, 43),
+(65, 'Smooth Surface / White / Gloss / Post-it Dry Erase Whiteboard Film', array['Cut Vinyl'], 48, 600, 505.78, 925, false, 44),
+(44, 'Smooth Surface / White / Matte / Arlon DPF 4200 Permanent Wall Film - 6 mil', array['Print Vinyl'], 54, 1800, 377.46, 925, true, 45),
+(109, 'Stickers / MacTac / Crack-N-Peel / Permanent Adhesive - 3.2 mil', array['Print Vinyl'], 54, 1800, 207, 925, true, 46),
+(100, 'Stickers / Matte White / Permanent Adhesive - 3.2 mil (CINC)', array['Print Vinyl'], 54, 900, 179, 925, true, 47),
+(28, 'Stickers / Reflective / Gloss / Alpha Vinyl 8022 - 5.9 mi', array['Cut Vinyl','Print Vinyl'], 24, 360, 138.53, 925, true, 48),
+(54, 'Stickers / White / Gloss / Alpha Calendared Permanent Vinyl - 6 mil', array['Print Vinyl'], 54, 1800, 260.83, 925, true, 49),
+(9, 'Stickers / White / Matte / Alpha Calendared Permanent Vinyl - 6 mil', array['Print Vinyl'], 54, 1800, 221.97, 925, true, 50),
+(8, 'Substrate / White / Matte / DigiMag Magnetic', array['Substrate'], 24, 300, 74.27, 925, false, 51),
+(14, 'Tape / 1in / Banner Tape', array['Banner Tape'], 1, 2592, 13.47, 925, false, 52),
+(29, 'Tape / 24in / Alpha Transfer Tape', array['Transfer Tape'], 24, 3600, 83.75, 925, false, 53),
+(4, 'Tape / 48in / Alpha Transfer Tape', array['Transfer Tape'], 48, 3600, 151.99, 925, false, 54),
+(102, 'Tape / 54in / Alpha Transfer Tape', array['Transfer Tape'], 54, 3600, 188.48, 925, false, 55),
+(56, 'Tape / High Tack Indoor / 1/2in / 3M™ 5952 VHB Tape', array['Cut Vinyl','Mounting Tape'], 0.5, 1296, 72.8, 125, false, 56),
+(66, 'Tape / High Tack Indoor / 1in / 3M™ 5952 VHB Tape', array['Mounting Tape'], 1, 1296, 122.06, 125, false, 57),
+(21, 'Tape / High Tack Indoor / 3/4in / 3M™ 5952 VHB Tape', array['Mounting Tape'], 0.75, 1296, 97.35, 250, false, 58),
+(22, 'Tape / Low Tack Indoor / 1/2 in / 3M™ 4016 VHB Foam Tape', array['Mounting Tape'], 0.5, 1296, 46.46, 925, false, 59),
+(118, 'Translucent / Gloss White / Arlon DPF 6500 Cast Vinyl', array['Print Vinyl'], 54, 900, 458.19, 925, true, 60),
+(32, 'Vehicle Wrap Film / White / Gloss / Arlon 4600GLX High Performance Calendared Vinyl - 3.2 mil', array['Print Vinyl'], 54, 1800, 347.73, 925, true, 61),
+(95, 'Vehicle Wrap Film / White / Gloss / Arlon SLX + Cast Wrap Gloss White - 2mil', array['Print Vinyl'], 54, 1800, 690.06, 925, true, 62),
+(84, 'Velcro Hook Strips - Black ½ in', array['Mounting Tape'], 0.5, 900, 27, 925, false, 63),
+(85, 'Velcro Loop Strips - Black ½ in', array['Mounting Tape','Banner Tape'], 0.5, 900, 54, 925, false, 64),
+(51, 'Walls / Smooth Surface / Gloss White / 3M Scotchcal Graphic Film Non-Cast - 3.2 mil', array['Print Vinyl'], 54, 1800, 268.48, 925, true, 65),
+(52, 'Walls / Smooth Surface / Matte White / 3M Scotchcal Graphic Film Non-Cast - 3.2 mil', array['Print Vinyl'], 54, 1800, 268.48, 925, true, 66),
+(112, 'White / Gloss / ALPHA Cast Vinyl 2160 White', array['Cut Vinyl'], 24, 1800, 354.89, 925, false, 67),
+(92, 'White / Matte / Lumina® 2100/2200 Cast Vinyl', array['Cut Vinyl'], 24, 1800, 360.43, 925, false, 68),
+(119, 'White Acrylic Sheet', array['Substrate'], 51, 100, 134.37, 925, false, 69),
+(97, 'Window Perffed / SiHL 3214 Value Line 60/40 Window Perf Film, 6.5 mil (DBQ Buses)', array['Print Vinyl'], 54, 1968, 432.0, 925, true, 70);
 
 -- ---------- Audit trail ----------
 -- Who changed what, on time entries and expenses.
@@ -2295,6 +2397,8 @@ alter table permissions enable row level security;
 alter table notifications enable row level security;
 alter table google_tokens enable row level security;
 alter table work_item_dependencies enable row level security;
+alter table estimator_materials enable row level security;
+alter table estimator_settings  enable row level security;
 alter table notification_prefs enable row level security;
 alter table clients                enable row level security;
 alter table projects               enable row level security;
@@ -2460,6 +2564,10 @@ create policy own_delete  on work_item_files for delete to authenticated using (
 
 create policy read_all on time_off            for select to authenticated using (not is_client());
 create policy read_all on availability        for select to authenticated using (not is_client());
+create policy read_all on estimator_materials for select to authenticated using (not is_client());
+create policy read_all on estimator_settings  for select to authenticated using (not is_client());
+create policy manage_settings on estimator_materials for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy manage_settings on estimator_settings  for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 
 -- People log their own time off; admins manage holidays and everyone else.
 create policy own_time_off on time_off for all to authenticated

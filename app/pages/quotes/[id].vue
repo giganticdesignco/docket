@@ -287,7 +287,8 @@ async function deleteQuote() {
       <div class="flex items-center gap-4">
         <h2 class="text-lg font-semibold">Scope</h2>
         <span class="text-sm text-muted">Hours x rate, or a flat amount.</span>
-        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" class="ml-auto" @click="addLine">Add line</UButton>
+        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" :to="`/estimator?quote=${id}`">Add signage job</UButton>
+        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="addLine">Add line</UButton>
       </div>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <table class="w-full text-sm">

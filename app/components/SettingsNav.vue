@@ -17,6 +17,7 @@ const links = computed(() => [
     ? [
         { label: 'Expense categories', to: '/admin/expense-categories' },
         { label: 'Invoices and quotes', to: '/admin/invoice-settings' },
+        { label: 'Estimator', to: '/admin/estimator' },
         { label: 'Imports', to: '/admin/imports', also: ['/admin/harvest', '/admin/clickup'] },
       ]
     : []),

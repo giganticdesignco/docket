@@ -276,7 +276,8 @@ How it fits:
   jobs price the same in both.
 
 Depends on: quoting (done). Size: 5 to 6 days, plus a day with whoever
-owns the material prices.
+owns the material prices. Built 2026-09-02 with the 71 materials
+imported; the old tool turned out to be Vue, not Angular.
 
 ## 11. Reports, laid out like Harvest
 

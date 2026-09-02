@@ -11,6 +11,7 @@ const cards = [
   { label: 'Task types', to: '/admin/tasks', icon: 'i-lucide-list-checks', text: 'The billing task types (Design, Development, and so on) and whether they bill by default.' },
   { label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-tags', text: 'Categories for expenses and receipts.' },
   { label: 'Invoices and quotes', to: '/admin/invoice-settings', icon: 'i-lucide-file-text', text: 'Company block, payment instructions, numbering, terms, and overdue reminders.' },
+  { label: 'Estimator', to: '/admin/estimator', icon: 'i-lucide-calculator', text: 'Materials, roll sizes, costs, and the markup rules behind signage estimates.' },
   { label: 'Imports', to: '/admin/imports', icon: 'i-lucide-download', text: 'Bring history in from Harvest and ClickUp.' },
   { label: 'Permissions', to: '/admin/permissions', icon: 'i-lucide-shield-check', text: 'What each role can see and do. Admins only.', admin: true },
 ]

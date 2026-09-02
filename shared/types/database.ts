@@ -358,6 +358,75 @@ export type Database = {
         }
         Relationships: []
       }
+      estimator_materials: {
+        Row: {
+          cost: number
+          id: string
+          is_active: boolean
+          legacy_id: number | null
+          length_in: number
+          markup_pct: number
+          name: string
+          position: number
+          printable: boolean
+          types: string[]
+          width_in: number
+        }
+        Insert: {
+          cost: number
+          id?: string
+          is_active?: boolean
+          legacy_id?: number | null
+          length_in: number
+          markup_pct?: number
+          name: string
+          position?: number
+          printable?: boolean
+          types: string[]
+          width_in: number
+        }
+        Update: {
+          cost?: number
+          id?: string
+          is_active?: boolean
+          legacy_id?: number | null
+          length_in?: number
+          markup_pct?: number
+          name?: string
+          position?: number
+          printable?: boolean
+          types?: string[]
+          width_in?: number
+        }
+        Relationships: []
+      }
+      estimator_settings: {
+        Row: {
+          cut_vinyl_markup: number
+          default_markup: number
+          id: boolean
+          ink_sq_in_cost: number
+          mounting_tape_markup: number
+          substrate_markup: number
+        }
+        Insert: {
+          cut_vinyl_markup?: number
+          default_markup?: number
+          id?: boolean
+          ink_sq_in_cost?: number
+          mounting_tape_markup?: number
+          substrate_markup?: number
+        }
+        Update: {
+          cut_vinyl_markup?: number
+          default_markup?: number
+          id?: boolean
+          ink_sq_in_cost?: number
+          mounting_tape_markup?: number
+          substrate_markup?: number
+        }
+        Relationships: []
+      }
       expense_categories: {
         Row: {
           harvest_id: number | null
@@ -1361,6 +1430,7 @@ export type Database = {
           amount: number
           created_at: string
           description: string
+          details: Json | null
           hours: number | null
           id: string
           quote_id: string
@@ -1372,6 +1442,7 @@ export type Database = {
           amount?: number
           created_at?: string
           description: string
+          details?: Json | null
           hours?: number | null
           id?: string
           quote_id: string
@@ -1383,6 +1454,7 @@ export type Database = {
           amount?: number
           created_at?: string
           description?: string
+          details?: Json | null
           hours?: number | null
           id?: string
           quote_id?: string
