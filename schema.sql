@@ -501,6 +501,7 @@ create table work_items (
   priority       work_priority not null default 'normal',
   start_on       date,
   due_on         date,
+  is_milestone   boolean not null default false,   -- zero-length marker on the schedule
   search         tsvector generated always as (to_tsvector('simple', coalesce(title, '') || ' ' || coalesce(description, ''))) stored,
   estimate_hours numeric(6,2),
   position       int not null default 0,
@@ -522,6 +523,16 @@ create index work_items_project_status on work_items (project_id, status);
 create index work_items_due on work_items (due_on);
 create trigger work_items_touch before insert or update on work_items
   for each row execute function public.work_item_touch();
+
+-- A task can wait on other tasks (drawn as arrows on /schedule; a
+-- successor starting before its predecessor ends shows a warning).
+create table work_item_dependencies (
+  predecessor_id uuid not null references work_items(id) on delete cascade,
+  successor_id   uuid not null references work_items(id) on delete cascade,
+  primary key (predecessor_id, successor_id),
+  check (predecessor_id <> successor_id)
+);
+create index work_item_dependencies_successor on work_item_dependencies (successor_id);
 
 create table work_item_assignees (
   work_item_id uuid not null references work_items(id) on delete cascade,
@@ -2283,6 +2294,7 @@ alter table roles       enable row level security;
 alter table permissions enable row level security;
 alter table notifications enable row level security;
 alter table google_tokens enable row level security;
+alter table work_item_dependencies enable row level security;
 alter table notification_prefs enable row level security;
 alter table clients                enable row level security;
 alter table projects               enable row level security;
@@ -2428,6 +2440,8 @@ create policy visible_update on work_items for update to authenticated using (ta
 create policy owner_delete   on work_items for delete to authenticated using (created_by = auth.uid() or has_permission('manage_tasks'));
 
 create policy visible_select on work_item_assignees for select to authenticated using (task_visible(work_item_id));
+create policy visible_select on work_item_dependencies for select to authenticated using (task_visible(predecessor_id) and task_visible(successor_id));
+create policy team_write    on work_item_dependencies for all to authenticated using (task_visible(successor_id) and not is_client()) with check (task_visible(predecessor_id) and task_visible(successor_id) and not is_client());
 create policy visible_write  on work_item_assignees for all to authenticated using (task_visible(work_item_id) and not is_client()) with check (task_visible(work_item_id) and not is_client());
 
 -- Clients see and write only comments marked visible to them.

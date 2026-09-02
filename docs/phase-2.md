@@ -61,7 +61,8 @@ How:
 - Print CSS so a project timeline can go in a client deck.
 
 Depends on: nothing hard; better after Google Calendar so meetings show
-as busy on the person view. Size: 8 to 10 days.
+as busy on the person view. Size: 8 to 10 days. Built 2026-09-02 as
+/schedule; scheduling proposals not included.
 
 ## 3. Feature walkthrough, skippable
 

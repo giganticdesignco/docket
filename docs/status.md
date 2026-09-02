@@ -1,5 +1,30 @@
 # Status
 
+## Phase 2, wave 2c: schedule (Gantt) (2026-09-02)
+
+Item 2 of `docs/phase-2.md`. Migration `gantt_dependencies`:
+`work_items.is_milestone` and `work_item_dependencies (predecessor_id,
+successor_id)` with task_visible policies (clients read only).
+
+- `/schedule` (rail: More, Schedule; search action): tasks with a due
+  date as bars from start_on (or due_on) to due_on, by project or by
+  person, zoom day (36 px/day, 6 weeks), week (10 px, 16 weeks), month
+  (4 px, 40 weeks); Everyone switch; earlier/later/today; Print with
+  print CSS. State in the URL. Drag moves (pointer events, snapped to
+  days), edges resize, Shift-drag walks successors along. Dependency
+  arrows drawn per group when both ends are on screen; a successor
+  starting on or before its predecessor's due date gets a red arrow
+  and a warning icon. Double-click a bar toggles milestone (a rotated
+  square). Unscheduled card lists open tasks with no due date; Schedule
+  puts them on today for ceil(estimate / 6) days.
+- Person view: a capacity strip per week under each name from
+  `capacity_weekly` (booked against base minus time off minus
+  meetings), coloured by load, with the numbers in the tooltip.
+- Task page: "Waits on" row lists predecessors, add from tasks in the
+  same project, remove, and warns when the start is too early.
+- Not built: proposing the earliest free week for an estimate.
+
+
 ## Phase 2, wave 2b: Google Calendar (2026-09-02)
 
 Item 7 of `docs/phase-2.md`. Migration `google_calendar`. Code is in;

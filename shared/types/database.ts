@@ -2210,6 +2210,36 @@ export type Database = {
           },
         ]
       }
+      work_item_dependencies: {
+        Row: {
+          predecessor_id: string
+          successor_id: string
+        }
+        Insert: {
+          predecessor_id: string
+          successor_id: string
+        }
+        Update: {
+          predecessor_id?: string
+          successor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_item_dependencies_predecessor_id_fkey"
+            columns: ["predecessor_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_dependencies_successor_id_fkey"
+            columns: ["successor_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_item_files: {
         Row: {
           content_type: string | null
@@ -2298,6 +2328,7 @@ export type Database = {
           due_on: string | null
           estimate_hours: number | null
           id: string
+          is_milestone: boolean
           position: number
           priority: Database["public"]["Enums"]["work_priority"]
           project_id: string
@@ -2320,6 +2351,7 @@ export type Database = {
           due_on?: string | null
           estimate_hours?: number | null
           id?: string
+          is_milestone?: boolean
           position?: number
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id: string
@@ -2342,6 +2374,7 @@ export type Database = {
           due_on?: string | null
           estimate_hours?: number | null
           id?: string
+          is_milestone?: boolean
           position?: number
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id?: string

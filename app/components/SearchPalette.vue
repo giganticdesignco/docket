@@ -74,6 +74,7 @@ const actions = computed<CommandPaletteItem[]>(() => {
     nav('Go to Projects', '/projects', 'i-lucide-folder-kanban'),
     nav('Go to Clients', '/clients', 'i-lucide-building-2'),
     nav('Go to Expenses', '/expenses', 'i-lucide-receipt'),
+    nav('Go to Schedule', '/schedule', 'i-lucide-gantt-chart'),
     ...(can('see_all_time') ? [nav('Go to Reports', '/reports', 'i-lucide-chart-column')] : []),
     ...(can('see_capacity') ? [nav('Go to Capacity', '/capacity', 'i-lucide-gauge')] : []),
     ...(can('manage_billing') ? [nav('Go to Quotes', '/quotes', 'i-lucide-file-signature'), nav('Go to Invoices', '/invoices', 'i-lucide-file-text')] : []),

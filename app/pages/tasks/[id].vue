@@ -149,6 +149,38 @@ async function saveAssignees(ids: string[]) {
 const peopleOptions = computed(() => (people.value ?? []).map(p => ({ label: p.full_name, value: p.id })))
 const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
+// ---------- waits on (dependencies) ----------
+// Other tasks this one waits on; the schedule draws them as arrows.
+const { data: waitsOn, refresh: refreshWaits } = await useAsyncData(`task-${id}-waits`, async () => {
+  const { data, error } = await supabase.from('work_item_dependencies').select('predecessor_id, predecessor:work_items!work_item_dependencies_predecessor_id_fkey(id, title, due_on)').eq('successor_id', id)
+  if (error) throw error
+  return data
+}, fresh)
+const { data: siblings } = await useAsyncData(`task-${id}-siblings`, async () => {
+  const pid = item.value?.project_id
+  if (!pid) return []
+  const { data } = await supabase.from('work_items').select('id, title, due_on').eq('project_id', pid).neq('id', id).order('due_on', { ascending: true, nullsFirst: false }).limit(200)
+  return data ?? []
+}, fresh)
+const waitOptions = computed(() => (siblings.value ?? []).filter(s => !waitsOn.value?.some(w => w.predecessor_id === s.id)).map(s => ({ label: s.title + (s.due_on ? ` (due ${shortDate(s.due_on)})` : ''), value: s.id })))
+const addingWait = ref<string | undefined>()
+async function addWait(predecessorId?: string) {
+  if (!predecessorId) return
+  addingWait.value = undefined
+  const { error } = await supabase.from('work_item_dependencies').insert({ predecessor_id: predecessorId, successor_id: id })
+  if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
+  else await refreshWaits()
+}
+async function removeWait(predecessorId: string) {
+  const { error } = await supabase.from('work_item_dependencies').delete().eq('predecessor_id', predecessorId).eq('successor_id', id)
+  if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
+  else await refreshWaits()
+}
+const lateStart = computed(() => {
+  const start = draft.start_on || draft.due_on
+  return !!start && (waitsOn.value ?? []).some(w => w.predecessor?.due_on && start <= w.predecessor.due_on)
+})
+
 // ---------- comments ----------
 
 const commentBody = ref('')
@@ -441,6 +473,18 @@ async function deleteTask() {
                   <span v-else class="text-muted">Nobody yet</span>
                 </template>
               </USelectMenu>
+            </dd>
+          </div>
+          <div class="flex items-start gap-3">
+            <dt class="w-24 shrink-0 pt-1 text-muted">Waits on</dt>
+            <dd class="min-w-0 flex-1 space-y-1">
+              <div v-for="w in waitsOn" :key="w.predecessor_id" class="flex items-center gap-2">
+                <NuxtLink :to="`/tasks/${w.predecessor_id}`" class="truncate hover:underline">{{ w.predecessor?.title }}</NuxtLink>
+                <span v-if="w.predecessor?.due_on" class="text-xs text-muted">due {{ shortDate(w.predecessor.due_on) }}</span>
+                <UButton icon="i-lucide-x" variant="ghost" color="neutral" size="xs" aria-label="Remove" @click="removeWait(w.predecessor_id)" />
+              </div>
+              <p v-if="lateStart" class="text-xs text-error">Starts before what it waits on is due.</p>
+              <USelectMenu v-model="addingWait" :items="waitOptions" value-key="value" variant="ghost" size="sm" class="w-full max-w-md" :placeholder="waitsOn?.length ? 'Add another' : 'Nothing yet. Pick a task in this project.'" @update:model-value="addWait($event as string)" />
             </dd>
           </div>
           <div class="flex items-center gap-3">
