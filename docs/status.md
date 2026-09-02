@@ -6,7 +6,9 @@ First 2a item from `docs/phase-2.md`. Migration `project_server_folder`:
 `projects.server_path text` and
 `invoice_settings.project_folder_template text`.
 
-- Invoice settings page has a "Project folders" card with the template
+- New admin page `/admin/project-settings` (sidebar: Project settings)
+  holds the template; the column stays on the one-row `invoice_settings`
+  table. The template
   (`{client}`, `{code}`, `{name}`; a missing value drops out with its
   space, doubled slashes collapse). `fillFolderTemplate()` in
   `app/utils/folder.ts`. Luke still needs to set the real template.
@@ -14,8 +16,15 @@ First 2a item from `docs/phase-2.md`. Migration `project_server_folder`:
   the template as client, code, and name change; a hand edit stops the
   prefill. "Choose" opens the browser folder dialog and "drop the
   folder here" works too; both only give the folder's *name* (browsers
-  hide absolute paths), so the name goes under the template's directory
-  or the directory already typed.
+  hide absolute paths), so the name goes under the client's folder from
+  the template (`folderBase()`): a template that stops at `{client}` is
+  used whole, one naming the project folder contributes its directory.
+  Gigantic's folders are per client, then free-form, so the roots stop
+  at `{client}`. The setting holds one root per line (`folderRoots()`),
+  one per volume; with more than one the project form shows a volume
+  picker (CLIENTS, WEB). Saved for real on 2026-09-02:
+  `smb://OVEN._smb._tcp.local/CLIENTS/{client}` and
+  `smb://OVEN._smb._tcp.local/WEB/{client}`.
 - Project page shows a Server folder card with Copy and, for smb://,
   afp://, or file:// paths, Open (`folderHref()`).
 - Task Attach dialog prefills the link path with the project folder plus

@@ -43,6 +43,7 @@ const sections = computed<Section[]>(() => {
       label: 'Settings',
       links: [
         { label: 'People', to: '/admin/users', icon: 'i-lucide-users' },
+        { label: 'Project settings', to: '/admin/project-settings', icon: 'i-lucide-folder-cog' },
         { label: 'Task statuses', to: '/admin/task-statuses', icon: 'i-lucide-circle-dot' },
         { label: 'Task types', to: '/admin/tasks', icon: 'i-lucide-list-checks' },
         { label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-tags' },

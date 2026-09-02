@@ -591,7 +591,8 @@ create table invoice_settings (
   next_quote_number    int not null default 1,
   quote_valid_days     int not null default 30,
   quote_terms          text,
-  -- Fills projects.server_path for new projects: {client} {code} {name}.
+  -- Edited on /admin/project-settings. Fills projects.server_path for
+  -- new projects: {client} {code} {name}.
   project_folder_template text
 );
 insert into invoice_settings (id) values (true) on conflict do nothing;

@@ -34,9 +34,16 @@ const { data: settings } = await useAsyncData('project-folder-template', async (
   return data?.project_folder_template ?? ''
 }, fresh)
 const folderTouched = ref(!!props.project)
+// One root per volume (CLIENTS, WEB). Editing a project starts on the
+// root its folder already sits under.
+const roots = computed(() => folderRoots(settings.value))
+const root = ref(
+  roots.value.find(r => props.project?.server_path?.startsWith(r.value.replace(/\{.*$/, '')))?.value
+  ?? roots.value[0]?.value ?? '',
+)
 
 // The folder dialog only tells us the folder's name. It goes under the
-// template's directory, or under whatever directory is already typed.
+// root's client folder, or under whatever directory is already typed.
 async function chooseFolder() {
   useFolderName(await pickFolderName())
 }
@@ -46,16 +53,14 @@ function dropFolder(e: DragEvent) {
 function useFolderName(name: string | null) {
   if (!name) return
   const client = props.clients.find(c => c.id === state.client_id)?.name
-  const fromTemplate = settings.value ? fillFolderTemplate(settings.value, { client }).replace(/\/[^/]*$/, '') : ''
-  const typed = state.server_path.trim().replace(/\/+$/, '')
-  const base = fromTemplate || (typed.includes('/') ? typed.replace(/\/[^/]*$/, '') : '')
+  const base = folderBase(root.value, client, state.server_path)
   state.server_path = base ? `${base}/${name}` : name
   folderTouched.value = true
 }
-watch(() => [state.client_id, state.code, state.name], () => {
-  if (folderTouched.value || !settings.value) return
+watch(() => [state.client_id, state.code, state.name, root.value], () => {
+  if (folderTouched.value || !root.value) return
   const client = props.clients.find(c => c.id === state.client_id)?.name
-  state.server_path = fillFolderTemplate(settings.value, { client, code: state.code.trim(), name: state.name.trim() })
+  state.server_path = fillFolderTemplate(root.value, { client, code: state.code.trim(), name: state.name.trim() })
 }, { immediate: true })
 
 const clientOptions = computed(() => props.clients.map(c => ({ label: c.name, value: c.id })))
@@ -130,6 +135,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     </div>
     <UFormField label="Server folder" name="server_path" help="Where this project's files live on the office server. New task file links start here.">
       <div class="flex gap-2" @dragover.prevent @drop.prevent="dropFolder">
+        <USelect v-if="roots.length > 1" v-model="root" :items="roots" class="w-36 shrink-0" aria-label="Volume" />
         <UInput v-model="state.server_path" class="w-full" placeholder="smb://server/Jobs/Client/1234 Project, or drop the folder here" @input="folderTouched = true" />
         <UButton variant="outline" color="neutral" icon="i-lucide-folder-open" title="Choose the folder. The browser only gives its name, so it goes under the template's path." @click="chooseFolder">Choose</UButton>
       </div>

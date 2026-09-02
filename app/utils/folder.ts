@@ -12,6 +12,30 @@ export function fillFolderTemplate(template: string, v: { client?: string | null
     .trim()
 }
 
+// Settings hold one root per line, e.g. one for the CLIENTS volume and
+// one for WEB. The label is the last literal segment before the
+// placeholders: "smb://oven/CLIENTS/{client}" reads "CLIENTS".
+export function folderRoots(template: string | null | undefined): { label: string, value: string }[] {
+  return (template ?? '').split('\n').map(l => l.trim()).filter(Boolean).map((value) => {
+    const literal = value.replace(/\{(client|code|name)\}/g, '').replace(/\/+$/, '')
+    return { label: literal.split('/').filter(Boolean).pop() ?? value, value }
+  })
+}
+
+// Where a picked or dropped project folder goes. A template that names
+// the project folder ({code} or {name}) contributes its directory; one
+// that stops at the client ("smb://nas/Jobs/{client}") is used whole.
+export function folderBase(template: string | null | undefined, client: string | undefined, typed: string): string {
+  if (template) {
+    const named = /\{(code|name)\}/.test(template)
+    // Stand-ins keep the project segment present so it can be stripped.
+    const filled = fillFolderTemplate(template, { client, code: named ? 'x' : '', name: named ? 'x' : '' }).replace(/\/+$/, '')
+    return named ? filled.replace(/\/[^/]*$/, '') : filled
+  }
+  const t = typed.trim().replace(/\/+$/, '')
+  return t.includes('/') ? t.replace(/\/[^/]*$/, '') : ''
+}
+
 // smb:// and afp:// open Finder on a Mac; file:// covers a mounted drive.
 // Plain paths and UNC paths get Copy only.
 export function folderHref(path: string | null | undefined): string | null {
