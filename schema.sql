@@ -1006,6 +1006,26 @@ create table notification_prefs (
   primary key (user_id, kind)
 );
 
+-- ---------- Google Calendar ----------
+-- Each person can connect their Google Calendar (read only) from
+-- /account; busy time for the next eight weeks lands in calendar_busy,
+-- which capacity_weekly subtracts. The refresh token lives here and is
+-- only ever read by the server with the service role: the browser can
+-- select the other columns of its own row (and admins everyone's)
+-- through the calendar_connections view. Nightly sync is a Vercel cron
+-- (vercel.json) hitting /api/google/sync-all with the CRON_SECRET.
+create table google_tokens (
+  user_id        uuid primary key references profiles(id) on delete cascade,
+  google_email   text not null,
+  refresh_token  text not null,
+  connected_at   timestamptz not null default now(),
+  last_synced_at timestamptz,
+  last_error     text
+);
+create view calendar_connections with (security_invoker = true) as
+select g.user_id, g.google_email, g.connected_at, g.last_synced_at, g.last_error
+from google_tokens g;
+
 -- ---------- Audit trail ----------
 -- Who changed what, on time entries and expenses.
 -- Append-only: nobody can update or delete rows here.
@@ -2262,6 +2282,7 @@ alter table profiles               enable row level security;
 alter table roles       enable row level security;
 alter table permissions enable row level security;
 alter table notifications enable row level security;
+alter table google_tokens enable row level security;
 alter table notification_prefs enable row level security;
 alter table clients                enable row level security;
 alter table projects               enable row level security;
@@ -2312,6 +2333,10 @@ create policy own_select on notifications      for select to authenticated using
 create policy own_update on notifications      for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy own_delete on notifications      for delete to authenticated using (user_id = auth.uid());
 create policy own_all    on notification_prefs for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- Google tokens: own row or the people permission, never the token column.
+create policy own_or_people on google_tokens for select to authenticated using (user_id = auth.uid() or has_permission('manage_people'));
+revoke select on google_tokens from authenticated;
+grant select (user_id, google_email, connected_at, last_synced_at, last_error) on google_tokens to authenticated;
 create policy manage_reference on clients       for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
 create policy manage_reference on projects      for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
 create policy manage_reference on tasks         for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));

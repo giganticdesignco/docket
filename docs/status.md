@@ -1,5 +1,38 @@
 # Status
 
+## Phase 2, wave 2b: Google Calendar (2026-09-02)
+
+Item 7 of `docs/phase-2.md`. Migration `google_calendar`. Code is in;
+it needs Google credentials from Luke before it can be used.
+
+- Own OAuth flow (not Supabase Auth's Google provider, which has no
+  calendar scope): `/api/google/connect` sets a state cookie and sends
+  the person to Google with `calendar.readonly` and `email`;
+  `/api/google/callback` swaps the code, keeps the refresh token in
+  `google_tokens` (RLS on, service role only for the token; the
+  `calendar_connections` view exposes who is connected to the person
+  and to manage_people), and runs a first sync.
+- `syncCalendar()` in `server/utils/google.ts` refreshes an access
+  token, calls freeBusy on the primary calendar for the next eight
+  weeks, and replaces that person's `calendar_busy` rows (source
+  'google'), which `capacity_weekly` already subtracts. Errors land in
+  `last_error`.
+- `/api/google/sync` (self, or another person with manage_people),
+  `/api/google/disconnect`, and `/api/google/sync-all` for the nightly
+  Vercel cron in `vercel.json` (10:00 UTC, bearer CRON_SECRET).
+- `/account` page: connect, sync now, disconnect, last synced; admins
+  see team connections; the rail's name links there.
+- Luke's setup: in the Google Cloud project used for Workspace sign-in,
+  create an OAuth client (web), add
+  `https://docket-wine-one.vercel.app/api/google/callback` and
+  `http://localhost:3000/api/google/callback` as redirect URIs, enable
+  the Google Calendar API, and set NUXT_GOOGLE_CLIENT_ID and
+  NUXT_GOOGLE_CLIENT_SECRET on Vercel (and .env locally). Also set
+  CRON_SECRET and NUXT_CRON_SECRET on Vercel for the nightly job.
+- Scheduling proposals (earliest free week for an estimate) wait for
+  the Gantt in 2c; pushing task dates to calendars is not built.
+
+
 ## Phase 2, wave 2b: notifications and @mentions (2026-09-02)
 
 Item 16 of `docs/phase-2.md`. Migrations `notifications` and

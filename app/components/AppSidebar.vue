@@ -118,7 +118,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
       </ClientOnly>
       <div class="flex h-9 items-center gap-3 px-2 text-sm" :title="profile?.full_name ?? ''">
         <span class="grid size-5 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ (profile?.full_name ?? '?').split(' ').map(w => w[0]).join('').slice(0, 2) }}</span>
-        <span class="hidden min-w-0 flex-1 truncate group-hover:inline">{{ profile?.full_name }}<span v-if="isAdmin" class="text-muted"> &middot; admin</span></span>
+        <NuxtLink to="/account" class="hidden min-w-0 flex-1 truncate hover:underline group-hover:inline" title="Account">{{ profile?.full_name }}<span v-if="isAdmin" class="text-muted"> &middot; admin</span></NuxtLink>
         <button type="button" class="hidden text-xs text-muted hover:text-highlighted group-hover:inline" @click="signOut">Sign out</button>
       </div>
     </div>
@@ -153,7 +153,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
     </template>
     <template #footer>
       <div class="flex w-full items-center gap-3 text-sm">
-        <span class="min-w-0 flex-1 truncate">{{ profile?.full_name }}</span>
+        <NuxtLink to="/account" class="min-w-0 flex-1 truncate hover:underline">{{ profile?.full_name }}</NuxtLink>
         <UButton variant="ghost" size="sm" @click="signOut">Sign out</UButton>
       </div>
     </template>

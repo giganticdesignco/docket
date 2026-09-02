@@ -204,7 +204,8 @@ How:
   enough free hours for a task's estimate.
 
 Depends on: nothing for the busy-time part; Gantt for the scheduling
-part. Size: 5 days.
+part. Size: 5 days. Busy-time sync built 2026-09-02; needs Google OAuth
+credentials from Luke.
 
 ## 8. Roles and permissions
 

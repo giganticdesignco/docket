@@ -14,6 +14,11 @@ export default defineNuxtConfig({
     // NUXT_CRON_SECRET, same value as CRON_SECRET, which Vercel sends with
     // cron requests.
     cronSecret: '',
+    // Google Calendar (read only). NUXT_GOOGLE_CLIENT_ID and
+    // NUXT_GOOGLE_CLIENT_SECRET from an OAuth client on the Workspace
+    // project, with <site>/api/google/callback as a redirect URI.
+    googleClientId: '',
+    googleClientSecret: '',
   },
   routeRules: {
     // The signed-in app renders in the browser. Every page needs the

@@ -501,6 +501,33 @@ export type Database = {
           },
         ]
       }
+      google_tokens: {
+        Row: {
+          connected_at: string
+          google_email: string
+          last_error: string | null
+          last_synced_at: string | null
+          refresh_token: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          google_email: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          refresh_token: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          google_email?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          refresh_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       harvest_archive_monthly: {
         Row: {
           amount: number
@@ -2429,6 +2456,16 @@ export type Database = {
       }
     }
     Views: {
+      calendar_connections: {
+        Row: {
+          connected_at: string | null
+          google_email: string | null
+          last_error: string | null
+          last_synced_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       capacity_weekly: {
         Row: {
           base_hours: number | null
