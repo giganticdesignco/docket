@@ -1,5 +1,32 @@
 # Status
 
+## Phase 2, wave 2a: feature walkthrough (2026-09-02)
+
+Item 3 of `docs/phase-2.md`. driver.js 1.8 (`npm install driver.js`).
+Migration `profile_tours_seen`: `profiles.tours_seen jsonb` maps a tour
+id to "done <iso>" or "skipped <iso>"; staff can update it (the
+protect trigger only guards role, rate, active, email).
+
+- `app/composables/useTour.ts` holds the tours as data (id, title,
+  route match, steps with a `data-tour` selector). Steps whose element
+  is missing are dropped. `maybeStart()` runs from app.vue on every
+  route change: first the "Getting around" tour, then the page's own
+  tour on the next visit, each once per person. Every popover has Skip
+  tour, Back, Next (Done on the last), and a close x; skipping is
+  recorded too, so it never nags.
+- Tours: Getting around (rail, search, help, theme), Logging time
+  (week strip, pace line, New entry, play button), Tasks (group by,
+  Everyone, first row, New task), Billing for admins (New batch, list).
+- The rail has a Help entry above the theme toggle: replay the current
+  page's tour, replay Getting around, or open the keyboard shortcuts
+  sheet (its open state is now `useState('shortcut-sheet-open')`).
+- Popover styling in `main.css` uses the app's colour tokens.
+- Verified in the browser: auto-start, all five steps of Getting
+  around anchored correctly, tours_seen saved, Tasks tour auto-started
+  on the next page and Skip closed it. Luke's tours_seen reset to {} so
+  he sees them fresh.
+
+
 ## Phase 2, wave 2a: power user shortcuts (2026-09-02)
 
 Item 9 of `docs/phase-2.md`. No migration.

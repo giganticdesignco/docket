@@ -259,10 +259,10 @@ function created(id: string) {
       </div>
       <div class="ml-auto flex flex-wrap items-center gap-3">
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
-        <USelect v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" />
-        <USwitch v-model="everyone" label="Everyone" size="sm" />
+        <USelect v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
+        <USwitch v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />
         <USwitch v-model="showCompleted" label="Completed" size="sm" />
-        <UButton icon="i-lucide-plus" @click="creating = true;">New task</UButton>
+        <UButton icon="i-lucide-plus" data-tour="new-task" @click="creating = true;">New task</UButton>
       </div>
     </div>
 
@@ -282,7 +282,7 @@ function created(id: string) {
       <table v-if="!collapsed.has(g.key) && g.items.length" class="w-full border-t border-default text-sm">
         <tbody>
           <tr
-            v-for="i in g.items" :key="i.id" draggable="true" :data-task="i.id"
+            v-for="(i, idx) in g.items" :key="i.id" draggable="true" :data-task="i.id" :data-tour="idx === 0 && g === groups[0] ? 'row' : undefined"
             class="border-b border-default last:border-0 hover:bg-elevated/60"
             :class="[dragging?.id === i.id ? 'opacity-40' : '', focused === i.id ? 'bg-elevated/60 shadow-[inset_2px_0_0_0_var(--ui-primary)]' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
             @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null" @click="focused = i.id;"

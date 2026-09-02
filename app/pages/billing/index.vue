@@ -36,10 +36,10 @@ const statusColor: Record<string, 'neutral' | 'warning' | 'success' | 'error'> =
         <h1 class="text-2xl font-semibold">Billing</h1>
         <p class="text-sm text-muted">Billable work not yet claimed by a batch. Harvest-invoiced entries are already locked and do not count.</p>
       </div>
-      <UButton to="/billing/new" icon="i-lucide-plus" class="ml-auto">New batch</UButton>
+      <UButton to="/billing/new" icon="i-lucide-plus" class="ml-auto" data-tour="new-batch">New batch</UButton>
     </div>
 
-    <UCard :ui="{ body: 'p-0 sm:p-0' }">
+    <UCard :ui="{ body: 'p-0 sm:p-0' }" data-tour="batches">
       <table class="w-full text-sm">
         <thead class="text-left text-muted">
           <tr class="border-b border-default">

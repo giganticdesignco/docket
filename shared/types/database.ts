@@ -1093,6 +1093,7 @@ export type Database = {
           id: string
           is_active: boolean
           role: Database["public"]["Enums"]["user_role"]
+          tours_seen: Json
         }
         Insert: {
           created_at?: string
@@ -1102,6 +1103,7 @@ export type Database = {
           id: string
           is_active?: boolean
           role?: Database["public"]["Enums"]["user_role"]
+          tours_seen?: Json
         }
         Update: {
           created_at?: string
@@ -1111,6 +1113,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           role?: Database["public"]["Enums"]["user_role"]
+          tours_seen?: Json
         }
         Relationships: []
       }

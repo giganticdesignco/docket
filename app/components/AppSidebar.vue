@@ -41,6 +41,13 @@ const sections = computed<Section[]>(() => {
 })
 const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
 const searchOpen = useState('search-open', () => false)
+const sheetOpen = useState('shortcut-sheet-open', () => false)
+const tour = useTour()
+const helpItems = computed(() => [[
+  ...(tour.pageTour.value ? [{ label: `Tour: ${tour.pageTour.value.title}`, icon: 'i-lucide-route', onSelect: () => tour.start(tour.pageTour.value!.id) }] : []),
+  { label: 'Tour: Getting around', icon: 'i-lucide-compass', onSelect: () => tour.start('around') },
+  { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', kbds: ['?'], onSelect: () => { sheetOpen.value = true } },
+]])
 
 const active = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
 
@@ -58,14 +65,14 @@ watch(() => route.path, () => { mobileOpen.value = false })
 
 <template>
   <!-- Desktop rail -->
-  <aside class="group fixed inset-y-0 left-0 z-40 hidden w-14 flex-col overflow-hidden border-r border-default bg-default transition-[width] duration-150 ease-out hover:w-60 hover:shadow-xl md:flex">
+  <aside data-tour="rail" class="group fixed inset-y-0 left-0 z-40 hidden w-14 flex-col overflow-hidden border-r border-default bg-default transition-[width] duration-150 ease-out hover:w-60 hover:shadow-xl md:flex">
     <NuxtLink to="/" class="flex h-14 shrink-0 items-center gap-3 px-3">
       <span class="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-sm font-bold text-inverted">D</span>
       <span class="hidden truncate font-semibold group-hover:inline">Docket</span>
     </NuxtLink>
 
     <nav class="flex-1 overflow-y-auto overflow-x-hidden py-1">
-      <button type="button" class="mx-2 mb-1 flex h-9 w-[calc(100%-1rem)] items-center gap-3 rounded-md px-2 text-sm text-muted transition-colors hover:bg-elevated hover:text-highlighted" title="Search (Cmd+K)" @click="searchOpen = true;">
+      <button type="button" data-tour="search" class="mx-2 mb-1 flex h-9 w-[calc(100%-1rem)] items-center gap-3 rounded-md px-2 text-sm text-muted transition-colors hover:bg-elevated hover:text-highlighted" title="Search (Cmd+K)" @click="searchOpen = true;">
         <UIcon name="i-lucide-search" class="size-5 shrink-0" />
         <span class="hidden min-w-0 flex-1 truncate text-left group-hover:inline">Search</span>
         <UKbd class="hidden group-hover:inline-flex" value="meta" /><UKbd class="hidden group-hover:inline-flex" value="k" />
@@ -94,8 +101,14 @@ watch(() => route.path, () => { mobileOpen.value = false })
         <UIcon :name="settings.icon" class="size-5 shrink-0" />
         <span class="hidden truncate group-hover:inline">{{ settings.label }}</span>
       </NuxtLink>
+      <UDropdownMenu :items="helpItems" :content="{ side: 'right', align: 'end' }">
+        <button type="button" data-tour="help" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Help">
+          <UIcon name="i-lucide-circle-help" class="size-5 shrink-0" />
+          <span class="hidden truncate group-hover:inline">Help</span>
+        </button>
+      </UDropdownMenu>
       <ClientOnly>
-        <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="isDark = !isDark;">
+        <button type="button" data-tour="theme" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="isDark = !isDark;">
           <UIcon :name="isDark ? 'i-lucide-moon' : 'i-lucide-sun'" class="size-5 shrink-0" />
           <span class="hidden truncate group-hover:inline">{{ isDark ? 'Dark mode' : 'Light mode' }}</span>
         </button>

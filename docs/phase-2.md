@@ -81,7 +81,7 @@ How:
   action the person should take next.
 
 Depends on: build last in wave 2a so it describes the final UI. Size: 2
-to 3 days.
+to 3 days. Built 2026-09-02; empty-state hints were already in place.
 
 ## 4. AI integration
 

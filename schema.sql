@@ -284,6 +284,7 @@ create table profiles (
   role         user_role not null default 'staff',
   default_rate numeric(10,2),          -- fallback billable rate
   is_active    boolean not null default true,
+  tours_seen   jsonb not null default '{}'::jsonb,   -- walkthroughs finished or skipped, by id
   created_at   timestamptz not null default now()
 );
 

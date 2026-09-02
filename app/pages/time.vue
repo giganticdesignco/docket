@@ -168,9 +168,9 @@ async function confirmDelete() {
       </div>
     </div>
 
-    <WeekStrip :days="days" :selected="selected" :totals="totals" @select="goTo" />
+    <div data-tour="week"><WeekStrip :days="days" :selected="selected" :totals="totals" @select="goTo" /></div>
 
-    <p v-if="pace" class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+    <p v-if="pace" data-tour="pace" class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
       <span>This week <strong class="text-default tabular-nums">{{ formatHours(pace.week.hours) }}</strong> of {{ formatHours(pace.target) }}<template v-if="Number(pace.week.hours) > 0">, {{ billableShare(pace.week) }}% billable</template></span>
       <span>This month <strong class="text-default tabular-nums">{{ formatHours(pace.month.hours) }}</strong><template v-if="Number(pace.month.hours) > 0">, {{ billableShare(pace.month) }}% billable</template></span>
     </p>
@@ -192,7 +192,7 @@ async function confirmDelete() {
         <div class="flex items-center gap-4">
           <h2 class="font-semibold">{{ longDate(selected) }}</h2>
           <span class="ml-auto tabular-nums text-muted">{{ formatHours(totals[selected] ?? 0) }}</span>
-          <UButton icon="i-lucide-plus" size="sm" @click="creating = true;">New entry</UButton>
+          <UButton icon="i-lucide-plus" size="sm" data-tour="new-entry" @click="creating = true;">New entry</UButton>
         </div>
       </template>
 
@@ -223,7 +223,7 @@ async function confirmDelete() {
             />
             <UButton
               v-else
-              icon="i-lucide-play" variant="ghost" color="neutral" size="sm" aria-label="Start timer"
+              icon="i-lucide-play" variant="ghost" color="neutral" size="sm" aria-label="Start timer" data-tour="timer"
               :disabled="e.is_locked || (!!busy && busy !== e.id)" :loading="busy === e.id"
               @click="startRow(e)"
             />

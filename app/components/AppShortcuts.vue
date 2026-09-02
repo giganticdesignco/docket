@@ -6,7 +6,7 @@ const { isAdmin } = useCurrentUser()
 const searchOpen = useState('search-open', () => false)
 const timer = useTimer()
 const toast = useToast()
-const sheetOpen = ref(false)
+const sheetOpen = useState('shortcut-sheet-open', () => false)
 const registry = useShortcutRegistry()
 
 const go = (to: string) => () => { router.push(to) }
