@@ -152,14 +152,18 @@ token fails with a clear message; adding two days of PTO on /time-off
 showed 16:00 and dropped that week's available hours to 24:00 on
 /capacity; the entry was deleted afterwards.
 
-NOT VERIFIED: the sync itself. Luke needs to create a ClickUp personal
-API token (ClickUp > Settings > Apps) and add NUXT_CLICKUP_TOKEN and
-NUXT_CLICKUP_TEAM_ID=8666791 to .env (and Vercel, plus CRON_SECRET and
-NUXT_CRON_SECRET for the cron). First run will tell how many tasks carry
-estimates; ClickUp may not be used for estimates at all, in which case
-"booked" is task counts only. Time estimates and the project mapping may
-need tuning after the first real sync. Meetings (calendar_busy) are
-scaffolding only.
+ON HOLD (Luke, 2026-09-02: "we might hold on clickup"). The sync route
+and the Sync ClickUp button stay, but vercel.json with the daily cron was
+removed so nothing fails every morning. To switch it on later: create a
+ClickUp personal API token (ClickUp > Settings > Apps), add
+NUXT_CLICKUP_TOKEN and NUXT_CLICKUP_TEAM_ID=8666791 to .env and Vercel,
+press Sync ClickUp, and check the counts (withoutEstimate, unmatched
+lists, project mapping). For the daily run, restore vercel.json with
+`{ "crons": [{ "path": "/api/clickup/sync", "schedule": "0 11 * * *" }] }`
+and set CRON_SECRET plus NUXT_CRON_SECRET (same value) on Vercel. Until
+then the capacity page shows availability and logged hours only; the
+"booked" columns stay at zero. Meetings (calendar_busy) are scaffolding
+only.
 
 ## Step 8: invoicing, Docket owns it (2026-09-02)
 
