@@ -98,7 +98,9 @@ function fail(message: string) {
       <USelectMenu v-model="state.assignee_ids" :items="peopleOptions" value-key="value" multiple class="w-full" placeholder="Nobody yet" />
     </UFormField>
     <UFormField label="Status">
-      <USelect v-model="state.status" :items="ws.items.value" class="w-full" />
+      <USelect v-model="state.status" :items="ws.items.value" class="w-full">
+        <template #leading><span class="size-2 rounded-full" :class="ws.dot(state.status)" /></template>
+      </USelect>
     </UFormField>
     <UFormField label="Priority">
       <USelect v-model="state.priority" :items="[...WORK_PRIORITIES]" class="w-full" />

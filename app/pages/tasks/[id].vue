@@ -526,9 +526,12 @@ function startResize(e: PointerEvent) {
 
     <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
       <!-- Left: the task -->
-      <div class="min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto py-6 lg:pr-6">
+      <!-- pl-px: cards draw a 1px ring outside their box, and the scroll container would clip it on the left. -->
+      <div class="min-h-0 min-w-0 flex-1 space-y-6 overflow-y-auto py-6 pl-px lg:pr-6">
         <div class="flex flex-wrap items-center gap-3">
-          <USelect :model-value="item.status" :items="ws.items.value" :color="ws.color(item.status)" variant="subtle" size="sm" class="w-44" @update:model-value="setStatus($event as string)" />
+          <USelect :model-value="item.status" :items="ws.items.value" :color="ws.color(item.status)" variant="subtle" size="sm" :ui="{ content: 'min-w-44' }" @update:model-value="setStatus($event as string)">
+            <template #leading><span class="size-2 rounded-full" :class="ws.dot(item.status)" /></template>
+          </USelect>
           <span v-if="item.completed_at" class="text-xs text-muted">Completed {{ stamp(item.completed_at) }}</span>
           <span v-else-if="item.shared_at" class="text-xs text-muted">Shared for review {{ stamp(item.shared_at) }}</span>
         </div>
@@ -542,7 +545,7 @@ function startResize(e: PointerEvent) {
           <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Assignees</dt>
             <dd class="min-w-0 flex-1">
-              <USelectMenu v-model="draft.assignees" :items="peopleOptions" value-key="value" multiple variant="ghost" size="sm" class="w-full" placeholder="Nobody yet" @update:model-value="saveAssignees(draft.assignees)">
+              <USelectMenu v-model="draft.assignees" :items="peopleOptions" value-key="value" multiple variant="ghost" size="sm" class="max-w-full" placeholder="Nobody yet" @update:model-value="saveAssignees(draft.assignees)">
                 <template #default>
                   <span v-if="item.work_item_assignees.length" class="flex min-w-0 items-center gap-2" :title="item.work_item_assignees.map(a => a.profiles?.full_name).join(', ')">
                     <span class="flex shrink-0 -space-x-1.5">
@@ -565,19 +568,19 @@ function startResize(e: PointerEvent) {
                 <UButton icon="i-lucide-x" variant="ghost" color="neutral" size="xs" aria-label="Remove" @click="removeWait(w.predecessor_id)" />
               </div>
               <p v-if="lateStart" class="text-xs text-error">Starts before what it waits on is due.</p>
-              <USelectMenu v-model="addingWait" :items="waitOptions" value-key="value" variant="ghost" size="sm" class="w-full max-w-md" :placeholder="waitsOn?.length ? 'Add another' : 'Nothing yet. Pick a task in this project.'" @update:model-value="addWait($event as string)" />
+              <USelectMenu v-model="addingWait" :items="waitOptions" value-key="value" variant="ghost" size="sm" class="max-w-md" :placeholder="waitsOn?.length ? 'Add another' : 'Nothing yet. Pick a task in this project.'" @update:model-value="addWait($event as string)" />
             </dd>
           </div>
           <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Project</dt>
             <dd class="min-w-0 flex-1">
-              <USelectMenu :model-value="item.project_id" :items="projectOptions" value-key="value" variant="ghost" size="sm" class="w-full max-w-md" placeholder="Pick a project" @update:model-value="setProject($event as string)" />
+              <USelectMenu :model-value="item.project_id" :items="projectOptions" value-key="value" variant="ghost" size="sm" class="max-w-md" placeholder="Pick a project" @update:model-value="setProject($event as string)" />
             </dd>
           </div>
           <div class="flex items-center gap-3">
             <dt class="w-24 shrink-0 text-muted">Priority</dt>
             <dd class="min-w-0 flex-1">
-              <USelect :model-value="item.priority" :items="[...WORK_PRIORITIES]" variant="ghost" size="sm" class="w-40" @update:model-value="setPriority($event as string)" />
+              <USelect :model-value="item.priority" :items="[...WORK_PRIORITIES]" variant="ghost" size="sm" @update:model-value="setPriority($event as string)" />
             </dd>
           </div>
           <div class="flex items-center gap-3">

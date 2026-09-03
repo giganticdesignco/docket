@@ -19,12 +19,16 @@ export async function useWorkStatuses() {
 
   const byKey = computed(() => new Map(statuses.value.map(s => [s.key, s])))
   const active = computed(() => statuses.value.filter(s => s.is_active))
-  const items = computed(() => active.value.map(s => ({ label: s.label, value: s.key })))
+  // Every picker shows the status with its color dot (a chip on the item).
+  const items = computed(() => active.value.map(s => ({ label: s.label, value: s.key, chip: { color: (s.color as StatusColor | null) ?? 'neutral' } })))
   const label = (key: string) => byKey.value.get(key)?.label ?? key
   const color = (key: string): StatusColor => (byKey.value.get(key)?.color as StatusColor | undefined) ?? 'neutral'
+  // The dot beside a status, anywhere it is shown as text or picked.
+  const DOT: Record<string, string> = { primary: 'bg-primary', secondary: 'bg-secondary', success: 'bg-success', info: 'bg-info', warning: 'bg-warning', error: 'bg-error', neutral: 'bg-accented' }
+  const dot = (key: string) => DOT[color(key)] ?? 'bg-accented'
   const isDone = (key: string) => !!byKey.value.get(key)?.is_done
   const isPaused = (key: string) => !!byKey.value.get(key)?.is_paused
   const clientReviewKey = computed(() => active.value.find(s => s.is_client_review)?.key ?? null)
 
-  return { statuses, active, items, byKey, label, color, isDone, isPaused, clientReviewKey, reload }
+  return { statuses, active, items, byKey, label, color, dot, isDone, isPaused, clientReviewKey, reload }
 }

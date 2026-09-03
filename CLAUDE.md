@@ -32,8 +32,9 @@ run `vercel --prod` (it once uploaded the 2 GB desktop build).
   canceled), in the app and the docs.
 - **Never delete real data in tests.** ClickUp tasks and Harvest entries
   are live. Test rows carry an obvious marker and are removed after.
-- **Commit and push only when Luke says "commit push".** Leave
-  `package-lock.json` out of commits.
+- **Commit and push after each verified item** (Luke authorized this
+  2026-09-03 while the app is in development). One item per commit.
+  Leave `package-lock.json` out of commits.
 
 ## Schema
 
