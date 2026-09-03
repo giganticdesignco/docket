@@ -133,10 +133,11 @@ sees hours.
   red. Drag a task from "Needs a person" onto a person's day and it is
   planned there: they are assigned and the task's dates move to start
   that day, keeping their length. Drag a block to another day or
-  person to move it. Undo has thirty seconds. The small assign button
+  person to move it, or drag its right edge across the days to set the
+  due date; the hours re-spread as it stretches. Undo has thirty seconds. The small assign button
   on a card gives it a person without touching its dates. Switch
-  between one week and three, everyone or just you, and filter by
-  project. Schedule stays the place for the Gantt view and
+  between one week and three, pick which people to show (Me is a
+  shortcut), and filter by project. Schedule stays the place for the Gantt view and
   dependencies.
 - **Time off** is logged by each person; admins log anyone's and company
   holidays. There is no approval step. It reduces capacity and silences

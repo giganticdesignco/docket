@@ -1741,5 +1741,8 @@ blocks render in the cell. Drop plans the task: `work_items.start_on`
 moves to the day and `due_on` keeps the span length, and the target
 person replaces the one dragged from (or is added when dragged from
 the left). Undo reverses both. A card's assign button still assigns
-without dates. View state: zoom and who. No schema change. Guide
-updated.
+without dates. A block's right edge is a pointer-event handle that
+drags the due date along the `data-day` cells (start_on is pinned to
+the old bar start on commit); the block's HTML5 drag is suppressed
+while stretching. View state: zoom and the people filter (a list of ids, empty for
+everyone). No schema change. Guide updated.

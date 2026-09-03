@@ -13,9 +13,10 @@ const user = useSupabaseUser()
 const toast = useToast()
 const undo = useUndo()
 const ws = await useWorkStatuses()
-const view = await useViewState('planner', { zoom: 'week' as 'week' | 'weeks', who: 'everyone' as 'everyone' | 'me' })
+const view = await useViewState('planner', { zoom: 'week' as 'week' | 'weeks', people: [] as string[] })
 const zoom = persisted(view, 'zoom')
-const who = persisted(view, 'who')
+// Empty means everyone.
+const peopleFilter = persisted(view, 'people')
 
 const today = todayString()
 const anchor = ref(weekDays(today)[0]!)
@@ -65,15 +66,19 @@ type Busy = NonNullable<typeof busyRows.value>[number]
 type Person = { id: string, name: string, base: Map<string, number> }
 
 // ---------- people and their days ----------
-const people = computed<Person[]>(() => {
+const allPeople = computed<Person[]>(() => {
   const m = new Map<string, Person>()
   for (const c of cap.value ?? []) {
     const p = m.get(c.user_id!) ?? { id: c.user_id!, name: c.user_name ?? '', base: new Map() }
     p.base.set(c.week_start!, c.base_hours ?? 0)
     m.set(c.user_id!, p)
   }
-  return [...m.values()].filter(p => who.value === 'everyone' || p.id === user.value?.sub).sort((a, b) => a.name.localeCompare(b.name))
+  return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
 })
+const people = computed(() => allPeople.value.filter(p => !peopleFilter.value.length || peopleFilter.value.includes(p.id)))
+const peopleItems = computed(() => allPeople.value.map(p => ({ label: p.name, value: p.id })))
+const me = computed(() => user.value?.sub ?? '')
+const onlyMe = computed(() => peopleFilter.value.length === 1 && peopleFilter.value[0] === me.value)
 const key = (uid: string, d: string) => `${uid}|${d}`
 const weekOf = (d: string) => weekDays(d)[0]!
 const isWeekday = (d: string) => { const n = parseDateString(d).getDay(); return n >= 1 && n <= 5 }
@@ -88,12 +93,16 @@ const availableOn = (p: Person, d: string) => Math.max(0, (p.base.get(weekOf(d))
 
 // ---------- tasks on days ----------
 const barStart = (t: Task) => (t.start_on && t.due_on && t.start_on <= t.due_on ? t.start_on : t.due_on!)
+// While a block is being stretched, its due date follows the pointer.
+const resizing = ref<{ task: Task, due: string } | null>(null)
+const dueOf = (t: Task) => (resizing.value?.task.id === t.id ? resizing.value.due : t.due_on)
 // The weekdays a task is planned on; the due day itself if its span has none.
 function plannedDays(t: Task): string[] {
-  if (!t.due_on) return []
+  const due = dueOf(t)
+  if (!due) return []
   const out: string[] = []
-  for (let d = barStart(t); d <= t.due_on; d = addDays(d, 1)) if (isWeekday(d)) out.push(d)
-  return out.length ? out : [t.due_on]
+  for (let d = barStart(t); d <= due; d = addDays(d, 1)) if (isWeekday(d)) out.push(d)
+  return out.length ? out : [due]
 }
 const perDay = (t: Task, n: number) => (t.estimate_hours ? t.estimate_hours / Math.max(t.work_item_assignees.length, 1) / n : 0)
 const search = ref('')
@@ -113,13 +122,14 @@ type Block = { t: Task, hours: number, due: boolean, span: number }
 const blocks = computed(() => {
   const m = new Map<string, Block[]>()
   for (const t of tasks.value ?? []) {
-    if (!t.due_on || t.due_on < from.value || barStart(t) > to.value || !matches(t)) continue
+    const due = dueOf(t)
+    if (!due || due < from.value || barStart(t) > to.value || !matches(t)) continue
     const ds = plannedDays(t)
     for (const d of ds) {
       if (d < from.value || d > to.value) continue
       for (const a of t.work_item_assignees) {
         const k = key(a.user_id, d)
-        m.set(k, [...(m.get(k) ?? []), { t, hours: perDay(t, ds.length), due: d === t.due_on, span: ds.length }])
+        m.set(k, [...(m.get(k) ?? []), { t, hours: perDay(t, ds.length), due: d === due, span: ds.length }])
       }
     }
   }
@@ -155,6 +165,7 @@ const unassigned = computed(() => (tasks.value ?? []).filter(t => !t.work_item_a
 const dragging = ref<{ task: Task, fromUser: string | null } | null>(null)
 const over = ref<string | null>(null)
 function onDragStart(t: Task, fromUser: string | null, e: DragEvent) {
+  if (resizing.value) { e.preventDefault(); return }
   dragging.value = { task: t, fromUser }
   e.dataTransfer?.setData('text/plain', t.id)
   if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
@@ -197,7 +208,7 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
       }
     }
     await refreshTasks()
-    const name = people.value.find(p => p.id === uid)?.name ?? 'them'
+    const name = allPeople.value.find(p => p.id === uid)?.name ?? 'them'
     undo.offer(`${t.title}: ${name}, ${shortDate(day)}`, async () => {
       if (!sameDates) {
         const { error } = await supabase.from('work_items').update(before).eq('id', t.id)
@@ -218,6 +229,46 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
     busy.value = null
   }
 }
+// ---------- stretch a block across days ----------
+// The handle on a block's right edge drags the due date along the day
+// columns. Pointer events, not HTML5 drag, so the block's own drag is
+// left alone; the day under the pointer comes from the cell's data-day.
+function startResize(t: Task, e: PointerEvent) {
+  if (!t.due_on) return
+  resizing.value = { task: t, due: t.due_on }
+  const onMove = (ev: PointerEvent) => {
+    const cell = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-day]')
+    const day = cell?.dataset.day
+    if (day && resizing.value && day >= barStart(t)) resizing.value.due = day
+  }
+  const onUp = async () => {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    const r = resizing.value
+    resizing.value = null
+    if (r && r.due !== t.due_on) await stretch(t, r.due)
+  }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+}
+async function stretch(t: Task, due: string) {
+  const before = { start_on: t.start_on, due_on: t.due_on }
+  const after = { start_on: barStart(t), due_on: due }
+  busy.value = t.id
+  try {
+    const { error } = await supabase.from('work_items').update(after).eq('id', t.id)
+    if (error) throw error
+    await refreshTasks()
+    undo.offer(`${t.title}: ${shortDate(after.start_on)} to ${shortDate(due)}`, async () => {
+      const { error: back } = await supabase.from('work_items').update(before).eq('id', t.id)
+      if (back) throw back
+    }, () => refreshTasks())
+  } catch (e) {
+    toast.add({ title: 'Could not change the dates', description: (e as Error).message, color: 'error' })
+  } finally {
+    busy.value = null
+  }
+}
 // Assign without touching dates, for a task that should keep them.
 async function assignOnly(t: Task, uid: string) {
   busy.value = t.id
@@ -225,7 +276,7 @@ async function assignOnly(t: Task, uid: string) {
     const { error } = await supabase.from('work_item_assignees').insert({ work_item_id: t.id, user_id: uid })
     if (error) throw error
     await refreshTasks()
-    const name = people.value.find(p => p.id === uid)?.name ?? 'them'
+    const name = allPeople.value.find(p => p.id === uid)?.name ?? 'them'
     undo.offer(`${t.title} assigned to ${name}`, async () => {
       const { error: back } = await supabase.from('work_item_assignees').delete().eq('work_item_id', t.id).eq('user_id', uid)
       if (back) throw back
@@ -236,7 +287,7 @@ async function assignOnly(t: Task, uid: string) {
     busy.value = null
   }
 }
-const assignMenu = (t: Task) => [people.value.map(p => ({ label: p.name, onSelect: () => { assignOnly(t, p.id) } }))]
+const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSelect: () => { assignOnly(t, p.id) } }))]
 </script>
 
 <template>
@@ -262,10 +313,8 @@ const assignMenu = (t: Task) => [people.value.map(p => ({ label: p.name, onSelec
           <UButton size="xs" :variant="zoom === 'week' ? 'solid' : 'ghost'" :color="zoom === 'week' ? 'primary' : 'neutral'" @click="zoom = 'week';">Week</UButton>
           <UButton size="xs" :variant="zoom === 'weeks' ? 'solid' : 'ghost'" :color="zoom === 'weeks' ? 'primary' : 'neutral'" @click="zoom = 'weeks';">3 weeks</UButton>
         </div>
-        <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" :variant="who === 'everyone' ? 'solid' : 'ghost'" :color="who === 'everyone' ? 'primary' : 'neutral'" @click="who = 'everyone';">Everyone</UButton>
-          <UButton size="xs" :variant="who === 'me' ? 'solid' : 'ghost'" :color="who === 'me' ? 'primary' : 'neutral'" @click="who = 'me';">Me</UButton>
-        </div>
+        <USelectMenu v-model="peopleFilter" :items="peopleItems" value-key="value" multiple size="sm" placeholder="Everyone" class="w-48" />
+        <UButton size="sm" :variant="onlyMe ? 'solid' : 'outline'" :color="onlyMe ? 'primary' : 'neutral'" @click="peopleFilter = onlyMe ? [] : [me];">Me</UButton>
         <USelect v-model="projectId" :items="projectItems" value-key="value" size="sm" class="w-56" />
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search tasks" size="sm" class="w-48" />
       </div>
@@ -329,7 +378,7 @@ const assignMenu = (t: Task) => [people.value.map(p => ({ label: p.name, onSelec
                   </div>
                 </td>
                 <td
-                  v-for="d in days" :key="d" class="p-1 align-top" :class="d === today ? 'bg-primary/5' : ''"
+                  v-for="d in days" :key="d" class="p-1 align-top" :class="d === today ? 'bg-primary/5' : ''" :data-day="d"
                   @dragover="onDragOver(p.id, d, $event)" @dragleave="over === key(p.id, d) && (over = null)" @drop.prevent="onDrop(p.id, d)"
                 >
                   <div
@@ -343,11 +392,12 @@ const assignMenu = (t: Task) => [people.value.map(p => ({ label: p.name, onSelec
                       <span class="truncate">Busy {{ h(b.hours) }}</span>
                     </div>
                     <div
-                      v-for="b in cellBlocks(p.id, d)" :key="b.t.id" draggable="true"
-                      class="cursor-grab rounded-md border border-default border-l-2 bg-default px-1.5 py-1 text-xs hover:bg-elevated active:cursor-grabbing"
-                      :class="[projectColor(b.t.project_id), dragging?.task.id === b.t.id ? 'opacity-40' : '']"
+                      v-for="b in cellBlocks(p.id, d)" :key="b.t.id" :draggable="!resizing"
+                      class="relative cursor-grab rounded-md border border-default border-l-2 bg-default px-1.5 py-1 pr-2.5 text-xs hover:bg-elevated active:cursor-grabbing"
+                      :class="[projectColor(b.t.project_id), dragging?.task.id === b.t.id ? 'opacity-40' : '', resizing?.task.id === b.t.id ? 'border-primary bg-primary/10' : '']"
                       @dragstart="onDragStart(b.t, p.id, $event)" @dragend="reset"
                     >
+                      <span class="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md hover:bg-primary/30" title="Drag to change the due date" @pointerdown.stop.prevent="startResize(b.t, $event)" />
                       <NuxtLink :to="`/tasks/${b.t.id}`" class="block truncate font-medium hover:underline" :title="b.t.title" @click.stop>{{ b.t.title }}</NuxtLink>
                       <div v-if="zoom === 'week'" class="truncate text-[11px] text-muted">{{ projectLabel(b.t) }}</div>
                       <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
