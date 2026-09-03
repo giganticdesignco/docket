@@ -16,6 +16,7 @@ const links = computed(() => [
   ...(can('manage_settings')
     ? [
         { label: 'Expense categories', to: '/admin/expense-categories' },
+        { label: 'Departments', to: '/admin/departments' },
         { label: 'Invoices and quotes', to: '/admin/invoice-settings' },
         { label: 'Estimator', to: '/admin/estimator' },
         { label: 'Page templates', to: '/admin/page-templates' },

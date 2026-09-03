@@ -1630,3 +1630,12 @@ templates: CRUD with the items edited inline, rewritten whole on save.
 manage_reference) adds the task types to the project and one task per
 item; `ProjectForm` calls it after a create when "Start from" is set.
 Applying to an existing project is not built. Guide updated.
+
+## Departments on projects, Phase 4 item 5 (2026-09-03)
+
+`departments` lookup (name, is_active; RLS like expense_categories),
+seeded with ClickUp's Department field values, and
+`projects.department_id`. Settings, Departments is the CRUD page; the
+project form has a Department select; the Projects list has a
+department filter and column. Existing projects start unassigned.
+Guide updated.

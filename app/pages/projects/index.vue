@@ -8,6 +8,7 @@ const isAdmin = computed(() => can('manage_reference'))
 
 const showInactive = ref(false)
 const clientFilter = ref<string | undefined>()
+const departmentFilter = ref<string | undefined>()
 const creating = ref(false)
 
 const __ad1 = useAsyncData('clients-for-projects', async () => {
@@ -19,7 +20,7 @@ const __ad1 = useAsyncData('clients-for-projects', async () => {
 const __ad2 = useAsyncData('projects', async () => {
   const { data, error } = await supabase
     .from('projects')
-    .select('*, clients(name)')
+    .select('*, clients(name), departments(name)')
     .order('name')
   if (error) throw error
   return data
@@ -36,11 +37,21 @@ const __ad4 = useAsyncData('people-for-tasks', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const __ad5 = useAsyncData('departments-for-projects', async () => {
+  const { data, error } = await supabase.from('departments').select('id, name').eq('is_active', true).order('name')
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
 const { data: clients } = __ad1
 const { data: projects, refresh } = __ad2
 const { data: burn } = __ad3
 const { data: people } = __ad4
+const { data: departments } = __ad5
+const departmentOptions = computed(() => [
+  { label: 'All departments', value: undefined },
+  ...(departments.value ?? []).map(d => ({ label: d.name, value: d.id })),
+])
 const burnById = computed(() => new Map((burn.value ?? []).map(b => [b.project_id, b])))
 
 // Percent of the budget used: by hours when the project has an hours
@@ -58,7 +69,8 @@ const rows = computed(() =>
   (projects.value ?? [])
     .filter(p =>
       (showInactive.value || p.is_active)
-      && (!clientFilter.value || p.client_id === clientFilter.value),
+      && (!clientFilter.value || p.client_id === clientFilter.value)
+      && (!departmentFilter.value || p.department_id === departmentFilter.value),
     )
     .map(p => ({ ...p, pct: usedPct(p) })),
 )
@@ -80,6 +92,7 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
     <div class="flex items-center gap-4">
       <h1 class="text-2xl font-semibold">Projects</h1>
       <USelectMenu v-model="clientFilter" :items="clientOptions" value-key="value" class="ml-auto w-56" placeholder="All clients" />
+      <USelectMenu v-if="departments?.length" v-model="departmentFilter" :items="departmentOptions" value-key="value" class="w-44" placeholder="All departments" />
       <USwitch v-model="showInactive" label="Show inactive" size="sm" />
       <UButton v-if="isAdmin" icon="i-lucide-plus" @click="creating = true;">New project</UButton>
     </div>
@@ -90,6 +103,7 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
           <tr class="border-b border-default">
             <th class="px-4 py-2 font-medium">Project</th>
             <th class="px-4 py-2 font-medium">Client</th>
+            <th class="px-4 py-2 font-medium">Department</th>
             <th class="px-4 py-2 font-medium">Code</th>
             <th class="px-4 py-2 font-medium">Billing</th>
             <th class="px-4 py-2 font-medium text-right">Budget</th>
@@ -101,6 +115,7 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
           <tr v-for="p in rows" :key="p.id" class="border-b border-default last:border-0">
             <td class="px-4 py-2"><NuxtLink :to="`/projects/${p.id}`" class="font-medium hover:underline">{{ p.name }}</NuxtLink></td>
             <td class="px-4 py-2"><NuxtLink :to="`/clients/${p.client_id}`" class="hover:underline">{{ p.clients?.name }}</NuxtLink></td>
+            <td class="px-4 py-2 text-muted">{{ p.departments?.name }}</td>
             <td class="px-4 py-2 text-muted">{{ p.code }}</td>
             <td class="px-4 py-2">{{ billingLabel(p.billing_method) }}</td>
             <td class="px-4 py-2 text-right tabular-nums">{{ budget(p) }}</td>
@@ -118,7 +133,7 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="7" class="px-4 py-8 text-center text-muted">No projects match.</td>
+            <td colspan="8" class="px-4 py-8 text-center text-muted">No projects match.</td>
           </tr>
         </tbody>
       </table>

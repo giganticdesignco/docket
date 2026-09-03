@@ -10,6 +10,7 @@ const cards = [
   { label: 'Task statuses', to: '/admin/task-statuses', icon: 'i-lucide-circle-dot', text: 'The status list tasks move through, and which ones mean done, paused, or with the client.' },
   { label: 'Task types', to: '/admin/tasks', icon: 'i-lucide-list-checks', text: 'The billing task types (Design, Development, and so on) and whether they bill by default.' },
   { label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-tags', text: 'Categories for expenses and receipts.' },
+  { label: 'Departments', to: '/admin/departments', icon: 'i-lucide-building', text: 'The labels a project can carry (Web, Creative, Photo/Video) so the list filters to one.' },
   { label: 'Invoices and quotes', to: '/admin/invoice-settings', icon: 'i-lucide-file-text', text: 'Company block, payment instructions, numbering, terms, and overdue reminders.' },
   { label: 'Estimator', to: '/admin/estimator', icon: 'i-lucide-calculator', text: 'Materials, roll sizes, costs, and the markup rules behind signage estimates.' },
   { label: 'Page templates', to: '/admin/page-templates', icon: 'i-lucide-layout-template', text: 'The kinds of page a website quote is built from, with the hours each usually takes.' },

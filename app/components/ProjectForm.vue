@@ -28,7 +28,19 @@ const state = reactive({
   client_visible: props.project?.client_visible ?? false,
   is_active: props.project?.is_active ?? true,
   lead_id: props.project?.lead_id ?? LEAD_NONE,
+  department_id: props.project?.department_id ?? LEAD_NONE,
 })
+// Departments label the project for the list's filter. Active ones,
+// plus whichever this project already has.
+const { data: departments } = await useAsyncData('departments-for-form', async () => {
+  const { data, error } = await supabase.from('departments').select('id, name, is_active').order('name')
+  if (error) throw error
+  return data
+}, fresh)
+const departmentOptions = computed(() => [
+  { label: 'None', value: LEAD_NONE },
+  ...(departments.value ?? []).filter(d => d.is_active || d.id === props.project?.department_id).map(d => ({ label: d.name, value: d.id })),
+])
 const leadOptions = computed(() => [{ label: 'Nobody yet', value: LEAD_NONE }, ...props.people.map(p => ({ label: p.full_name, value: p.id }))])
 const saving = ref(false)
 // Clients made from the picker join the list the parent handed us.
@@ -121,6 +133,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     client_visible: state.client_visible,
     is_active: state.is_active,
     lead_id: state.lead_id === LEAD_NONE ? null : state.lead_id,
+    department_id: state.department_id === LEAD_NONE ? null : state.department_id,
   }
   const query = props.project
     ? supabase.from('projects').update(values).eq('id', props.project.id)
@@ -157,9 +170,14 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <USelect v-model="state.billing_method" :items="BILLING_METHODS" class="w-full" />
       </UFormField>
     </div>
-    <UFormField label="Lead" name="lead_id" help="Who owns this project day to day.">
-      <USelectMenu v-model="state.lead_id" :items="leadOptions" value-key="value" class="w-full" />
-    </UFormField>
+    <div class="grid grid-cols-2 gap-4">
+      <UFormField label="Lead" name="lead_id" help="Who owns this project day to day.">
+        <USelectMenu v-model="state.lead_id" :items="leadOptions" value-key="value" class="w-full" />
+      </UFormField>
+      <UFormField label="Department" name="department_id" help="What kind of work it is, for the list's filter.">
+        <USelect v-model="state.department_id" :items="departmentOptions" class="w-full" />
+      </UFormField>
+    </div>
     <div class="grid grid-cols-3 gap-4">
       <UFormField label="Hourly rate" name="hourly_rate">
         <UInput v-model="state.hourly_rate" type="number" step="0.01" min="0" class="w-full" placeholder="Person's rate" />

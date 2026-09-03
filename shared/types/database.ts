@@ -484,6 +484,24 @@ export type Database = {
         }
         Relationships: []
       }
+      departments: {
+        Row: {
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
       expense_categories: {
         Row: {
           harvest_id: number | null
@@ -1502,6 +1520,7 @@ export type Database = {
           client_id: string
           code: string | null
           created_at: string
+          department_id: string | null
           harvest_id: number | null
           hourly_rate: number | null
           id: string
@@ -1518,6 +1537,7 @@ export type Database = {
           client_id: string
           code?: string | null
           created_at?: string
+          department_id?: string | null
           harvest_id?: number | null
           hourly_rate?: number | null
           id?: string
@@ -1534,6 +1554,7 @@ export type Database = {
           client_id?: string
           code?: string | null
           created_at?: string
+          department_id?: string | null
           harvest_id?: number | null
           hourly_rate?: number | null
           id?: string
@@ -1543,6 +1564,13 @@ export type Database = {
           server_path?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "projects_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "projects_client_id_fkey"
             columns: ["client_id"]

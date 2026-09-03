@@ -123,6 +123,9 @@ sees hours.
   role. Pick one under "Start from" on the New project form and the
   tasks are made with those hours as estimates once the project exists.
   Quoted websites get their tasks from the sitemap instead.
+- **Departments** (Settings, Departments) label a project Web, Creative,
+  Photo/Video, and so on. Set one on the project form; the Projects
+  list has a filter for it next to the client filter.
 - **A client** has projects, contacts who can sign in to the portal,
   retainers, and a year-to-date strip with last year alongside.
 - **A project** has a billing method (hourly, fixed, retainer,

@@ -3384,3 +3384,19 @@ begin
   return n;
 end $$;
 revoke execute on function public.apply_project_template(uuid, uuid) from public, anon;
+
+-- Phase 4, item 5: departments. A label on a project (Web, Signage...)
+-- so the list can be filtered to one. Seeded with the Department field
+-- ClickUp used; admins edit the list under Settings.
+create table departments (
+  id        uuid primary key default gen_random_uuid(),
+  name      text not null unique,
+  is_active boolean not null default true
+);
+insert into departments (name) values ('Web'), ('Creative/Design'), ('Photo/Video'), ('Digital/Lead Gen'), ('Copywriting');
+alter table projects add column department_id uuid references departments(id) on delete restrict;
+create index projects_department on projects (department_id);
+alter table departments enable row level security;
+create policy read_all on departments for select to authenticated using (not (select is_client()));
+create policy manage_settings on departments for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+grant select, insert, update, delete on departments to authenticated;
