@@ -8,7 +8,8 @@ import type { Columns } from '~/composables/useColumns'
 const props = defineProps<{ cols: Columns<Row>, only?: Columns<Row>['visible'] }>()
 const shown = computed(() => props.only ?? props.cols.visible)
 const menu = computed(() => [
-  props.cols.all.map(c => ({ label: c.label, type: 'checkbox' as const, checked: !props.cols.isHidden(c.key), disabled: !!c.always, onUpdateChecked: () => { props.cols.toggle(c.key) } })),
+  // preventDefault on select keeps the menu open, so several columns can be ticked in one go.
+  props.cols.all.map(c => ({ label: c.label, type: 'checkbox' as const, checked: !props.cols.isHidden(c.key), disabled: !!c.always, onUpdateChecked: () => { props.cols.toggle(c.key) }, onSelect: (e: Event) => { e.preventDefault() } })),
   [{ label: 'Reset columns', icon: 'i-lucide-rotate-ccw', onSelect: () => { props.cols.reset() } }],
 ])
 const dragging = ref<string | null>(null)
