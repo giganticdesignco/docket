@@ -1815,3 +1815,13 @@ tasks, anyone with time on the client's projects in the last 90 days,
 from `work_items` and `time_entries` scoped by RLS) and Tasks (open
 tasks across the client's projects, first 25, with status dot,
 assignees, due). No schema change. Guide updated.
+
+## Column permissions (2026-09-03)
+
+`ColumnDef.permission` hides a column entirely (menu included) from
+anyone without that permission; `useColumns` filters defs through
+`useCurrentUser().can` after `load()`. Applied see_money to Projects
+Budget and Remaining, People Default rate, Quotes Total, Invoices Total
+and Outstanding. UI-level only: time and invoice amounts are already
+null without see_money through their views, but `projects.budget_*`
+are base-table columns readable by anyone who can read the project.

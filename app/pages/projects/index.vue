@@ -102,8 +102,9 @@ const cols = await useColumns<Row>('projects', [
   { key: 'department', label: 'Department', sort: r => r.departments?.name },
   { key: 'code', label: 'Code', sort: r => r.code },
   { key: 'billing', label: 'Billing', sort: r => r.billing_method },
-  { key: 'budget', label: 'Budget', align: 'right', sort: r => r.budget_hours ?? r.budget_amount },
-  { key: 'remaining', label: 'Remaining', sort: r => (r.pct == null ? null : 100 - r.pct), class: 'w-48' },
+  // Dollar budgets are money; hour budgets are not, but the column mixes them.
+  { key: 'budget', label: 'Budget', align: 'right', sort: r => r.budget_hours ?? r.budget_amount, permission: 'see_money' },
+  { key: 'remaining', label: 'Remaining', sort: r => (r.pct == null ? null : 100 - r.pct), class: 'w-48', permission: 'see_money' },
   { key: 'tasks', label: 'Tasks', align: 'right', sort: r => r.taskCount },
   { key: 'assigned', label: 'Assigned', sort: r => r.assigned.join(', ') },
   { key: 'status', label: 'Status', sort: r => (r.is_active ? 0 : 1) },

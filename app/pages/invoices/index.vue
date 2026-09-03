@@ -45,8 +45,8 @@ const cols = await useColumns<Row>('invoices', [
   { key: 'subject', label: 'Subject', sort: i => i.subject },
   { key: 'issued', label: 'Issued', sort: i => i.issue_date },
   { key: 'due', label: 'Due', sort: i => i.due_date },
-  { key: 'total', label: 'Total', align: 'right', sort: i => i.total },
-  { key: 'outstanding', label: 'Outstanding', align: 'right', sort: i => (i.status === 'sent' ? i.due_amount : null) },
+  { key: 'total', label: 'Total', align: 'right', sort: i => i.total, permission: 'see_money' },
+  { key: 'outstanding', label: 'Outstanding', align: 'right', sort: i => (i.status === 'sent' ? i.due_amount : null), permission: 'see_money' },
   { key: 'status', label: 'Status', sort: i => rank[i.status] ?? 9 },
 ])
 const rows = computed(() => cols.sorted((invoices.value ?? [])

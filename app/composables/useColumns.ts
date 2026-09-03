@@ -10,9 +10,13 @@
 //   <td v-for="c in cols.visible" ...>   the page renders each cell by c.key
 //   cols.sorted(rows)                    the rows in the chosen order
 
+import type { PermissionKey } from '~~/shared/types/app'
+
 export type ColumnDef<Row> = {
   key: string
   label: string
+  /** Only people with this permission get the column at all (not even in the menu). */
+  permission?: PermissionKey
   /** Value to sort by; omit for an unsortable column. */
   sort?: (row: Row) => string | number | null | undefined
   align?: 'left' | 'right'
@@ -25,7 +29,11 @@ export type ColumnDef<Row> = {
 }
 export type SortState = { key: string, dir: 'asc' | 'desc' } | null
 
-export async function useColumns<Row>(key: string, defs: ColumnDef<Row>[]) {
+export async function useColumns<Row>(key: string, allDefs: ColumnDef<Row>[]) {
+  const { can, load } = useCurrentUser()
+  await load()
+  // Columns behind a permission this person lacks do not exist for them.
+  const defs = allDefs.filter(d => !d.permission || can(d.permission))
   const view = await useViewState(`columns:${key}`, {
     order: defs.map(d => d.key),
     hidden: defs.filter(d => d.hidden).map(d => d.key),

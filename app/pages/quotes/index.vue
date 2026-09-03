@@ -42,7 +42,7 @@ const cols = await useColumns<Row>('quotes', [
   { key: 'title', label: 'Title', sort: q => q.title },
   { key: 'owner', label: 'Owner', sort: q => owner(q) },
   { key: 'valid', label: 'Valid until', sort: q => q.valid_until },
-  { key: 'total', label: 'Total', align: 'right', sort: q => q.subtotal },
+  { key: 'total', label: 'Total', align: 'right', sort: q => q.subtotal, permission: 'see_money' },
   { key: 'status', label: 'Status', sort: q => badge(q).label },
 ])
 const rows = computed(() => cols.sorted((quotes.value ?? []).filter(q => filter.value === 'all' || q.status === filter.value)))

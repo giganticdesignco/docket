@@ -160,6 +160,8 @@ sees hours.
   gear stays put. Docket remembers your
   arrangement. The Projects list also shows each project's open task
   count and who is on those tasks.
+  Money columns (budgets, totals, rates) only exist for people with
+  the see money permission; nobody else sees them or can turn them on.
 
 - **Project templates** (Settings, Project templates) are a starting set
   of tasks for a kind of job: title, task type, hours, and a suggested
