@@ -108,7 +108,6 @@ async function confirmDelete() {
         <UButton icon="i-lucide-chevron-right" variant="ghost" color="neutral" size="sm" aria-label="Next year" @click="year++;" />
       </div>
       <USwitch v-if="isAdmin" v-model="everyone" label="Everyone" size="sm" />
-      <ColumnsMenu :cols="cols" />
       <UButton icon="i-lucide-plus" @click="creating = true;">New expense</UButton>
     </div>
 

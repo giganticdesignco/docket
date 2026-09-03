@@ -128,7 +128,6 @@ async function create() {
     <template v-if="layout === 'list'">
       <div class="flex flex-wrap gap-1">
         <UButton v-for="f in filters" :key="f.value" size="xs" :variant="filter === f.value ? 'solid' : 'ghost'" :color="filter === f.value ? 'primary' : 'neutral'" @click="filter = f.value;">{{ f.label }}</UButton>
-        <span class="ml-auto"><ColumnsMenu :cols="cols" /></span>
       </div>
 
       <UCard :ui="{ body: 'p-0 sm:p-0' }">

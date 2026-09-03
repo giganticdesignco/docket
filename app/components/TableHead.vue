@@ -2,11 +2,15 @@
 import type { Columns } from '~/composables/useColumns'
 
 // The thead for a table using useColumns: click a header to sort, drag
-// one onto another to reorder. The Columns button is ColumnsMenu, in
-// the page toolbar. Pass a trailing slot for a header cell the page
-// adds itself (an actions column).
+// one onto another to reorder, and the gear pinned at the right end
+// shows or hides columns. Pass a trailing slot for a header cell the
+// page adds itself (an actions column).
 const props = defineProps<{ cols: Columns<Row>, only?: Columns<Row>['visible'] }>()
 const shown = computed(() => props.only ?? props.cols.visible)
+const menu = computed(() => [
+  props.cols.all.map(c => ({ label: c.label, type: 'checkbox' as const, checked: !props.cols.isHidden(c.key), disabled: !!c.always, onUpdateChecked: () => { props.cols.toggle(c.key) } })),
+  [{ label: 'Reset columns', icon: 'i-lucide-rotate-ccw', onSelect: () => { props.cols.reset() } }],
+])
 const dragging = ref<string | null>(null)
 const over = ref<string | null>(null)
 function onDrop(to: string) {
@@ -30,7 +34,13 @@ function onDrop(to: string) {
         </button>
         <span v-else>{{ c.label }}</span>
       </th>
-      <th class="w-px px-2 py-1"><slot name="trailing" /></th>
+      <!-- Pinned to the right edge, so the gear stays on screen when the table scrolls sideways. -->
+      <th class="sticky right-0 z-10 w-px whitespace-nowrap bg-default px-2 py-1 text-right">
+        <slot name="trailing" />
+        <UDropdownMenu :items="menu" :content="{ align: 'end' }">
+          <UButton icon="i-lucide-settings-2" variant="ghost" color="neutral" size="xs" class="text-default" aria-label="Choose columns" title="Show or hide columns. Drag a header to move it; click one to sort." />
+        </UDropdownMenu>
+      </th>
     </tr>
   </thead>
 </template>

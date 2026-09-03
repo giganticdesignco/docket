@@ -128,7 +128,6 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
       <USelectMenu v-model="clientFilter" :items="clientOptions" value-key="value" class="ml-auto w-56" placeholder="All clients" />
       <USelectMenu v-if="departments?.length" v-model="departmentFilter" :items="departmentOptions" value-key="value" class="w-44" placeholder="All departments" />
       <USwitch v-model="showInactive" label="Show inactive" size="sm" />
-      <ColumnsMenu :cols="cols" />
       <UButton v-if="isAdmin" icon="i-lucide-plus" @click="creating = true;">New project</UButton>
     </div>
 

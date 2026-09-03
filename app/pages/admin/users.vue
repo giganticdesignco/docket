@@ -99,7 +99,6 @@ function done() {
         </p>
       </div>
       <USwitch v-model="showInactive" label="Show inactive" size="sm" class="ml-auto shrink-0" />
-      <ColumnsMenu :cols="cols" />
       <UButton icon="i-lucide-user-plus" @click="adding = true;">Add person</UButton>
     </div>
 

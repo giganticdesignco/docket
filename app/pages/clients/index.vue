@@ -46,7 +46,6 @@ function onSaved(_c: Tables<'clients'>) {
     <div class="flex items-center gap-4">
       <h1 class="text-2xl font-semibold">Clients</h1>
       <USwitch v-model="showInactive" label="Show inactive" size="sm" class="ml-auto" />
-      <ColumnsMenu :cols="cols" />
       <UButton v-if="isAdmin" icon="i-lucide-plus" @click="creating = true;">New client</UButton>
     </div>
 
