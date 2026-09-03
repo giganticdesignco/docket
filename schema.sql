@@ -185,9 +185,10 @@ begin
   if auth.uid() is not null and not public.has_permission('manage_people') then
     if new.role         is distinct from old.role
     or new.default_rate is distinct from old.default_rate
+    or new.cost_rate    is distinct from old.cost_rate
     or new.is_active    is distinct from old.is_active
     or new.email        is distinct from old.email then
-      raise exception 'Only admins can change role, default_rate, is_active, or email';
+      raise exception 'Only admins can change role, default_rate, cost_rate, is_active, or email';
     end if;
   end if;
   return new;
@@ -1380,7 +1381,17 @@ select
     where td.user_id = pr.id
       and td.spent_on >= w.week_start
       and td.spent_on <  w.week_start + 7
-  ), 0) as logged_hours
+  ), 0) as logged_hours,
+  -- Quoted but not yet won: scope lines on draft or sent quotes that name
+  -- this person and this week. Gone once the quote is decided, so it is
+  -- never counted twice against the tasks acceptance creates.
+  coalesce((
+    select sum(l.hours) from quote_line_items l
+    join quotes qu on qu.id = l.quote_id
+    where l.assignee_id = pr.id
+      and l.target_week = w.week_start
+      and qu.status in ('draft', 'sent')
+  ), 0) as forecast_hours
 from profiles pr
 cross join (
   select generate_series(
@@ -2435,7 +2446,7 @@ end $$;
 -- task type is assigned to the project with the quoted rate.
 create or replace function public.accept_quote(p_quote_id uuid, p_name text, p_email text default null) returns uuid
 language plpgsql security definer set search_path = '' as $$
-declare q record; v_project uuid; v_hours numeric; r record;
+declare q record; v_project uuid; v_item uuid; v_hours numeric; r record;
 begin
   if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
   if coalesce(trim(p_name), '') = '' then raise exception 'A name is required to accept'; end if;
@@ -2456,18 +2467,24 @@ begin
     on conflict do nothing;
   end loop;
 
-  -- Every sitemap page becomes a task, with the page's hours as the estimate.
+  -- Every sitemap page becomes a task, with the page's hours as the
+  -- estimate, assigned to whoever the page's scope line names.
   for r in
-    select n.title, n.path, coalesce(n.hours, t.hours) as hours, t.name as template_name, n.sort_order
+    select n.title, n.path, coalesce(n.hours, t.hours) as hours, t.name as template_name, n.sort_order, l.assignee_id
     from public.quote_sitemap_nodes n
     left join public.page_templates t on t.id = n.template_id
+    left join public.quote_line_items l on l.id = n.line_item_id
     where n.quote_id = q.id
     order by n.sort_order
   loop
     insert into public.work_items (project_id, title, description, estimate_hours, created_by)
     values (v_project, r.title,
             concat_ws(E'\n', nullif(r.path, ''), case when r.template_name is not null then r.template_name || ' page' end, 'From quote ' || q.number),
-            nullif(r.hours, 0), q.created_by);
+            nullif(r.hours, 0), q.created_by)
+    returning id into v_item;
+    if r.assignee_id is not null then
+      insert into public.work_item_assignees (work_item_id, user_id) values (v_item, r.assignee_id) on conflict do nothing;
+    end if;
   end loop;
 
   update public.quotes set status = 'accepted', accepted_at = now(), accepted_by = trim(p_name),
@@ -3283,3 +3300,30 @@ grant select, insert, update, delete on page_templates to authenticated;
 
 -- Who owns a project day to day. One person, optional.
 alter table projects add column lead_id uuid references profiles(id) on delete set null;
+
+-- Phase 4, item 2: what a task type usually costs on a quote, what a
+-- person costs the company, who a scope line is for and when.
+alter table tasks add column default_rate numeric(10,2),        -- prefills a quote line's rate
+                  add column default_description text;          -- and its description
+alter table profiles add column cost_rate numeric(10,2);        -- internal cost per hour; margin is rate minus this
+alter table quote_line_items add column assignee_id uuid references profiles(id) on delete set null,
+                             add column target_week date;       -- the Monday the work should land; capacity shows it
+create index quote_line_items_assignee on quote_line_items (assignee_id);
+
+-- Cost and margin per scope line, for people who may see money. Cost
+-- rates stay in Postgres: quote_line_items is readable by all staff, so
+-- the join happens here, not in the browser. Lines with no person, no
+-- hours, or a person with no cost rate are left out.
+create or replace function public.quote_line_margins(p_quote_id uuid)
+returns table (line_item_id uuid, cost numeric, margin numeric)
+language sql stable security definer
+set search_path = ''
+as $$
+  select l.id, round(l.hours * p.cost_rate, 2), round(l.amount - l.hours * p.cost_rate, 2)
+  from public.quote_line_items l
+  join public.profiles p on p.id = l.assignee_id
+  where l.quote_id = p_quote_id
+    and (select public.has_permission('see_money'))
+    and l.hours is not null and p.cost_rate is not null;
+$$;
+revoke execute on function public.quote_line_margins(uuid) from public, anon;

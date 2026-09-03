@@ -1324,6 +1324,7 @@ export type Database = {
       profiles: {
         Row: {
           client_id: string | null
+          cost_rate: number | null
           created_at: string
           default_rate: number | null
           email: string
@@ -1335,6 +1336,7 @@ export type Database = {
         }
         Insert: {
           client_id?: string | null
+          cost_rate?: number | null
           created_at?: string
           default_rate?: number | null
           email: string
@@ -1346,6 +1348,7 @@ export type Database = {
         }
         Update: {
           client_id?: string | null
+          cost_rate?: number | null
           created_at?: string
           default_rate?: number | null
           email?: string
@@ -1502,6 +1505,7 @@ export type Database = {
         Row: {
           template_id: string | null
           amount: number
+          assignee_id: string | null
           created_at: string
           description: string
           details: Json | null
@@ -1510,11 +1514,13 @@ export type Database = {
           quote_id: string
           rate: number | null
           sort_order: number
+          target_week: string | null
           task_id: string | null
         }
         Insert: {
           template_id?: string | null
           amount?: number
+          assignee_id?: string | null
           created_at?: string
           description: string
           details?: Json | null
@@ -1523,11 +1529,13 @@ export type Database = {
           quote_id: string
           rate?: number | null
           sort_order?: number
+          target_week?: string | null
           task_id?: string | null
         }
         Update: {
           template_id?: string | null
           amount?: number
+          assignee_id?: string | null
           created_at?: string
           description?: string
           details?: Json | null
@@ -1536,9 +1544,17 @@ export type Database = {
           quote_id?: string
           rate?: number | null
           sort_order?: number
+          target_week?: string | null
           task_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "quote_line_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quote_line_items_quote_id_fkey"
             columns: ["quote_id"]
@@ -2019,6 +2035,8 @@ export type Database = {
       }
       tasks: {
         Row: {
+          default_description: string | null
+          default_rate: number | null
           harvest_id: number | null
           id: string
           is_active: boolean
@@ -2027,6 +2045,8 @@ export type Database = {
           qbo_item_id: string | null
         }
         Insert: {
+          default_description?: string | null
+          default_rate?: number | null
           harvest_id?: number | null
           id?: string
           is_active?: boolean
@@ -2035,6 +2055,8 @@ export type Database = {
           qbo_item_id?: string | null
         }
         Update: {
+          default_description?: string | null
+          default_rate?: number | null
           harvest_id?: number | null
           id?: string
           is_active?: boolean
@@ -2705,6 +2727,7 @@ export type Database = {
           base_hours: number | null
           booked_hours: number | null
           booked_tasks: number | null
+          forecast_hours: number | null
           logged_hours: number | null
           meeting_hours: number | null
           time_off_hours: number | null
@@ -3124,6 +3147,10 @@ export type Database = {
           task_name: string
           user_name: string
         }[]
+      }
+      quote_line_margins: {
+        Args: { p_quote_id: string }
+        Returns: { line_item_id: string; cost: number; margin: number }[]
       }
       resolve_rate: {
         Args: { p_project_id: string; p_task_id: string; p_user_id: string }

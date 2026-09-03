@@ -28,7 +28,7 @@ const __ad3 = useAsyncData(`quote-${id}-nodes`, async () => {
   return data
 }, fresh)
 const __ad4 = useAsyncData('task-types-for-quotes', async () => {
-  const { data, error } = await supabase.from('tasks').select('id, name').eq('is_active', true).order('name')
+  const { data, error } = await supabase.from('tasks').select('id, name, default_rate, default_description').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
@@ -37,20 +37,39 @@ const __ad5 = useAsyncData('page-templates', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
+const __ad6 = useAsyncData('people-for-tasks', async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+// Cost and margin per saved line, for people who see money. Cost rates
+// never reach the browser; the function does the arithmetic.
+const { can } = useCurrentUser()
+const __ad7 = useAsyncData(`quote-${id}-margins`, async () => {
+  const { data, error } = await supabase.rpc('quote_line_margins', { p_quote_id: id })
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
 const { data: templates } = __ad5
 const { data: quote, refresh: refreshQuote } = __ad1
 const { data: lines, refresh: refreshLines } = __ad2
 const { data: nodes, refresh: refreshNodes } = __ad3
 const { data: taskTypes } = __ad4
+const { data: people } = __ad6
+const { data: margins, refresh: refreshMargins } = __ad7
 const { data: doc, refresh: refreshDoc } = await useAsyncData(`quote-${id}-doc`, () => $fetch<QuoteDoc>(`/api/q/${quote.value!.public_token}`), fresh)
 
 useHead({ title: () => (quote.value ? `Quote ${quote.value.number}` : 'Quote') })
 useAssistantScreen(() => ({ quote: quote.value ? `Quote ${quote.value.number}` : undefined, client: quote.value?.clients?.name }))
 async function refreshAll() {
-  await Promise.all([refreshQuote(), refreshLines(), refreshNodes()])
+  await Promise.all([refreshQuote(), refreshLines(), refreshNodes(), refreshMargins()])
   await refreshDoc()
 }
+const seeMoney = computed(() => can('see_money'))
+const marginFor = (lineId: string) => margins.value?.find(m => m.line_item_id === lineId)
+const marginTotal = computed(() => round2((margins.value ?? []).reduce((s, m) => s + m.margin, 0)))
+const marginLines = computed(() => (margins.value ?? []).length)
 
 const editable = computed(() => quote.value?.status === 'draft' || quote.value?.status === 'sent')
 const today = todayString()
@@ -66,7 +85,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
 
 // ---------- editor ----------
 
-type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null }
+type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null, assignee_id: string | null, target_week: string }
 type NodeDraft = { id: string, parent_id: string | null, line_item_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
 const form = reactive({ title: '', intro: '', terms: '', valid_until: '' })
 const draftLines = ref<LineDraft[]>([])
@@ -82,7 +101,7 @@ function loadEditor() {
   form.intro = q.intro ?? ''
   form.terms = q.terms ?? ''
   form.valid_until = q.valid_until ?? ''
-  draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id }))
+  draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id, assignee_id: l.assignee_id, target_week: l.target_week ?? '' }))
   draftNodes.value = (nodes.value ?? []).map(n => ({ id: n.id, parent_id: n.parent_id, line_item_id: n.line_item_id, title: n.title, path: n.path ?? '', template: n.template ?? '', template_id: n.template_id, hours: n.hours }))
   removedLines.clear()
   removedNodes.clear()
@@ -95,9 +114,23 @@ const dirty = computed(() => JSON.stringify([form, draftLines.value, draftNodes.
 const lineAmount = (l: LineDraft) => (l.hours !== '' && l.rate !== '' ? round2(Number(l.hours) * Number(l.rate)) : Number(l.amount) || 0)
 const editorTotal = computed(() => round2(draftLines.value.reduce((s, l) => s + lineAmount(l), 0)))
 const taskOptions = computed(() => [{ label: 'No task type', value: '__none__' }, ...(taskTypes.value ?? []).map(t => ({ label: t.name, value: t.id }))])
+const peopleOptions = computed(() => [{ label: 'Nobody yet', value: '__none__' }, ...(people.value ?? []).map(p => ({ label: p.full_name, value: p.id }))])
 
 function addLine() {
-  draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '', template_id: null })
+  draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '', template_id: null, assignee_id: null, target_week: '' })
+}
+// Picking a task type fills in its usual rate and wording where the line
+// is still blank; typed values are left alone.
+function setTask(l: LineDraft, value: string) {
+  l.task_id = value === '__none__' ? null : value
+  const t = taskTypes.value?.find(x => x.id === l.task_id)
+  if (!t) return
+  if (l.rate === '' && t.default_rate != null) l.rate = t.default_rate
+  if (!l.description.trim() && t.default_description) l.description = t.default_description
+}
+// A week is its Monday, whichever day was picked.
+function setWeek(l: LineDraft, value: string) {
+  l.target_week = value ? weekDays(value)[0]! : ''
 }
 
 // ---------- assistant ----------
@@ -123,7 +156,7 @@ async function draftLinesFromBrief() {
   drafting.value = 'lines'
   try {
     const r = await $fetch<{ lines: { description: string, task_id: string | null, hours: number, rate: number }[], notes: string }>('/api/ai/quote-draft', { method: 'POST', body: { quoteId: id, brief: brief.value } })
-    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '', template_id: null })
+    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '', template_id: null, assignee_id: null, target_week: '' })
     briefNotes.value = r.notes
     briefOpen.value = false
     toast.add({ title: `${r.lines.length} lines proposed`, description: 'Edit them, then save the quote.', color: 'success' })
@@ -182,7 +215,7 @@ function priceSitemap() {
       updated++
     } else {
       const sameTask = draftLines.value.find(l => l.task_id && l.task_id === g.template!.task_id && l.rate !== '')
-      line = { id: crypto.randomUUID(), description: desc, task_id: g.template.task_id, hours, rate: g.template.rate ?? (sameTask ? sameTask.rate : ''), amount: '', template_id: g.template.id }
+      line = { id: crypto.randomUUID(), description: desc, task_id: g.template.task_id, hours, rate: g.template.rate ?? (sameTask ? sameTask.rate : ''), amount: '', template_id: g.template.id, assignee_id: null, target_week: '' }
       draftLines.value.push(line)
       made++
     }
@@ -216,6 +249,7 @@ async function save(): Promise<boolean> {
       const { error } = await supabase.from('quote_line_items').upsert(draftLines.value.map((l, i) => ({
         id: l.id, quote_id: id, sort_order: i + 1, description: l.description.trim(), task_id: l.task_id, template_id: l.template_id,
         hours: l.hours === '' ? null : Number(l.hours), rate: l.rate === '' ? null : Number(l.rate), amount: lineAmount(l),
+        assignee_id: l.assignee_id, target_week: l.assignee_id && l.target_week ? l.target_week : null,
       })), { onConflict: 'id' })
       if (error) throw error
     }
@@ -369,10 +403,12 @@ async function deleteQuote() {
           <thead class="text-left text-muted">
             <tr class="border-b border-default">
               <th class="px-4 py-2 font-medium">Description</th>
-              <th class="w-44 px-2 py-2 font-medium">Task type</th>
-              <th class="w-24 px-2 py-2 text-right font-medium">Hours</th>
-              <th class="w-28 px-2 py-2 text-right font-medium">Rate</th>
-              <th class="w-32 px-2 py-2 text-right font-medium">Amount</th>
+              <th class="w-40 px-2 py-2 font-medium">Task type</th>
+              <th class="w-40 px-2 py-2 font-medium" title="Who will do it. Their week shows on Capacity as quoted, not yet won.">Who, week</th>
+              <th class="w-20 px-2 py-2 text-right font-medium">Hours</th>
+              <th class="w-24 px-2 py-2 text-right font-medium">Rate</th>
+              <th class="w-28 px-2 py-2 text-right font-medium">Amount</th>
+              <th v-if="seeMoney" class="w-24 px-2 py-2 text-right font-medium" title="Amount minus hours at the person's cost rate, as last saved">Margin</th>
               <th class="w-12 px-2 py-2" />
             </tr>
           </thead>
@@ -382,23 +418,33 @@ async function deleteQuote() {
                 <UInput v-model="l.description" class="w-full" size="sm" />
                 <div v-if="pagesFor(l.id)" class="mt-0.5 text-xs text-muted">{{ pagesFor(l.id) }} page{{ pagesFor(l.id) === 1 ? '' : 's' }} in the sitemap</div>
               </td>
-              <td class="px-2 py-1.5"><USelect :model-value="l.task_id ?? '__none__'" :items="taskOptions" size="sm" class="w-full" @update:model-value="l.task_id = $event === '__none__' ? null : ($event as string)" /></td>
+              <td class="px-2 py-1.5"><USelect :model-value="l.task_id ?? '__none__'" :items="taskOptions" size="sm" class="w-full" @update:model-value="setTask(l, $event as string)" /></td>
+              <td class="px-2 py-1.5">
+                <USelect :model-value="l.assignee_id ?? '__none__'" :items="peopleOptions" size="sm" class="w-full" @update:model-value="l.assignee_id = $event === '__none__' ? null : ($event as string)" />
+                <UInput v-if="l.assignee_id" :model-value="l.target_week" type="date" size="sm" class="mt-1 w-full" title="The week the work lands, for Capacity" @update:model-value="setWeek(l, $event as string)" />
+              </td>
               <td class="px-2 py-1.5"><UInput v-model="l.hours" type="number" step="0.25" size="sm" class="w-full" :ui="{ base: 'text-right' }" /></td>
               <td class="px-2 py-1.5"><UInput v-model="l.rate" type="number" step="1" size="sm" class="w-full" :ui="{ base: 'text-right' }" /></td>
               <td class="px-2 py-1.5">
                 <UInput v-if="l.hours === '' || l.rate === ''" v-model="l.amount" type="number" step="0.01" size="sm" class="w-full" :ui="{ base: 'text-right' }" placeholder="flat" />
                 <div v-else class="py-1 text-right tabular-nums">{{ money(lineAmount(l)) }}</div>
               </td>
+              <td v-if="seeMoney" class="px-2 py-1.5 text-right tabular-nums" :class="(marginFor(l.id)?.margin ?? 0) < 0 ? 'text-error' : 'text-muted'">
+                <div v-if="marginFor(l.id)" class="py-1">{{ money(marginFor(l.id)!.margin) }}</div>
+              </td>
               <td class="px-2 py-1.5 text-right"><UButton icon="i-lucide-x" variant="ghost" color="neutral" size="xs" aria-label="Remove line" @click="removeLine(i)" /></td>
             </tr>
             <tr v-if="!draftLines.length">
-              <td colspan="6" class="px-4 py-6 text-center text-muted">No scope lines yet.</td>
+              <td :colspan="seeMoney ? 8 : 7" class="px-4 py-6 text-center text-muted">No scope lines yet.</td>
             </tr>
           </tbody>
           <tfoot>
             <tr class="border-t border-default">
-              <td colspan="4" class="px-4 py-2 text-right font-medium">Total</td>
+              <td colspan="5" class="px-4 py-2 text-right font-medium">Total</td>
               <td class="px-2 py-2 text-right font-semibold tabular-nums">{{ money(editorTotal) }}</td>
+              <td v-if="seeMoney" class="px-2 py-2 text-right tabular-nums" :class="marginTotal < 0 ? 'text-error' : 'text-muted'" :title="marginLines ? `Across the ${marginLines} saved ${marginLines === 1 ? 'line' : 'lines'} with a person and a cost rate` : 'Give a line a person with a cost rate, then save'">
+                {{ marginLines ? money(marginTotal) : '' }}
+              </td>
               <td />
             </tr>
           </tfoot>

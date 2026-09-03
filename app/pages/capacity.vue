@@ -72,6 +72,10 @@ const detail = (c: Cell) => {
   if (k === 'now') return `${h(c.logged_hours)} logged, ${h(c.booked_hours)} planned`
   return c.booked_hours ? `${h(c.booked_hours)} planned in ${c.booked_tasks} ${c.booked_tasks === 1 ? 'task' : 'tasks'}` : 'nothing planned yet'
 }
+// Hours on quotes not yet won, named to this person for this week. Shown
+// on top of the plan, not in it: the tasks arrive if the quote does.
+const forecast = (c: Cell) => (kind(c.week_start!) === 'past' ? 0 : c.forecast_hours ?? 0)
+const forecastPct = (c: Cell) => (available(c) > 0 ? Math.min((used(c) + forecast(c)) / available(c) * 100, 100) : 0)
 const tip = (c: Cell) => [
   `${h(c.base_hours)} a week`,
   c.time_off_hours ? `${h(c.time_off_hours)} off` : '',
@@ -79,6 +83,7 @@ const tip = (c: Cell) => [
   `${h(available(c))} available`,
   `${h(c.logged_hours)} logged`,
   `${h(c.booked_hours)} planned from ${c.booked_tasks} tasks due this week`,
+  forecast(c) ? `${h(forecast(c))} quoted but not yet won` : '',
 ].filter(Boolean).join(', ')
 const baseNote = (p: { cells: Map<string, Cell> }) => { const c = p.cells.get(thisWeek) ?? [...p.cells.values()][0]; return c ? `${h(c.base_hours)} a week` : '' }
 
@@ -140,7 +145,8 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
                 <button v-if="p.cells.get(w)" type="button" class="w-full rounded px-1 text-left hover:bg-elevated" :title="tip(p.cells.get(w)!)" @click="open = { person: p.id, week: w };">
                   <div class="tabular-nums" :class="kind(w) !== 'past' && free(p.cells.get(w)!) < 0 ? 'font-medium text-error' : kind(w) === 'past' ? '' : 'font-medium'">{{ headline(p.cells.get(w)!) }}</div>
                   <UProgress :model-value="Math.min(pct(p.cells.get(w)!), 100)" :color="color(p.cells.get(w)!)" size="xs" class="mt-1" />
-                  <div class="mt-0.5 truncate text-xs text-muted tabular-nums">{{ detail(p.cells.get(w)!) }}</div>
+                  <UProgress v-if="forecast(p.cells.get(w)!)" :model-value="forecastPct(p.cells.get(w)!)" color="neutral" size="xs" class="mt-0.5 opacity-60" />
+                  <div class="mt-0.5 truncate text-xs text-muted tabular-nums">{{ detail(p.cells.get(w)!) }}<span v-if="forecast(p.cells.get(w)!)"> + {{ h(forecast(p.cells.get(w)!)) }} quoted</span></div>
                 </button>
               </td>
             </tr>
@@ -167,6 +173,7 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
         <li><span class="font-medium">Available</span> is a person's weekly hours (People page) minus time off (Time off page, weekdays only) minus meetings from their connected Google Calendar.</li>
         <li><span class="font-medium">Planned</span> is the estimate of each open task due that week, split evenly between its assignees. Completed and on-hold tasks do not count, and a task with no estimate counts as zero, so "nothing planned" can also mean "no estimates yet". Click a cell to see the tasks.</li>
         <li><span class="font-medium">This week</span> uses the larger of what is logged so far and what is planned.</li>
+        <li><span class="font-medium">Quoted</span> is hours on draft or sent quotes whose scope lines name this person and this week. The grey bar underneath adds them to the plan. They drop off when the quote is accepted (its pages become real tasks) or declined.</li>
         <li>Amber means over 85% full, red means over. Past weeks are a record and are not coloured.</li>
       </ul>
     </details>

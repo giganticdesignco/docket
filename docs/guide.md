@@ -112,6 +112,10 @@ sees hours.
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.
 
+- **Quoted hours** show on Capacity as a grey bar under the plan: scope
+  lines on draft or sent quotes that name a person and a week. They
+  drop off once the quote is decided.
+
 ## Clients and projects
 
 - **A client** has projects, contacts who can sign in to the portal,
@@ -199,6 +203,20 @@ the next one what it needs, so nothing is typed twice.
 Nothing along this path is recomputed later: the estimate is frozen in
 the quote line, the quote's rates are frozen in the project, and each
 time entry freezes its rate when it is saved.
+
+### Rates, people, and margin on a quote
+
+- **Task types carry a default rate and wording** (Settings, Task
+  types). Pick a task type on a blank scope line and the rate and
+  description fill in; anything already typed stays.
+- **Who, week.** A scope line can name the person who will do it and
+  the week it should land. The week shows on the Capacity page as
+  "quoted" hours, on top of what is already planned, until the quote is
+  accepted or declined. When it is accepted, the sitemap pages tied to
+  that line become tasks assigned to that person.
+- **Margin** (people who see money only) is the line's amount minus its
+  hours at the person's cost rate, as last saved. Cost rates are set on
+  the People page and never appear anywhere a client can see.
 
 ## Billing and invoices
 

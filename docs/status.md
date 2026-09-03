@@ -1589,3 +1589,16 @@ the import can only match on the project name appearing in the title.
 `/tasks/triage` (manage_tasks; a button on Tasks while any remain)
 lists them by client with checkboxes, a "Move selected to" picker of
 the client's active projects, Undo, and New project via `ProjectForm`.
+
+## Quote catalog, margins, capacity forecast, Phase 4 item 2 (2026-09-03)
+
+`tasks.default_rate` and `default_description` prefill a scope line
+when its task type is picked. `profiles.cost_rate` (People, shown with
+see_money; admin-only to write via `protect_profile_columns`).
+`quote_line_items.assignee_id` and `target_week` (a Monday): the quote
+editor has a "Who, week" column, and `quote_line_margins(p_quote_id)`
+(security definer, see_money) feeds a Margin column and total from the
+saved lines so cost rates never leave Postgres. `accept_quote()` assigns
+each page's task to its line's person. `capacity_weekly.forecast_hours`
+sums those lines on draft or sent quotes; the capacity page draws them
+as a grey bar under the plan. Guide updated.

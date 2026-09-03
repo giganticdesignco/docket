@@ -16,11 +16,15 @@ const emit = defineEmits<{ saved: []; cancel: [] }>()
 
 const supabase = useSupabaseClient()
 const toast = useToast()
+// Cost rate is money, so only people who see money see or set it.
+const { can } = useCurrentUser()
+const seeMoney = computed(() => can('see_money'))
 
 const state = reactive({
   full_name: props.profile.full_name,
   role: props.profile.role as Profile['role'],
   default_rate: (props.profile.default_rate == null ? '' : String(props.profile.default_rate)) as string | number,
+  cost_rate: (props.profile.cost_rate == null ? '' : String(props.profile.cost_rate)) as string | number,
   is_active: props.profile.is_active,
   hours_per_week: (props.hoursPerWeek == null ? '' : String(props.hoursPerWeek)) as string | number,
 })
@@ -51,6 +55,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
       full_name: state.full_name.trim(),
       role: state.role,
       default_rate: num(state.default_rate),
+      ...(seeMoney.value ? { cost_rate: num(state.cost_rate) } : {}),
       is_active: state.is_active,
     }).eq('id', props.profile.id)
     if (error) throw error
@@ -100,6 +105,9 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <UInput v-model="state.default_rate" type="number" step="0.01" min="0" icon="i-lucide-dollar-sign" class="w-full" />
       </UFormField>
     </div>
+    <UFormField v-if="seeMoney" label="Cost rate" name="cost_rate" help="What an hour of this person costs the company. Quotes use it for margin; nothing client-facing shows it.">
+      <UInput v-model="state.cost_rate" type="number" step="0.01" min="0" icon="i-lucide-dollar-sign" class="w-full" />
+    </UFormField>
     <div class="grid grid-cols-2 items-end gap-4">
       <UFormField label="Hours per week" name="hours_per_week" hint="From today">
         <UInput v-model="state.hours_per_week" type="number" step="0.5" min="0" max="168" class="w-full" placeholder="30" />
