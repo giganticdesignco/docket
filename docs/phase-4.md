@@ -1,12 +1,16 @@
 # Docket Phase 4 plan
 
+**Shipped 2026-09-03, all twelve items.** What each became is in
+`docs/status.md` (the dated sections from "Project page" through
+"Invoice cost and margin") and the guide. Kept as the spec.
+
 Written 2026-09-03, from the PM's written notes on Scoro (and Teamwork.com):
 what she'd like to see in Docket, checked feature by feature against the
 current code, then spec'd. All twelve items are independent — none blocks
 another — so the order below is a suggestion by size and daily-use value,
 not a dependency chain. Same build style as Phases 1 through 3: schema
-first, RLS as the security model, verify in the browser, commit only on
-"commit push".
+first, RLS as the security model, verify in the browser, commit after each
+verified item.
 
 Two items from the PM's notes aren't here because Docket already has them:
 a comprehensive client overview page, and reporting.

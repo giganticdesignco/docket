@@ -1,5 +1,10 @@
 # Harvest Replacement — App Structure
 
+> Written before the build, kept for the reasoning. It is not kept in
+> step with the code: there is no Capacity page any more, crons run on
+> Vercel rather than edge functions, and the page list has grown. For
+> what exists, read `schema.sql`, `docs/status.md`, and `docs/guide.md`.
+
 Nuxt 4 + Supabase, deployed to Vercel. Two routing zones: authenticated
 internal app, and a public token-gated zone for client-facing quotes.
 

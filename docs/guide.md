@@ -445,9 +445,11 @@ the client page's billing card and the portal preview. Admins have all
 of them. Staff by default see their own time and expenses, all tasks,
 and money. Change the matrix on the Permissions page.
 
-Settings also holds people (add, deactivate, default rates), task
-statuses, task types, expense categories, invoice settings (numbering,
-terms, tax, notes, the project folder roots), estimator materials and
+Settings also holds people (add, deactivate, default rates, cost
+rates, department), the permissions matrix, departments (with their
+lead), project templates, page templates for sitemaps, task statuses,
+task types, expense categories, invoice settings (numbering, terms,
+tax, notes, the project folder roots), estimator materials and
 pricing, and imports.
 
 ## Keyboard shortcuts

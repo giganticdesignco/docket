@@ -114,11 +114,23 @@ keyboard shortcuts, walkthrough, estimator, Harvest-style reports and
 rollups, sidebar rework, Mac desktop shell, AI assistant. Phase 3
 shipped 2026-09-02: view persistence, desktop update notice, modals to
 drawers, MCP server (`/api/mcp`, OAuth through Supabase, consent page at
-`/oauth/consent`, Claude card on the Account page).
+`/oauth/consent`, Claude card on the Account page). Phase 4 (the PM's
+Scoro notes, `docs/phase-4.md`) shipped 2026-09-03: project page
+upgrade, quote catalog and margins, quotes board, project templates,
+departments, inline timer, finer permissions, retainer page, Planner,
+Home dashboard, timesheet approvals, invoice cost and margin. Same day,
+after Phase 4: Planner laid out like Scoro (people by weekday, drag to
+plan, stretch, hours per day in `work_item_plans`), Capacity page
+removed, approvals routed to department leads, arrangeable table
+columns (`useColumns` + `TableHead`), Clients list money and team
+columns, client page team and tasks, Estimator to new quote, the
+morning brief (`/api/ai/brief`). `docs/status.md` has the detail per
+item, newest at the bottom.
 
-Open on Luke's side: enable the Supabase OAuth server for MCP, an Apple
-Developer account to sign the Mac app, the Harvest admin token for
-invoice history, cancelling Harvest.
+Open on Luke's side: set department leads and put people in
+departments (approvals fall to approve_time holders until then), an
+Apple Developer account to sign the Mac app, the Harvest admin token for
+invoice history, cancelling Harvest. MCP is live and verified.
 
 ## Gotchas
 

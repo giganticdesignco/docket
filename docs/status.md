@@ -1,5 +1,14 @@
 # Status
 
+Chronological, newest at the bottom. Where things stand on 2026-09-03:
+Phases 1 through 4 are shipped (`docs/phase-2.md`, `phase-3.md`,
+`phase-4.md`), plus the same-day items after Phase 4 (Planner rework
+and hours per day, Capacity removed, department leads review time,
+arrangeable columns, Clients list columns, client page team and tasks,
+Estimator to new quote, morning brief). Open on Luke's side: assign
+department leads and departments, Apple Developer signing for the Mac
+app, the Harvest admin token for invoice history, cancelling Harvest.
+
 ## Phase 2, wave 2c: AI assistant (2026-09-02)
 
 Item 4 of `docs/phase-2.md`. Migration `ai_events`. Key:
