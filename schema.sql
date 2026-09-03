@@ -3402,3 +3402,31 @@ alter table departments enable row level security;
 create policy read_all on departments for select to authenticated using (not (select is_client()));
 create policy manage_settings on departments for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
 grant select, insert, update, delete on departments to authenticated;
+
+-- Phase 4, item 8: the entries behind one retainer period, for the
+-- retainer page's drill-down. Scoped exactly as retainer_status() counts
+-- usage, so the rows always add up to the period's "used". Security
+-- definer because staff without see_all_time cannot read other people's
+-- entries, yet the total already shows everyone's. Amount only with
+-- see_money. Pre-cutover periods (Harvest archive only) return nothing.
+create or replace function public.retainer_period_detail(p_retainer_id uuid)
+returns table (entry_id uuid, spent_on date, project_id uuid, project_name text, task_name text, user_name text, hours numeric, amount numeric, notes text)
+language sql stable security definer
+set search_path = ''
+as $$
+  select te.id, te.spent_on, p.id, p.name, t.name, pr.full_name, te.hours,
+         case when (select public.has_permission('see_money')) then te.hours * coalesce(te.rate_snapshot, 0) end,
+         te.notes
+  from public.retainers x
+  join public.projects p on p.client_id = x.client_id and (x.project_id is null or p.id = x.project_id)
+  join public.time_entries te on te.project_id = p.id
+  join public.tasks t on t.id = te.task_id
+  join public.profiles pr on pr.id = te.user_id
+  where x.id = p_retainer_id
+    and (not (select public.is_client()) or x.client_id = (select public.my_client_id()))
+    and te.deleted_at is null and te.is_billable
+    and te.spent_on between x.period_start and x.period_end
+    and (te.ended_at is not null or te.started_at is null)
+  order by te.spent_on desc, pr.full_name;
+$$;
+revoke execute on function public.retainer_period_detail(uuid) from public, anon;

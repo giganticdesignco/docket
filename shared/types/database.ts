@@ -3267,6 +3267,20 @@ export type Database = {
         Args: { p_project_id: string; p_task_id: string; p_user_id: string }
         Returns: number
       }
+      retainer_period_detail: {
+        Args: { p_retainer_id: string }
+        Returns: {
+          entry_id: string
+          spent_on: string
+          project_id: string
+          project_name: string
+          task_name: string
+          user_name: string
+          hours: number
+          amount: number | null
+          notes: string | null
+        }[]
+      }
       retainer_status: {
         Args: never
         Returns: {

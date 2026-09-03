@@ -1671,3 +1671,14 @@ function checks moved to their key; the billing-recipient query uses
 manage_invoices. The client page's billing card, the portal preview,
 and the client invite accept any of the three. No role held the old
 key, so nothing was fanned out. Guide updated.
+
+## Retainer page, Phase 4 item 8 (2026-09-03)
+
+`/retainers/[id]` (any period's id) groups `retainer_status()` rows by
+the same chain key the function uses (client, project, name) and shows
+the contract: summary strip, then a period table where a row expands
+to `retainer_period_detail(p_retainer_id)`, a security definer that
+returns the billable entries behind the period (amount with see_money;
+nothing for pre-cutover periods). The client page groups periods per
+contract, links to the page, and keeps the per-period edit and delete.
+Portal untouched. Guide updated.

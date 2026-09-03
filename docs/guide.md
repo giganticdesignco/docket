@@ -149,6 +149,11 @@ sees hours.
 - **Task types** (Design, Development, Meeting, and so on) are the
   categories time is logged under. Admins manage the master list; each
   project picks which apply.
+- **A retainer's page** (click it on the client page) rolls its
+  periods into one contract: how many periods, when it started, the
+  current period's burn, and a table of every period. Open a period to
+  see the entries behind it, grouped by project for a client-wide
+  retainer. Periods from before the cutover only have a total.
 - **Retainers** are a monthly (or any period) allotment of hours or
   dollars for a client, optionally rolling over unused amounts with a
   cap. The client page and the portal show the burn for the current

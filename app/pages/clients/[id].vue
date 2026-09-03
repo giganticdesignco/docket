@@ -141,6 +141,23 @@ const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDi
 const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n) : money(n))
 const pct = (r: RetainerRow) => (r.available > 0 ? Math.round(r.used / r.available * 100) : 0)
 const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
+const periodStatus = (r: RetainerRow) => (r.period_end < todayString() ? 'ended' : r.period_start > todayString() ? 'upcoming' : 'current')
+// Periods that chain (same client, project, and name) shown as one
+// contract: the current period, or the latest, up front. Same key
+// retainer_status() uses.
+const contracts = computed(() => {
+  const by = new Map<string, RetainerRow[]>()
+  for (const r of retainers.value ?? []) {
+    const key = `${r.client_id}|${r.project_id ?? ''}|${r.name.toLowerCase()}`
+    by.set(key, [...(by.get(key) ?? []), r])
+  }
+  const today = todayString()
+  return [...by.entries()].map(([key, periods]) => {
+    periods.sort((a, b) => b.period_start.localeCompare(a.period_start))
+    const shown = periods.find(p => p.period_start <= today && p.period_end >= today) ?? periods[0]!
+    return { key, periods, shown }
+  }).sort((a, b) => b.shown.period_start.localeCompare(a.shown.period_start))
+})
 
 function retainerSaved() {
   creatingRetainer.value = false
@@ -286,26 +303,43 @@ const invoiceLabel = (inv: InvoiceLike) =>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <ul v-if="retainers?.length" class="divide-y divide-default text-sm">
-        <li v-for="r in retainers" :key="r.retainer_id" class="space-y-2 px-4 py-3">
+      <ul v-if="contracts.length" class="divide-y divide-default text-sm">
+        <li v-for="c in contracts" :key="c.key" class="space-y-2 px-4 py-3">
           <div class="flex items-center gap-3">
             <div class="min-w-0 flex-1">
-              <div class="font-medium">{{ r.name }} <span class="font-normal text-muted">&middot; {{ projectName(r.project_id) }}</span></div>
-              <div class="text-muted">{{ shortDate(r.period_start) }} to {{ shortDate(r.period_end) }}, {{ r.period_end < todayString() ? 'ended' : r.period_start > todayString() ? 'upcoming' : 'current' }}</div>
+              <NuxtLink :to="`/retainers/${c.shown.retainer_id}`" class="font-medium hover:underline">{{ c.shown.name }}</NuxtLink>
+              <span class="text-muted">&middot; {{ projectName(c.shown.project_id) }}</span>
+              <div class="text-muted">
+                {{ shortDate(c.shown.period_start) }} to {{ shortDate(c.shown.period_end) }}, {{ periodStatus(c.shown) }}
+                <span v-if="c.periods.length > 1"> &middot; {{ c.periods.length }} periods since {{ shortDate(c.periods[c.periods.length - 1]!.period_start) }}</span>
+              </div>
             </div>
             <div class="text-right tabular-nums">
-              <div><strong>{{ qty(r, r.used) }}</strong> <span class="text-muted">of {{ qty(r, r.available) }}</span></div>
+              <div><strong>{{ qty(c.shown, c.shown.used) }}</strong> <span class="text-muted">of {{ qty(c.shown, c.shown.available) }}</span></div>
               <div class="text-xs text-muted">
-                <span v-if="r.carried_in > 0">{{ qty(r, r.allotted) }} + {{ qty(r, r.carried_in) }} carried in &middot; </span>
-                <span :class="r.remaining < 0 ? 'text-error' : ''">{{ r.remaining < 0 ? qty(r, -r.remaining) + ' over' : qty(r, r.remaining) + ' left' }}</span>
+                <span v-if="c.shown.carried_in > 0">{{ qty(c.shown, c.shown.allotted) }} + {{ qty(c.shown, c.shown.carried_in) }} carried in &middot; </span>
+                <span :class="c.shown.remaining < 0 ? 'text-error' : ''">{{ c.shown.remaining < 0 ? qty(c.shown, -c.shown.remaining) + ' over' : qty(c.shown, c.shown.remaining) + ' left' }}</span>
               </div>
             </div>
             <div v-if="isAdmin" class="flex gap-1">
-              <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" size="sm" aria-label="Edit" @click="editRetainer(r)" />
-              <UButton icon="i-lucide-trash-2" variant="ghost" color="neutral" size="sm" aria-label="Delete" @click="deletingRetainer = r;" />
+              <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" size="sm" aria-label="Edit this period" @click="editRetainer(c.shown)" />
+              <UButton icon="i-lucide-trash-2" variant="ghost" color="neutral" size="sm" aria-label="Delete this period" @click="deletingRetainer = c.shown;" />
             </div>
           </div>
-          <UProgress :model-value="Math.min(pct(r), 100)" :color="burnColor(pct(r))" size="sm" />
+          <UProgress :model-value="Math.min(pct(c.shown), 100)" :color="burnColor(pct(c.shown))" size="sm" />
+          <details v-if="c.periods.length > 1" class="text-xs text-muted">
+            <summary class="cursor-pointer select-none">Other periods</summary>
+            <ul class="mt-1 divide-y divide-default/60">
+              <li v-for="r in c.periods.filter(p => p.retainer_id !== c.shown.retainer_id)" :key="r.retainer_id" class="flex items-center gap-3 py-1">
+                <span class="tabular-nums">{{ shortDate(r.period_start) }} to {{ shortDate(r.period_end) }}</span>
+                <span class="tabular-nums">{{ qty(r, r.used) }} of {{ qty(r, r.available) }}</span>
+                <span class="ml-auto flex gap-1">
+                  <UButton v-if="isAdmin" icon="i-lucide-pencil" variant="ghost" color="neutral" size="xs" aria-label="Edit" @click="editRetainer(r)" />
+                  <UButton v-if="isAdmin" icon="i-lucide-trash-2" variant="ghost" color="neutral" size="xs" aria-label="Delete" @click="deletingRetainer = r;" />
+                </span>
+              </li>
+            </ul>
+          </details>
         </li>
       </ul>
       <p v-else class="px-4 py-6 text-center text-sm text-muted">No retainers for this client.</p>
