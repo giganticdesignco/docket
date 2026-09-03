@@ -35,6 +35,18 @@ const saving = ref(false)
 const extraClients = ref<{ id: string, name: string }[]>([])
 const allClients = computed(() => [...props.clients, ...extraClients.value])
 
+// New projects can start from a project template: its tasks are made
+// once the project exists. Loaded only when creating.
+const { data: templates } = await useAsyncData('project-templates-for-form', async () => {
+  if (props.project) return []
+  const { data, error } = await supabase.from('project_templates').select('id, name, description, project_template_items(estimate_hours)').eq('is_active', true).order('position').order('name')
+  if (error) throw error
+  return data
+}, fresh)
+const templateId = ref(LEAD_NONE)
+const templateOptions = computed(() => [{ label: 'Start empty', value: LEAD_NONE }, ...(templates.value ?? []).map(t => ({ label: `${t.name} (${t.project_template_items.length} ${t.project_template_items.length === 1 ? 'task' : 'tasks'}, ${formatHours(t.project_template_items.reduce((s, i) => s + (i.estimate_hours ?? 0), 0))})`, value: t.id }))])
+const templateNote = computed(() => templates.value?.find(t => t.id === templateId.value)?.description ?? '')
+
 // New projects start with the folder the settings template produces.
 // Stops filling in once someone edits the field by hand.
 const { data: settings } = await useAsyncData('project-folder-template', async () => {
@@ -120,6 +132,11 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     toast.add({ title: 'Could not save project', description, color: 'error' })
     return
   }
+  if (!props.project && templateId.value !== LEAD_NONE) {
+    const { data: made, error: tplErr } = await supabase.rpc('apply_project_template', { p_project_id: data.id, p_template_id: templateId.value })
+    if (tplErr) toast.add({ title: 'Project made, but the template did not apply', description: tplErr.message, color: 'warning' })
+    else toast.add({ title: `${made} ${made === 1 ? 'task' : 'tasks'} added from the template`, color: 'success', duration: 3000 })
+  }
   emit('saved', data)
 }
 </script>
@@ -154,6 +171,9 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <UInput v-model="state.budget_amount" type="number" step="0.01" min="0" class="w-full" />
       </UFormField>
     </div>
+    <UFormField v-if="!project && templates?.length" label="Start from" name="template" :help="templateNote || 'A template adds its tasks, with their hours, once the project is made.'">
+      <USelect v-model="templateId" :items="templateOptions" class="w-full" />
+    </UFormField>
     <SimilarProjects v-if="!project" :name="state.name" :client-name="allClients.find(c => c.id === state.client_id)?.name" @use="(h, a) => { state.budget_hours = h; if (a != null) state.budget_amount = a }" />
     <UFormField label="Server folder" name="server_path" help="Where this project's files live on the office server. New task file links start here.">
       <div class="flex gap-2" @dragover.prevent @drop.prevent="dropFolder" @desktop-drop="dropFolderDesktop">

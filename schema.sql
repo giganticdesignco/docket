@@ -3327,3 +3327,60 @@ as $$
     and l.hours is not null and p.cost_rate is not null;
 $$;
 revoke execute on function public.quote_line_margins(uuid) from public, anon;
+
+-- Phase 4, item 4: project templates. A preset list of tasks (title,
+-- task type, hours, a suggested role) dropped into a new project of any
+-- kind. page_templates stays as it is, for quoted websites.
+create table project_templates (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null unique,
+  description text,
+  position    int not null default 0,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now()
+);
+create table project_template_items (
+  id             uuid primary key default gen_random_uuid(),
+  template_id    uuid not null references project_templates(id) on delete cascade,
+  title          text not null,
+  task_id        uuid references tasks(id) on delete set null,
+  estimate_hours numeric(6,2),
+  default_role   text references roles(key) on update cascade on delete set null,  -- a hint for who, never assigned automatically
+  sort_order     int not null default 0
+);
+create index project_template_items_template on project_template_items (template_id, sort_order);
+alter table project_templates enable row level security;
+alter table project_template_items enable row level security;
+create policy read_all on project_templates for select to authenticated using (not (select is_client()));
+create policy read_all on project_template_items for select to authenticated using (not (select is_client()));
+create policy manage_settings on project_templates for all to authenticated
+  using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+create policy manage_settings on project_template_items for all to authenticated
+  using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+grant select, insert, update, delete on project_templates, project_template_items to authenticated;
+
+-- Copies a template's items onto a project as tasks, and makes sure each
+-- task type is on the project so time can be logged against it. Runs
+-- once, from the New project form; there is no guard against a second
+-- run, so that is the only place it is called.
+create or replace function public.apply_project_template(p_project_id uuid, p_template_id uuid) returns int
+language plpgsql security definer set search_path = '' as $$
+declare r record; n int := 0;
+begin
+  if not public.has_permission('manage_reference') then raise exception 'Not allowed'; end if;
+  if not exists (select 1 from public.projects where id = p_project_id) then raise exception 'Project not found'; end if;
+  for r in
+    select task_id from public.project_template_items where template_id = p_template_id and task_id is not null group by task_id
+  loop
+    insert into public.project_tasks (project_id, task_id) values (p_project_id, r.task_id) on conflict do nothing;
+  end loop;
+  for r in
+    select title, estimate_hours, sort_order from public.project_template_items where template_id = p_template_id order by sort_order
+  loop
+    insert into public.work_items (project_id, title, estimate_hours, position, created_by)
+    values (p_project_id, r.title, r.estimate_hours, r.sort_order, auth.uid());
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke execute on function public.apply_project_template(uuid, uuid) from public, anon;

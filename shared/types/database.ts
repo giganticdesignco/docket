@@ -1414,6 +1414,85 @@ export type Database = {
           },
         ]
       }
+      project_template_items: {
+        Row: {
+          default_role: string | null
+          estimate_hours: number | null
+          id: string
+          sort_order: number
+          task_id: string | null
+          template_id: string
+          title: string
+        }
+        Insert: {
+          default_role?: string | null
+          estimate_hours?: number | null
+          id?: string
+          sort_order?: number
+          task_id?: string | null
+          template_id: string
+          title: string
+        }
+        Update: {
+          default_role?: string | null
+          estimate_hours?: number | null
+          id?: string
+          sort_order?: number
+          task_id?: string | null
+          template_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_template_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "project_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_template_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_template_items_default_role_fkey"
+            columns: ["default_role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      project_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           billing_method: Database["public"]["Enums"]["billing_method"]
@@ -2977,6 +3056,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_project_template: {
+        Args: { p_project_id: string; p_template_id: string }
+        Returns: number
+      }
       project_history: {
         Args: { p_words: string[] }
         Returns: {

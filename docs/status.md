@@ -1620,3 +1620,13 @@ dropped `docs`, and `/help` imports `docs/guide.md?raw`. Now only
 `desktop` is ignored. The committed `package-lock.json` is behind
 `package.json` (marked, driver.js, the MCP SDK); Vercel's npm install
 copes, but a `npm ci` would not.
+
+## Project templates, Phase 4 item 4 (2026-09-03)
+
+`project_templates` and `project_template_items` (title, task type,
+hours, suggested role; RLS like page_templates). Settings, Project
+templates: CRUD with the items edited inline, rewritten whole on save.
+`apply_project_template(project, template)` (security definer,
+manage_reference) adds the task types to the project and one task per
+item; `ProjectForm` calls it after a create when "Start from" is set.
+Applying to an existing project is not built. Guide updated.

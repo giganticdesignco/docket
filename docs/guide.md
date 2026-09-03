@@ -118,6 +118,11 @@ sees hours.
 
 ## Clients and projects
 
+- **Project templates** (Settings, Project templates) are a starting set
+  of tasks for a kind of job: title, task type, hours, and a suggested
+  role. Pick one under "Start from" on the New project form and the
+  tasks are made with those hours as estimates once the project exists.
+  Quoted websites get their tasks from the sitemap instead.
 - **A client** has projects, contacts who can sign in to the portal,
   retainers, and a year-to-date strip with last year alongside.
 - **A project** has a billing method (hourly, fixed, retainer,

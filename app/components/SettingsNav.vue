@@ -19,6 +19,7 @@ const links = computed(() => [
         { label: 'Invoices and quotes', to: '/admin/invoice-settings' },
         { label: 'Estimator', to: '/admin/estimator' },
         { label: 'Page templates', to: '/admin/page-templates' },
+        { label: 'Project templates', to: '/admin/project-templates' },
         { label: 'Imports', to: '/admin/imports', also: ['/admin/harvest', '/admin/clickup'] },
       ]
     : []),
