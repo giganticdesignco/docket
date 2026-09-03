@@ -112,6 +112,20 @@ const hour = new Date().getHours()
 const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 const dotClass = (color?: string) => ({ primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }[color ?? ''] ?? 'bg-accented')
 const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running.value?.work_item_id))
+// The brief names tasks, projects, clients, and quotes as [name](/path) links.
+const briefParts = computed(() => {
+  const out: { text: string, to?: string }[] = []
+  const re = /\[([^\]]+)\]\((\/[^)]+)\)/g
+  const src = brief.value?.text ?? ''
+  let last = 0
+  for (const m of src.matchAll(re)) {
+    if (m.index! > last) out.push({ text: src.slice(last, m.index) })
+    out.push({ text: m[1]!, to: m[2]! })
+    last = m.index! + m[0].length
+  }
+  if (last < src.length) out.push({ text: src.slice(last) })
+  return out
+})
 </script>
 
 <template>
@@ -135,7 +149,9 @@ const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running
           <span class="text-xs text-muted">{{ brief.day === today ? 'Today' : longDate(brief.day) }}</span>
           <NuxtLink to="/account" class="ml-auto text-xs text-muted hover:underline" title="Have this emailed to you each weekday morning">{{ profile?.brief_email ? 'Emailed to you each morning' : 'Get it by email' }}</NuxtLink>
         </div>
-        <p class="mt-2 whitespace-pre-line text-sm leading-relaxed">{{ brief.text }}</p>
+        <p class="mt-2 whitespace-pre-line text-sm leading-relaxed">
+          <template v-for="(part, i) in briefParts" :key="i"><NuxtLink v-if="part.to" :to="part.to" class="font-medium text-highlighted underline decoration-accented underline-offset-2 hover:decoration-primary">{{ part.text }}</NuxtLink><template v-else>{{ part.text }}</template></template>
+        </p>
       </UCard>
       <UCard :ui="{ body: 'p-3 sm:p-4' }" :class="timer.running.value ? '' : 'cursor-pointer transition-colors hover:bg-elevated/40'" role="button" tabindex="0" :title="timer.running.value ? '' : 'Start a timer'" @click="!timer.running.value && (startingTimer = true)" @keydown.enter="!timer.running.value && (startingTimer = true)">
         <div class="text-xs text-muted">Timer</div>

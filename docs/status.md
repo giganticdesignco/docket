@@ -1857,4 +1857,7 @@ and led projects past 80 percent, then MODELS.fast writes under 140
 words (plainBrief() if no key or the call fails). Stored in
 `morning_briefs (user_id, day, text, facts, emailed_at)`, own-row RLS;
 Home shows the latest. `profiles.brief_email` (Account page switch,
-default off) sends it through Resend. ai_events logs each run.
+default off) sends it through Resend. ai_events logs each run. The
+facts carry ids and the model writes names as `[name](/tasks/id)`
+(also /projects, /clients, /quotes); Home splits those into NuxtLinks
+and the email turns them into `name (url)`.
