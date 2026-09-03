@@ -3752,3 +3752,59 @@ begin
 end $$;
 create trigger work_items_cascade_children after update of deleted_at on work_items
   for each row execute function public.work_item_cascade_children();
+
+-- ============================================================
+-- FOCUS LIST
+-- The few tasks one person means to work on next, in the order they mean
+-- to do them. Private to that person: an own-row policy, no view, no
+-- notification, no trigger on work_items. Nobody else can read it,
+-- see_all_tasks included.
+--
+-- It is not work_items.priority, which is the team's shared signal, and
+-- it is not work_item_plans, which owns which day and how many hours.
+-- This is the one axis nothing else covers: sequence, right now, for one
+-- person.
+--
+-- It deliberately does NOT reference work_item_assignees the way
+-- work_item_plans does. Taking someone off a task must not empty their
+-- focus list.
+--
+-- Soft delete: the BEFORE DELETE trigger on work_items returns null, so
+-- this cascade cannot fire until the thirty day purge really removes the
+-- task. Delete a task, hit Undo, and it comes back in its old place.
+-- ============================================================
+create table work_item_focus (
+  user_id      uuid not null references profiles(id) on delete cascade,
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  position     int not null default 0,   -- 0 means "put it on the end"; the trigger fills it in
+  created_at   timestamptz not null default now(),
+  primary key (user_id, work_item_id)
+);
+create index work_item_focus_user on work_item_focus (user_id, position, created_at);
+
+-- A new row lands on the end of that person's list, whatever wrote it.
+-- Positions are not unique on purpose: rows inserted by one statement
+-- would share a number, so every read orders by (position, created_at,
+-- work_item_id) and the next reorder renumbers the list 1..n.
+create or replace function public.work_item_focus_position() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.position = 0 then
+    select coalesce(max(position), 0) + 1 into new.position
+    from public.work_item_focus where user_id = new.user_id;
+  end if;
+  return new;
+end $$;
+create trigger work_item_focus_position before insert on work_item_focus
+  for each row execute function public.work_item_focus_position();
+
+alter table work_item_focus enable row level security;
+-- Own rows only, cheapest check first, the user_views shape. There is
+-- deliberately no task_visible() call: gating on visibility would make a
+-- stale row undeletable by its owner, and a reorder writes every row at
+-- once, which would call a security definer function once per row. What
+-- she may actually see is settled on the read, by work_items' own policy.
+create policy own_focus on work_item_focus for all to authenticated
+  using (user_id = (select auth.uid()) and not (select is_client()))
+  with check (user_id = (select auth.uid()) and not (select is_client()));
+grant select, insert, update, delete on work_item_focus to authenticated;

@@ -1906,3 +1906,36 @@ that already exist, so it needs no check). Both report a
 `skippedExcluded` count. Verified by a morning-sync dry run: ClickUp
 skipped 306, Harvest skipped 5 time entries and 4 expenses in August,
 and created 0 clients and 0 projects for Hills Bank.
+
+## Focus list (2026-09-03)
+
+Kylee (design) asked for ClickUp's personal list: a short list she picks
+herself, to clear the screen. Designed by an 11-agent workflow (four
+proposals, three judges); the spec is at scratchpad/focus-spec.md.
+
+`work_item_focus (user_id, work_item_id, position, created_at)`, own-row
+RLS (no `task_visible()` call on purpose: gating on visibility would
+make a stale row undeletable by its owner, and a reorder writes every
+row at once). A BEFORE INSERT trigger numbers a new row onto the end;
+positions are not unique, reads order by (position, created_at,
+work_item_id), and a reorder renumbers 1..n in one upsert.
+
+`useFocusList()` holds the ids in useState so the star on the list, the
+button on a task, and the band on Home agree without three queries.
+Tasks page: a star on every row (dim when off), a third view-switcher
+button that hides everything else, drag to reorder within Focus (the
+group drop handler returns early so a reorder can never rewrite a
+status), an add box with suggestions, a Finished band with Clear
+finished, and `f` on a row or selection. Focus mode is deliberately NOT
+persisted: `/tasks?view=focus` opens it, but you land back in List
+tomorrow. Home shows a Focus band above the buckets, which skip those
+ids so nothing appears twice.
+
+Nothing deletes a person's row but that person: a task they can no
+longer see is reported ("Remove it"), never pruned by a page load, so
+delete-then-Undo returns it to its old position. The 30 day purge
+removes the row by FK cascade.
+
+Deliberately untouched: TimeClockPopover, the morning brief, MCP tools,
+the Assistant, Planner, Schedule, reports, notifications, the portal.
+Nothing shared or team-wide was built.

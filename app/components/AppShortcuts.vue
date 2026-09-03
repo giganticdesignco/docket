@@ -31,6 +31,7 @@ useShortcuts('Everywhere', {
   't': { label: 'Stop the running timer, or log time', handler: toggleTimer },
   'g-t': { label: 'Go to Time', handler: go('/time') },
   'g-k': { label: 'Go to Tasks', handler: go('/tasks') },
+  'g-f': { label: 'Go to your focus list', handler: go('/tasks?view=focus') },
   'g-p': { label: 'Go to Projects', handler: go('/projects') },
   'g-c': { label: 'Go to Clients', handler: go('/clients') },
   'g-e': { label: 'Go to Expenses', handler: go('/expenses') },

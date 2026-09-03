@@ -2667,6 +2667,27 @@ export type Database = {
           },
         ]
       }
+      work_item_focus: {
+        Row: {
+          created_at: string
+          position: number
+          user_id: string
+          work_item_id: string
+        }
+        Insert: {
+          created_at?: string
+          position?: number
+          user_id: string
+          work_item_id: string
+        }
+        Update: {
+          created_at?: string
+          position?: number
+          user_id?: string
+          work_item_id?: string
+        }
+        Relationships: []
+      }
       work_item_plans: {
         Row: {
           day: string

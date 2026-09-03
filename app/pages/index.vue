@@ -9,6 +9,7 @@ const user = useSupabaseUser()
 const { profile } = useCurrentUser()
 const timer = useTimer()
 const ws = await useWorkStatuses()
+const focusList = useFocusList()
 const toast = useToast()
 
 const today = todayString()
@@ -64,7 +65,20 @@ const __ad6 = useAsyncData('project-tasks-for-time', async () => {
   if (error) throw error
   return data
 }, { ...fresh, server: false })
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, timer.load()])
+// The focus list, by id, so it shows a task even when someone else is
+// the assignee. Home only reads it; the star lives on Tasks.
+const __ad7 = useAsyncData('home-focus', async () => {
+  const fids = await focusList.load(true)
+  if (!fids.length) return []
+  const { data, error } = await supabase
+    .from('work_items')
+    .select('id, title, status, due_on, estimate_hours, projects(id, name, clients(name))')
+    .in('id', fids)
+  if (error) throw error
+  const found = new Map((data ?? []).map(d => [d.id, d]))
+  return fids.map(id => found.get(id)).filter(t => t && !ws.isDone(t.status)) as NonNullable<typeof data>
+}, { ...fresh, server: false })
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, timer.load()])
 const { data: brief } = __ad4
 const { data: formProjects } = __ad5
 const { data: formProjectTasks } = __ad6
@@ -86,9 +100,14 @@ const { data: projects } = await useAsyncData('home-projects', async () => {
   return data.sort((a, b) => (a.clients?.name ?? '').localeCompare(b.clients?.name ?? '') || a.name.localeCompare(b.name))
 }, { ...fresh, server: false })
 
-const overdue = computed(() => (tasks.value ?? []).filter(t => t.due_on && t.due_on < today))
-const thisWeek = computed(() => (tasks.value ?? []).filter(t => t.due_on && t.due_on >= today && t.due_on <= week[6]!))
-const later = computed(() => (tasks.value ?? []).filter(t => !t.due_on || t.due_on > week[6]!))
+// Anything on the focus list shows in its own band, so the buckets below
+// skip it and no task appears twice.
+const { data: focusTasks } = __ad7
+const focusIds = computed(() => new Set((focusTasks.value ?? []).map(t => t.id)))
+const rest = computed(() => (tasks.value ?? []).filter(t => !focusIds.value.has(t.id)))
+const overdue = computed(() => rest.value.filter(t => t.due_on && t.due_on < today))
+const thisWeek = computed(() => rest.value.filter(t => t.due_on && t.due_on >= today && t.due_on <= week[6]!))
+const later = computed(() => rest.value.filter(t => !t.due_on || t.due_on > week[6]!))
 const buckets = computed(() => [
   { key: 'overdue', label: 'Overdue', items: overdue.value },
   { key: 'week', label: 'This week', items: thisWeek.value },
@@ -192,7 +211,22 @@ const briefParts = computed(() => {
               <NuxtLink to="/tasks" class="ml-auto text-xs text-muted hover:underline">All tasks</NuxtLink>
             </div>
           </template>
-          <div v-if="shown.length" class="divide-y divide-default text-sm">
+          <div v-if="shown.length || focusTasks?.length" class="divide-y divide-default text-sm">
+            <div v-if="focusTasks?.length">
+              <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Focus <span class="font-normal">{{ focusTasks.length }}</span></div>
+              <ul class="divide-y divide-default">
+                <li v-for="t in focusTasks.slice(0, 7)" :key="t.id" class="flex items-center gap-3 px-4 py-2">
+                  <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" :title="ws.label(t.status)" />
+                  <div class="min-w-0 flex-1">
+                    <NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink>
+                    <div class="truncate text-xs text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }}</div>
+                  </div>
+                  <span v-if="t.estimate_hours" class="text-xs tabular-nums text-muted">{{ formatHours(t.estimate_hours) }}</span>
+                  <span class="w-16 text-right text-xs tabular-nums" :class="t.due_on && t.due_on < today ? 'text-error' : 'text-muted'">{{ t.due_on ? shortDate(t.due_on) : '' }}</span>
+                </li>
+              </ul>
+              <NuxtLink v-if="focusTasks.length > 7" to="/tasks?view=focus" class="block px-4 py-1.5 text-xs text-muted hover:underline">{{ focusTasks.length - 7 }} more</NuxtLink>
+            </div>
             <div v-for="b in shown" :key="b.key">
               <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider" :class="b.key === 'overdue' ? 'text-error' : 'text-dimmed'">{{ b.label }} <span class="font-normal">{{ b.items.length + b.more }}</span></div>
               <ul class="divide-y divide-default">

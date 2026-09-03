@@ -12,6 +12,7 @@ const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const toast = useToast()
 const ws = await useWorkStatuses()
+const focusList = useFocusList()
 
 type GroupBy = 'status' | 'project' | 'due'
 // List, or cards: a card per client, then that client's tasks as cards.
@@ -27,6 +28,9 @@ const viewMode = persisted(view, 'viewMode')
 const activeClient = persisted(view, 'activeClient')
 const everyone = persisted(view, 'everyone')
 const showCompleted = persisted(view, 'showCompleted')
+// Focus is a mode you step into, not a view you are left in, so it is
+// not persisted. /tasks?view=focus opens straight into it.
+const focusMode = ref(useRoute().query.view === 'focus')
 const search = ref('')
 const collapsed = ref(new Set<string>(view.collapsed))
 watch(collapsed, (s) => { view.collapsed = [...s] }, { deep: true })
@@ -65,11 +69,26 @@ const __ad4 = useAsyncData('unsorted-count', async () => {
   if (error) throw error
   return count ?? 0
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4])
+// The focus list, fetched by id, so a task shows here even when it is
+// outside the 2000 rows the list loads. Ids whose task did not come back
+// are reported to her, never deleted.
+const __ad5 = useAsyncData('focus-items', async () => {
+  const fids = await focusList.load(true)
+  if (!fids.length) return { rows: [], stale: [] as string[] }
+  const { data, error } = await supabase
+    .from('work_items')
+    .select('id, title, status, priority, due_on, estimate_hours, project_id, parent_id, updated_at, projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
+    .in('id', fids)
+  if (error) throw error
+  const found = new Map((data ?? []).map(d => [d.id, d]))
+  return { rows: fids.map(id => found.get(id)).filter(Boolean) as NonNullable<typeof data>, stale: fids.filter(id => !found.has(id)) }
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
 const { data: items, refresh } = __ad1
 const { data: projects } = __ad2
 const { data: people } = __ad3
 const { data: unsorted } = __ad4
+const { data: focusData, refresh: refreshFocus } = __ad5
 
 type Item = NonNullable<typeof items.value>[number]
 type Group = { key: string, label: string, sublabel?: string, color?: string, items: Item[], done?: boolean }
@@ -88,7 +107,21 @@ const visible = computed(() => (items.value ?? []).filter((i) => {
   return true
 }))
 
+const focusRows = computed(() => focusData.value?.rows ?? [])
+const staleIds = computed(() => focusData.value?.stale ?? [])
+const finished = computed(() => focusRows.value.filter(i => ws.isDone(i.status)))
+const refreshAll = () => (focusMode.value ? Promise.all([refresh(), refreshFocus()]) : refresh())
+
 const groups = computed<Group[]>(() => {
+  // Search, Everyone and Completed do not apply in Focus mode: it is a
+  // short list, and filtering it would make a drag ambiguous.
+  if (focusMode.value) {
+    const open = focusRows.value.filter(i => !ws.isDone(i.status))
+    const out: Group[] = []
+    if (open.length) out.push({ key: 'focus', label: 'Focus', color: 'primary', items: open })
+    if (finished.value.length) out.push({ key: 'focus-done', label: 'Finished', color: 'success', done: true, items: finished.value })
+    return out
+  }
   const list = visible.value
   if (groupBy.value === 'status') {
     return ws.statuses.value
@@ -133,7 +166,7 @@ const textClass = (color?: string) => ({ primary: 'text-primary', info: 'text-in
 async function patch(i: Item, values: { status?: string, priority?: Item['priority'], due_on?: string | null, project_id?: string }) {
   const { error } = await supabase.from('work_items').update(values).eq('id', i.id)
   if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
-  else await refresh()
+  else await refreshAll()
 }
 // One floating menu for the whole list, placed where the row was clicked.
 const menu = ref<{ item: Item, kind: 'status' | 'priority' | 'assignees', x: number, y: number } | null>(null)
@@ -161,8 +194,8 @@ async function pick(value: string) {
   const { error } = await supabase.from('work_items').update(values).in('id', ids)
   if (error) toast.add({ title: 'Not saved', description: error.message, color: 'error' })
   else {
-    await refresh()
-    if (ids.length > 1) undo.offer(`Changed ${ids.length} tasks`, () => putBack(before), refresh)
+    await refreshAll()
+    if (ids.length > 1) undo.offer(`Changed ${ids.length} tasks`, () => putBack(before), refreshAll)
   }
 }
 // Undo for bulk changes writes each row's old values back.
@@ -174,6 +207,41 @@ async function putBack(rows: { id: string, status?: string, priority?: Item['pri
     if (error) throw error
   }
 }
+// ---------- the focus list ----------
+
+// F, or the star. A mixed selection ADDS the ones that are missing and
+// removes nothing, so one keystroke can never quietly empty the list.
+async function toggleFocus(i: Item) {
+  const ids = targets(i).map(t => t.id)
+  try {
+    if (ids.every(id => focusList.has(id))) {
+      const before = ids.map(id => ({ work_item_id: id, position: focusList.ids.value.indexOf(id) + 1 }))
+      await focusList.remove(ids)
+      if (ids.length > 1) undo.offer(`Took ${ids.length} tasks off your focus list`, () => focusList.put(before), refreshFocus)
+    } else {
+      const n = await focusList.add(ids)
+      if (n > 1) undo.offer(`Added ${n} tasks to your focus list`, () => focusList.remove(ids), refreshFocus)
+    }
+    await refreshFocus()
+  } catch (e) {
+    toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' })
+  }
+}
+async function clearFinished() {
+  const ids = finished.value.map(i => i.id)
+  if (!ids.length) return
+  const before = ids.map(id => ({ work_item_id: id, position: focusList.ids.value.indexOf(id) + 1 }))
+  try {
+    await focusList.remove(ids)
+    undo.offer(`Cleared ${ids.length} finished ${ids.length === 1 ? 'task' : 'tasks'}`, () => focusList.put(before), refreshFocus)
+    await refreshFocus()
+  } catch (e) { toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' }) }
+}
+async function dropStale() {
+  try { await focusList.remove(staleIds.value); await refreshFocus() }
+  catch (e) { toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' }) }
+}
+
 // Assignees toggle one at a time and the menu stays open.
 async function toggleAssignee(userId: string) {
   const m = menu.value
@@ -188,7 +256,7 @@ async function toggleAssignee(userId: string) {
     toast.add({ title: 'Not saved', description: error.message, color: 'error' })
     return
   }
-  await refresh()
+  await refreshAll()
   const fresh = (items.value ?? []).find(i => i.id === m.item.id)
   if (fresh && menu.value) menu.value = { ...menu.value, item: fresh }
 }
@@ -212,6 +280,7 @@ function onDragStart(i: Item, e: DragEvent) {
   if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 async function onDrop(g: Group) {
+  if (focusMode.value) return
   const i = dragging.value
   dragging.value = null
   over.value = null
@@ -226,7 +295,59 @@ async function onDrop(g: Group) {
     const due = g.key === 'none' ? null : g.key === 'week' ? addDays(thisMonday, 4) : g.key === 'later' ? addDays(thisMonday, 7) : undefined
     if (due !== undefined && due !== i.due_on) { await patch(i, { due_on: due }); moved = true }
   }
-  if (moved) undo.offer(`Moved ${i.title}`, () => putBack([was]), refresh)
+  if (moved) undo.offer(`Moved ${i.title}`, () => putBack([was]), refreshAll)
+}
+
+// ---------- drag to reorder, focus mode only ----------
+// The group container is itself a drop target, so these stop propagation
+// only when Focus is on; in List mode they do nothing and group drops
+// keep working.
+const dropAt = ref<{ id: string, after: boolean } | null>(null)
+function onRowDragOver(i: Item, e: DragEvent) {
+  if (!focusMode.value || !dragging.value || dragging.value.id === i.id) return
+  e.preventDefault(); e.stopPropagation()
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  dropAt.value = { id: i.id, after: e.clientY - r.top > r.height / 2 }
+}
+async function onRowDrop(e: DragEvent) {
+  if (!focusMode.value) return
+  e.preventDefault(); e.stopPropagation()
+  const from = dragging.value, at = dropAt.value
+  dragging.value = null; dropAt.value = null; over.value = null
+  if (!from || !at || at.id === from.id) return
+  const shown = groups.value.find(g => g.key === 'focus')?.items.map(i => i.id) ?? []
+  const next = shown.filter(id => id !== from.id)
+  const idx = next.indexOf(at.id)
+  if (idx < 0) return
+  next.splice(idx + (at.after ? 1 : 0), 0, from.id)
+  // Everything else on the list, finished and stale rows included, keeps
+  // its relative order after the open ones, so 1..n stays dense.
+  const rest = focusList.ids.value.filter(id => !next.includes(id))
+  try { await focusList.reorder([...next, ...rest]); await refreshFocus() }
+  catch (err) { toast.add({ title: 'Order not saved', description: (err as Error).message, color: 'error' }); await refreshFocus() }
+}
+// Inline, because the focused row and the drop line both set box-shadow
+// at the same specificity and class order does not decide which wins.
+function rowStyle(i: Item) {
+  const parts: string[] = []
+  if (focused.value === i.id) parts.push('inset 2px 0 0 0 var(--ui-primary)')
+  if (dropAt.value?.id === i.id) parts.push(dropAt.value.after ? 'inset 0 -2px 0 0 var(--ui-primary)' : 'inset 0 2px 0 0 var(--ui-primary)')
+  return parts.length ? { boxShadow: parts.join(', ') } : undefined
+}
+
+// ---------- the add box ----------
+const adding = ref('')
+const suggestions = computed(() => {
+  const q = adding.value.trim().toLowerCase()
+  if (!q) return []
+  return (items.value ?? [])
+    .filter(i => !ws.isDone(i.status) && !focusList.has(i.id) && `${i.title} ${projectLabel(i)}`.toLowerCase().includes(q))
+    .slice(0, 8)
+})
+async function addFromBox(i: Item) {
+  adding.value = ''
+  try { await focusList.add([i.id]); await refreshFocus() }
+  catch (e) { toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' }) }
 }
 
 // ---------- cards ----------
@@ -295,10 +416,10 @@ async function deleteSelected() {
   const { error } = await supabase.from('work_items').delete().in('id', ids)
   if (error) toast.add({ title: 'Could not delete', description: error.message, color: 'error' })
   else {
-    undo.offerRestore(`Deleted ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'}`, 'work_items', ids, refresh)
+    undo.offerRestore(`Deleted ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'}`, 'work_items', ids, refreshAll)
     selected.value = new Set()
     focused.value = null
-    await refresh()
+    await refreshAll()
   }
 }
 const toDeleteCount = computed(() => (focusedItem.value ? targets(focusedItem.value).length : selected.value.size))
@@ -312,6 +433,7 @@ useShortcuts('Tasks', {
   'a': { label: 'Assign (selection too)', handler: () => menuOnFocused('assignees') },
   'p': { label: 'Change priority (selection too)', handler: () => menuOnFocused('priority') },
   'd': { label: 'Set the due date', handler: () => { if (focused.value) editingDue.value = focused.value } },
+  'f': { label: 'Add to your focus list, or take it off (selection too)', handler: () => { if (focusedItem.value) toggleFocus(focusedItem.value) } },
   'escape': { label: 'Clear the selection', handler: () => { closeMenu(); selected.value = new Set(); focused.value = null } },
   'delete': { label: 'Delete the task (selection too)', handler: () => { if (toDeleteCount.value) deletingMany.value = true } },
 })
@@ -332,25 +454,27 @@ function created(id: string) {
     <div class="flex flex-wrap items-center gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Tasks</h1>
-        <p class="text-sm text-muted">{{ everyone ? 'Everything across the team.' : 'What is on your plate.' }} Drag a row onto another group to move it.</p>
+        <p class="text-sm text-muted">{{ focusMode ? 'The short list you keep for yourself, in the order you mean to work it. Drag a row to move it. Only you see it.' : `${everyone ? 'Everything across the team.' : 'What is on your plate.'} Drag a row onto another group to move it.` }}</p>
       </div>
       <div class="ml-auto flex flex-wrap items-center gap-3">
-        <UInput v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
-        <USelect v-if="viewMode === 'list'" v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
-        <USwitch v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />
+        <UInput v-if="!focusMode" v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
+        <USelect v-if="!focusMode && viewMode === 'list'" v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
+        <USwitch v-if="!focusMode" v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />
         <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" icon="i-lucide-list" :variant="viewMode === 'list' ? 'solid' : 'ghost'" :color="viewMode === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="viewMode = 'list';" />
-          <UButton size="xs" icon="i-lucide-layout-grid" :variant="viewMode === 'cards' ? 'solid' : 'ghost'" :color="viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="viewMode = 'cards';" />
+          <UButton size="xs" icon="i-lucide-list" :variant="!focusMode && viewMode === 'list' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="focusMode = false; viewMode = 'list';" />
+          <UButton size="xs" icon="i-lucide-layout-grid" :variant="!focusMode && viewMode === 'cards' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="focusMode = false; viewMode = 'cards';" />
+          <UButton size="xs" icon="i-lucide-star" :variant="focusMode ? 'solid' : 'ghost'" :color="focusMode ? 'primary' : 'neutral'" aria-label="Focus" title="Just your focus list" @click="focusMode = true;" />
         </div>
-        <USwitch v-model="showCompleted" label="Completed" size="sm" />
-        <UButton size="xs" variant="ghost" color="neutral" title="Back to the default list" @click="resetView">Reset view</UButton>
-        <UButton v-if="unsorted && can('manage_tasks')" to="/tasks/triage" size="sm" variant="outline" color="neutral" icon="i-lucide-folder-input" title="Tasks the ClickUp import could not tie to a project">{{ unsorted }} unsorted</UButton>
+        <UButton v-if="focusMode && finished.length" size="xs" variant="ghost" color="neutral" @click="clearFinished">Clear finished</UButton>
+        <USwitch v-if="!focusMode" v-model="showCompleted" label="Completed" size="sm" />
+        <UButton v-if="!focusMode" size="xs" variant="ghost" color="neutral" title="Back to the default list" @click="resetView">Reset view</UButton>
+        <UButton v-if="!focusMode && unsorted && can('manage_tasks')" to="/tasks/triage" size="sm" variant="outline" color="neutral" icon="i-lucide-folder-input" title="Tasks the ClickUp import could not tie to a project">{{ unsorted }} unsorted</UButton>
         <UButton icon="i-lucide-plus" data-tour="new-task" @click="creating = true;">New task</UButton>
       </div>
     </div>
 
     <!-- Cards: clients five across, then the client's tasks -->
-    <template v-if="viewMode === 'cards'">
+    <template v-if="!focusMode && viewMode === 'cards'">
       <div v-if="!activeClient" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <button v-for="c in clientCards" :key="c.name" type="button" class="rounded-lg border border-default bg-default p-4 text-left transition-colors hover:border-primary hover:bg-elevated/40" @click="activeClient = c.name;">
           <div class="truncate font-semibold" :title="c.name">{{ c.name }}</div>
@@ -394,13 +518,13 @@ function created(id: string) {
 
     <div
       v-for="g in groups" :key="g.key"
-      v-show="viewMode === 'list'"
+      v-show="focusMode || viewMode === 'list'"
       class="rounded-lg border border-default transition-colors" :class="over === g.key && dragging ? 'border-primary bg-primary/5' : ''"
       @dragover.prevent="over = g.key" @dragleave="over === g.key && (over = null)" @drop.prevent="onDrop(g)"
     >
       <button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm" @click="toggle(g.key)">
         <UIcon :name="collapsed.has(g.key) ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-4 text-dimmed" />
-        <span v-if="groupBy !== 'project'" class="size-2.5 rounded-full" :class="dotClass(g.color)" />
+        <span v-if="focusMode || groupBy !== 'project'" class="size-2.5 rounded-full" :class="dotClass(g.color)" />
         <span class="font-semibold">{{ g.label }}</span>
         <span v-if="g.sublabel" class="text-muted">/ {{ g.sublabel }}</span>
         <span class="text-muted">{{ g.items.length }}</span>
@@ -409,23 +533,34 @@ function created(id: string) {
       <table v-if="!collapsed.has(g.key) && g.items.length" class="w-full border-t border-default text-sm">
         <tbody>
           <tr
-            v-for="(i, idx) in g.items" :key="i.id" draggable="true" :data-task="i.id" :data-tour="idx === 0 && g === groups[0] ? 'row' : undefined"
+            v-for="(i, idx) in g.items" :key="i.id" :draggable="!focusMode || !ws.isDone(i.status)" :data-task="i.id" :data-tour="idx === 0 && g === groups[0] ? 'row' : undefined"
             class="border-b border-default last:border-0 hover:bg-elevated/60"
-            :class="[dragging?.id === i.id ? 'opacity-40' : '', focused === i.id ? 'bg-elevated/60 shadow-[inset_2px_0_0_0_var(--ui-primary)]' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
-            @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null" @click="focused = i.id;"
+            :class="[dragging?.id === i.id ? 'opacity-40' : '', focused === i.id ? 'bg-elevated/60' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
+            :style="rowStyle(i)"
+            @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null; dropAt = null" @dragover="onRowDragOver(i, $event)" @drop="onRowDrop($event)" @click="focused = i.id;"
           >
             <td class="w-8 cursor-grab px-2 py-1.5 text-dimmed" @click.stop="focused = i.id; toggleSelect()">
               <UIcon v-if="selected.has(i.id)" name="i-lucide-check-square" class="size-4 text-primary" />
               <UIcon v-else name="i-lucide-grip-vertical" class="size-4" />
             </td>
             <td class="w-6 px-1 py-1.5">
+              <button
+                type="button" class="grid size-6 place-items-center rounded hover:bg-elevated"
+                :aria-pressed="focusList.has(i.id)"
+                :title="focusList.has(i.id) ? 'Take it off your focus list' : 'Add it to the end of your focus list. Only you see it.'"
+                @click.stop="toggleFocus(i)"
+              >
+                <UIcon name="i-lucide-star" class="size-4" :class="focusList.has(i.id) ? 'text-primary' : 'text-dimmed'" />
+              </button>
+            </td>
+            <td class="w-6 px-1 py-1.5">
               <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
             </td>
             <td class="min-w-0 px-2 py-1.5" :class="i.parent_id ? 'pl-6' : ''">
               <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1 inline size-3.5 align-[-2px] text-dimmed" :title="`Subtask of ${parentTitle(i)}`" />
-              <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
+              <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline" :class="focusMode && ws.isDone(i.status) ? 'text-dimmed line-through' : ''">{{ i.title }}</NuxtLink>
               <span v-if="i.parent_id" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
-              <span v-if="groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
+              <span v-if="focusMode || groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
             </td>
             <td class="hidden px-2 py-1.5 sm:table-cell">
               <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Assign'" @click="openMenu(i, 'assignees', $event)">
@@ -451,10 +586,32 @@ function created(id: string) {
         </tbody>
       </table>
       <p v-else-if="!collapsed.has(g.key)" class="border-t border-default px-3 py-3 text-xs text-muted">Nothing here. Drop a task to move it.</p>
+
+      <div v-if="focusMode && g.key === 'focus'" class="border-t border-default">
+        <ul v-if="suggestions.length" class="divide-y divide-default">
+          <li v-for="sug in suggestions" :key="sug.id">
+            <button type="button" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-elevated" @click="addFromBox(sug)">
+              <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(sug.status))" />
+              <span class="min-w-0 flex-1 truncate">{{ sug.title }}</span>
+              <span class="truncate text-xs text-muted">{{ projectLabel(sug) }}</span>
+            </button>
+          </li>
+        </ul>
+        <form class="flex items-center gap-2 px-3 py-2" @submit.prevent="suggestions[0] && addFromBox(suggestions[0])">
+          <UIcon name="i-lucide-plus" class="size-4 text-dimmed" />
+          <UInput v-model="adding" variant="none" size="sm" class="flex-1" placeholder="Add a task to your focus list" :ui="{ base: 'px-0' }" @keydown.escape="adding = ''" />
+        </form>
+      </div>
     </div>
+
+    <p v-if="focusMode && staleIds.length" class="flex items-center gap-2 px-1 text-xs text-muted">
+      {{ staleIds.length === 1 ? '1 task on your focus list was deleted or is no longer yours to see.' : `${staleIds.length} tasks on your focus list were deleted or are no longer yours to see.` }}
+      <UButton size="xs" variant="ghost" color="neutral" @click="dropStale">{{ staleIds.length === 1 ? 'Remove it' : 'Remove them' }}</UButton>
+    </p>
+
     <div v-if="selected.size" class="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-default bg-default px-4 py-2 text-sm shadow-lg">
       <span class="font-medium tabular-nums">{{ selected.size }} selected</span>
-      <span class="text-xs text-muted">S status · A assign · P priority · Delete</span>
+      <span class="text-xs text-muted">S status · A assign · P priority · F focus · Delete</span>
       <UButton size="xs" variant="ghost" color="neutral" @click="selected = new Set();">Clear</UButton>
     </div>
 
@@ -470,7 +627,7 @@ function created(id: string) {
       </template>
     </UModal>
 
-    <p v-if="viewMode === 'list' && !groups.length" class="py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.' }}</p>
+    <p v-if="focusMode ? !groups.length : (viewMode === 'list' && !groups.length)" class="py-8 text-center text-sm text-muted">{{ focusMode ? 'Your focus list is empty. Click the star on a task, here or on the task itself, and it lands on the bottom of this list. Drag to put it in the order you want to work. Only you see it.' : (everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.') }}</p>
 
     <Teleport to="body">
       <div v-if="menu" class="fixed inset-0 z-50" @click="closeMenu">

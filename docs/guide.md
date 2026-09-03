@@ -30,10 +30,10 @@ keyboard shortcuts alone.
 
 ## Home and the morning brief
 
-- **Home** is your day: the timer (click the card to start one), hours today and this week against
-  your target, your open tasks by when they are due, the projects you
-  are working in, and today's or this week's agenda from your Google
-  Calendar.
+- **Home** is your day: the timer (click the card to start one), hours
+  today and this week against your target, your focus list and then your
+  other open tasks by when they are due, the projects you are working
+  in, and today's or this week's agenda from your Google Calendar.
 - **Morning brief.** Each weekday morning Docket writes you a short
   note from your own facts: what is overdue or due today, weeks waiting
   for your approval, a last week you have not submitted, quotes out
@@ -95,6 +95,18 @@ sees hours.
   the keyboard) one change applies to all of them.
 - **Cards** (the grid icon) show a card per client; open one to see its
   tasks as cards.
+- **Focus** is your own short list. Click the star on a row, or Add to
+  focus on the task itself, and it goes on the bottom of your focus
+  list. The star button in the view switcher shows just that list, in
+  the order you dragged it into, and hides everything else. It is
+  private: nobody else can see what you have in focus, and it changes
+  nothing about the task, not its priority, not its dates, not anything
+  on Planner. Finishing a task moves it to Finished at the bottom of
+  the list, where Clear finished takes it off and leaves the task
+  alone. A task that was deleted, or that you can no longer see, drops
+  out and the page offers to tidy up what is left. Your focus list also
+  sits at the top of My tasks on Home. Focus is a mode you step into,
+  so closing Docket in it leaves you back in your usual list next time.
 - **Everyone** switches between your tasks and the whole team's.
   Completed tasks are hidden until you flip Completed.
 - **Unsorted tasks** (the button on the Tasks page, for people who can
@@ -468,6 +480,8 @@ pricing, and imports.
 log time, `g` then `t`/`k`/`p`/`c`/`e`/`r`/`i`/`s` to jump to Time, Tasks,
 Projects, Clients, Expenses, Reports, Invoices, Settings. `?` shows the
 sheet for the page you are on, including the task list's own keys.
+`f` on the task list puts the row on your focus list or takes it off,
+and works on a whole selection. `g` then `f` opens your focus list.
 Nothing fires while you are typing in a field.
 
 ## How it works, briefly

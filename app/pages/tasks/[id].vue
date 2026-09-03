@@ -14,6 +14,7 @@ const { can } = useCurrentUser()
 const isAdmin = computed(() => can('manage_tasks'))
 const files = useWorkFiles()
 const toast = useToast()
+const focusList = useFocusList()
 const __ad1 = useWorkStatuses()
 
 const __ad2 = useAsyncData(`task-${id}`, async () => {
@@ -62,7 +63,8 @@ const __ad8 = useAsyncData(`task-${id}-children`, async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8])
+const __ad9 = useAsyncData('focus-ids', () => focusList.load(true), fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8, __ad9])
 const ws = await __ad1
 const { data: children, refresh: refreshChildren } = __ad8
 const { data: item, refresh } = __ad2
@@ -329,6 +331,13 @@ async function addComment() {
     commenting.value = false
   }
 }
+// Your focus list. One click reverses this, so no undo toast.
+const onFocusList = computed(() => focusList.has(id))
+async function toggleFocus() {
+  try { onFocusList.value ? await focusList.remove([id]) : await focusList.add([id]) }
+  catch (e) { toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' }) }
+}
+
 const undo = useUndo()
 async function deleteComment(commentId: string) {
   const { error } = await supabase.from('work_item_comments').delete().eq('id', commentId)
@@ -551,6 +560,11 @@ function startResize(e: PointerEvent) {
         <NuxtLink :to="`/tasks/${parent.id}`" class="text-muted hover:text-highlighted" title="This is a subtask">{{ parent.title }}</NuxtLink>
       </template>
       <div class="ml-auto flex items-center gap-2">
+        <UButton
+          size="sm" icon="i-lucide-star" :variant="onFocusList ? 'solid' : 'outline'" :color="onFocusList ? 'primary' : 'neutral'"
+          :title="onFocusList ? 'Take it off your focus list' : 'Put it on the end of your focus list. Only you see it.'"
+          @click="toggleFocus"
+        >{{ onFocusList ? 'In focus' : 'Add to focus' }}</UButton>
         <UButton variant="outline" size="sm" icon="i-lucide-share-2" @click="openShare">Share for review</UButton>
         <TaskTimerControl :work-item="{ id: item.id, title: item.title, project_id: item.project_id }" :project-tasks="itemProjectTasks ?? []" @changed="refreshTimeLogged" />
         <UButton variant="outline" size="sm" icon="i-lucide-timer" title="Enter hours, or a different day" @click="loggingTime = true;">Log time</UButton>
