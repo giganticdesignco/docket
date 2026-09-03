@@ -46,11 +46,12 @@ function onSaved(_c: Tables<'clients'>) {
     <div class="flex items-center gap-4">
       <h1 class="text-2xl font-semibold">Clients</h1>
       <USwitch v-model="showInactive" label="Show inactive" size="sm" class="ml-auto" />
+      <ColumnsMenu :cols="cols" />
       <UButton v-if="isAdmin" icon="i-lucide-plus" @click="creating = true;">New client</UButton>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto"><table class="w-full text-sm">
         <TableHead :cols="cols" />
         <tbody>
           <tr v-for="c in rows" :key="c.id" class="border-b border-default last:border-0">
@@ -67,7 +68,7 @@ function onSaved(_c: Tables<'clients'>) {
             <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">No clients yet.</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </UCard>
 
     <AppDrawer v-model:open="creating" title="New client">

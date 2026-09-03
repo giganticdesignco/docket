@@ -99,11 +99,12 @@ function done() {
         </p>
       </div>
       <USwitch v-model="showInactive" label="Show inactive" size="sm" class="ml-auto shrink-0" />
+      <ColumnsMenu :cols="cols" />
       <UButton icon="i-lucide-user-plus" @click="adding = true;">Add person</UButton>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto"><table class="w-full text-sm">
         <TableHead :cols="cols" />
         <tbody>
           <tr v-for="p in rows" :key="p.id" class="border-b border-default last:border-0">
@@ -124,7 +125,7 @@ function done() {
             <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">Nobody here.</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </UCard>
 
     <AppDrawer v-model:open="adding" title="Add person">

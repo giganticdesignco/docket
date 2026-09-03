@@ -128,11 +128,12 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
       <USelectMenu v-model="clientFilter" :items="clientOptions" value-key="value" class="ml-auto w-56" placeholder="All clients" />
       <USelectMenu v-if="departments?.length" v-model="departmentFilter" :items="departmentOptions" value-key="value" class="w-44" placeholder="All departments" />
       <USwitch v-model="showInactive" label="Show inactive" size="sm" />
+      <ColumnsMenu :cols="cols" />
       <UButton v-if="isAdmin" icon="i-lucide-plus" @click="creating = true;">New project</UButton>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto"><table class="w-full text-sm">
         <TableHead :cols="cols" />
         <tbody>
           <tr v-for="p in rows" :key="p.id" class="border-b border-default last:border-0">
@@ -165,7 +166,7 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
             <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">No projects match.</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </UCard>
 
     <AppDrawer v-model:open="creating" title="New project">

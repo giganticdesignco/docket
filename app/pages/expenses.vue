@@ -108,11 +108,12 @@ async function confirmDelete() {
         <UButton icon="i-lucide-chevron-right" variant="ghost" color="neutral" size="sm" aria-label="Next year" @click="year++;" />
       </div>
       <USwitch v-if="isAdmin" v-model="everyone" label="Everyone" size="sm" />
+      <ColumnsMenu :cols="cols" />
       <UButton icon="i-lucide-plus" @click="creating = true;">New expense</UButton>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto"><table class="w-full text-sm">
         <TableHead :cols="cols" :only="visibleCols" />
         <tbody>
           <tr v-for="e in rows" :key="e.id" class="border-b border-default last:border-0">
@@ -152,7 +153,7 @@ async function confirmDelete() {
             <td />
           </tr>
         </tfoot>
-      </table>
+      </table></div>
     </UCard>
 
     <AppDrawer v-model:open="creating" title="New expense">

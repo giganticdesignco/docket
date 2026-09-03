@@ -128,10 +128,11 @@ async function create() {
     <template v-if="layout === 'list'">
       <div class="flex flex-wrap gap-1">
         <UButton v-for="f in filters" :key="f.value" size="xs" :variant="filter === f.value ? 'solid' : 'ghost'" :color="filter === f.value ? 'primary' : 'neutral'" @click="filter = f.value;">{{ f.label }}</UButton>
+        <span class="ml-auto"><ColumnsMenu :cols="cols" /></span>
       </div>
 
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <table class="w-full text-sm">
+        <div class="overflow-x-auto"><table class="w-full text-sm">
           <TableHead :cols="cols" />
           <tbody>
             <tr v-for="q in rows" :key="q.id" class="border-b border-default last:border-0">
@@ -153,7 +154,7 @@ async function create() {
               <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">No quotes here.</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </UCard>
     </template>
 

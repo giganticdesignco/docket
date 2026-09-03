@@ -155,8 +155,8 @@ sees hours.
 - **Tables you can arrange.** On the Projects, Clients, Quotes,
   Invoices, Expenses, and People lists, click a column
   header to sort (again to flip, a third time to clear), drag a header
-  onto another to move it, and use the Columns button at the end of
-  the header row to show or hide columns or reset. Docket remembers your
+  onto another to move it, and use the gear beside the page's buttons to
+  show or hide columns or reset. Wide tables scroll sideways. Docket remembers your
   arrangement. The Projects list also shows each project's open task
   count and who is on those tasks.
 
