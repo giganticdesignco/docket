@@ -26,7 +26,7 @@ function onDrop(to: string) {
     <tr class="border-b border-default">
       <th
         v-for="c in shown" :key="c.key"
-        class="px-4 py-2 font-medium select-none" :class="[c.align === 'right' ? 'text-right' : '', c.class ?? '', over === c.key && dragging !== c.key ? 'border-l-2 border-primary' : '', dragging === c.key ? 'opacity-40' : '']"
+        class="whitespace-nowrap px-4 py-2 font-medium select-none" :class="[c.align === 'right' ? 'text-right' : '', c.class ?? '', over === c.key && dragging !== c.key ? 'border-l-2 border-primary' : '', dragging === c.key ? 'opacity-40' : '']"
         draggable="true" @dragstart="dragging = c.key" @dragend="dragging = null; over = null" @dragover.prevent="over = c.key" @dragleave="over === c.key && (over = null)" @drop.prevent="onDrop(c.key)"
       >
         <button v-if="c.sort" type="button" class="inline-flex items-center gap-1 hover:text-highlighted" :class="cols.sort?.key === c.key ? 'text-highlighted' : ''" :title="`Sort by ${c.label.toLowerCase()}`" @click="cols.toggleSort(c.key)">
