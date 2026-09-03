@@ -147,6 +147,11 @@ sees hours.
 
 ## Clients and projects
 
+- **The Clients list** can show the team on each account (project leads
+  and people on open tasks) and, for people who see money, what each
+  client has unbilled (billable time and expenses not yet on a batch or
+  invoice), what was billed this year, and what is left of a running
+  retainer. Turn them on with the gear.
 - **A client's page** shows the year's numbers, billing, contacts, the
   team on the account (project leads, people on open tasks, and anyone
   with time there in the last 90 days), its projects, its open tasks

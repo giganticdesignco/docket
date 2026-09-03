@@ -3653,3 +3653,48 @@ end $$;
 create trigger time_entries_notify_submit after update on time_entries
   referencing old table as old_table new table as new_table
   for each statement execute function public.notify_on_time_submit();
+
+-- Per client, for the Clients list: what is billable but not yet on a
+-- batch or invoice, and what was invoiced this year (Docket and
+-- Harvest). Security invoker; money is null without see_money, the
+-- same rule as report_rollup.
+create or replace function public.client_money()
+returns table (client_id uuid, unbilled numeric, billed_year numeric)
+language sql stable
+set search_path = ''
+as $$
+  with t as (
+    select p.client_id, coalesce(sum(td.amount), 0) as amount
+    from public.time_detail td
+    join public.projects p on p.id = td.project_id
+    where td.is_billable and not td.is_locked and td.batch_id is null
+    group by p.client_id
+  ), e as (
+    select p.client_id, coalesce(sum(x.amount), 0) as amount
+    from public.expenses x
+    join public.projects p on p.id = x.project_id
+    where x.is_billable and not x.is_locked and x.batch_id is null and x.deleted_at is null
+    group by p.client_id
+  ), d as (
+    select i.client_id, coalesce(sum(i.total), 0) as amount
+    from public.invoices i
+    where i.status in ('sent', 'paid')
+      and i.issue_date >= date_trunc('year', (now() at time zone 'America/Chicago'))::date
+    group by i.client_id
+  ), h as (
+    select hi.client_id, coalesce(sum(hi.amount), 0) as amount
+    from public.harvest_invoices hi
+    where hi.state <> 'draft'
+      and hi.issue_date >= date_trunc('year', (now() at time zone 'America/Chicago'))::date
+    group by hi.client_id
+  )
+  select c.id,
+         case when (select public.has_permission('see_money')) then coalesce(t.amount, 0) + coalesce(e.amount, 0) end,
+         case when (select public.has_permission('see_money')) then coalesce(d.amount, 0) + coalesce(h.amount, 0) end
+  from public.clients c
+  left join t on t.client_id = c.id
+  left join e on e.client_id = c.id
+  left join d on d.client_id = c.id
+  left join h on h.client_id = c.id;
+$$;
+revoke execute on function public.client_money() from public, anon;

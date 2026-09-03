@@ -3154,6 +3154,14 @@ export type Database = {
       }
     }
     Functions: {
+      client_money: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          client_id: string
+          unbilled: number | null
+          billed_year: number | null
+        }[]
+      }
       approver_of: {
         Args: { p_user: string }
         Returns: string

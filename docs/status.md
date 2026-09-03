@@ -1825,3 +1825,13 @@ Budget and Remaining, People Default rate, Quotes Total, Invoices Total
 and Outstanding. UI-level only: time and invoice amounts are already
 null without see_money through their views, but `projects.budget_*`
 are base-table columns readable by anyone who can read the project.
+
+## Clients list: money columns (2026-09-03)
+
+`client_money()` (security invoker, null without see_money) gives
+unbilled (billable, unlocked, unbatched time and expenses) and billed
+this year (Docket sent/paid plus Harvest non-draft). Retainer left
+comes from `retainer_status()` filtered to the period covering today,
+summed by basis. Three see_money columns on `/clients`, plus a Team
+column (project leads and people on open tasks, from work_items and
+projects.lead_id). Guide updated.
