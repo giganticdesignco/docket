@@ -1612,3 +1612,11 @@ the red badge (the enum's `expired` is never written). Both layouts
 show the owner (`quotes.created_by` initials) and an amber dot on sent
 quotes five or more days old with no decision. Threshold is a constant
 in the page. Guide updated.
+
+## Deploy fix (2026-09-03)
+
+Vercel builds failed from the help page commit on: `.vercelignore`
+dropped `docs`, and `/help` imports `docs/guide.md?raw`. Now only
+`desktop` is ignored. The committed `package-lock.json` is behind
+`package.json` (marked, driver.js, the MCP SDK); Vercel's npm install
+copes, but a `npm ci` would not.
