@@ -173,7 +173,7 @@ const openName = computed(() => people.value.find(p => p.id === open.value?.pers
         <li><span class="font-medium">Available</span> is a person's weekly hours (People page) minus time off (Time off page, weekdays only) minus meetings from their connected Google Calendar.</li>
         <li><span class="font-medium">Planned</span> is the estimate of each open task due that week, split evenly between its assignees. Completed and on-hold tasks do not count, and a task with no estimate counts as zero, so "nothing planned" can also mean "no estimates yet". Click a cell to see the tasks.</li>
         <li><span class="font-medium">This week</span> uses the larger of what is logged so far and what is planned.</li>
-        <li><span class="font-medium">Quoted</span> is hours on draft or sent quotes whose scope lines name this person and this week. The grey bar underneath adds them to the plan. They drop off when the quote is accepted (its pages become real tasks) or declined.</li>
+        <li><span class="font-medium">Quoted</span> is hours on draft or sent quotes whose scope lines name this person and this week. The gray bar underneath adds them to the plan. They drop off when the quote is accepted (its pages become real tasks) or declined.</li>
         <li>Amber means over 85% full, red means over. Past weeks are a record and are not coloured.</li>
       </ul>
     </details>

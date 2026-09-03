@@ -145,7 +145,7 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
     <div class="flex items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Harvest import</h1>
-        <p class="text-sm text-muted">Past years roll up by month. This year comes in entry by entry and can be re-synced until Harvest is cancelled.</p>
+        <p class="text-sm text-muted">Past years roll up by month. This year comes in entry by entry and can be re-synced until Harvest is canceled.</p>
       </div>
       <USwitch v-model="dryRun" label="Dry run" size="sm" class="ml-auto" :disabled="running" />
     </div>

@@ -518,7 +518,8 @@ function startResize(e: PointerEvent) {
       <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name === 'General' ? 'General tasks' : item.projects?.name }}</NuxtLink>
       <div class="ml-auto flex items-center gap-2">
         <UButton variant="outline" size="sm" icon="i-lucide-share-2" @click="openShare">Share for review</UButton>
-        <UButton variant="outline" size="sm" icon="i-lucide-timer" @click="loggingTime = true;">Log time</UButton>
+        <TaskTimerControl :work-item="{ id: item.id, title: item.title, project_id: item.project_id }" :project-tasks="itemProjectTasks ?? []" @changed="refreshTimeLogged" />
+        <UButton variant="outline" size="sm" icon="i-lucide-timer" title="Enter hours, or a different day" @click="loggingTime = true;">Log time</UButton>
         <UButton v-if="canDelete" variant="ghost" color="neutral" size="sm" icon="i-lucide-trash-2" aria-label="Delete task" @click="deleting = true;" />
       </div>
     </div>

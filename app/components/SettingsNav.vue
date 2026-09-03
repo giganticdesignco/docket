@@ -1,43 +1,29 @@
 <script setup lang="ts">
-// The strip across the top of every settings page, so the gear in the
-// rail is one entry and the pages find each other here.
-const route = useRoute()
+// The settings sidebar: every settings page, grouped, so the gear in
+// the rail is one entry and the pages find each other here.
 const { isAdmin, can } = useCurrentUser()
 
-const links = computed(() => [
-  ...(can('manage_people') ? [{ label: 'People', to: '/admin/users' }] : []),
-  ...(can('manage_settings')
+const sections = computed(() => [
+  { label: 'Team', links: [
+    ...(can('manage_people') ? [{ label: 'People', to: '/admin/users' }] : []),
+    ...(isAdmin.value ? [{ label: 'Permissions', to: '/admin/permissions' }] : []),
+  ] },
+  { label: 'Work', links: [
+    ...(can('manage_settings') ? [{ label: 'Projects', to: '/admin/project-settings' }, { label: 'Departments', to: '/admin/departments' }, { label: 'Project templates', to: '/admin/project-templates' }, { label: 'Task statuses', to: '/admin/task-statuses' }] : []),
+    ...(can('manage_reference') ? [{ label: 'Task types', to: '/admin/tasks' }] : []),
+  ] },
+  { label: 'Money', links: can('manage_settings')
     ? [
-        { label: 'Projects', to: '/admin/project-settings' },
-        { label: 'Task statuses', to: '/admin/task-statuses' },
-      ]
-    : []),
-  ...(can('manage_reference') ? [{ label: 'Task types', to: '/admin/tasks' }] : []),
-  ...(can('manage_settings')
-    ? [
-        { label: 'Expense categories', to: '/admin/expense-categories' },
-        { label: 'Departments', to: '/admin/departments' },
         { label: 'Invoices and quotes', to: '/admin/invoice-settings' },
-        { label: 'Estimator', to: '/admin/estimator' },
         { label: 'Page templates', to: '/admin/page-templates' },
-        { label: 'Project templates', to: '/admin/project-templates' },
-        { label: 'Imports', to: '/admin/imports', also: ['/admin/harvest', '/admin/clickup'] },
+        { label: 'Estimator', to: '/admin/estimator' },
+        { label: 'Expense categories', to: '/admin/expense-categories' },
       ]
-    : []),
-  ...(isAdmin.value ? [{ label: 'Permissions', to: '/admin/permissions' }] : []),
+    : [] },
+  { label: 'Data', links: can('manage_settings') ? [{ label: 'Imports', to: '/admin/imports', also: ['/admin/harvest', '/admin/clickup'] }] : [] },
 ])
-const active = (l: { to: string, also?: string[] }) => [l.to, ...(l.also ?? [])].some(p => route.path === p || route.path.startsWith(`${p}/`))
 </script>
 
 <template>
-  <nav v-if="isAdmin || can('manage_settings') || can('manage_people')" class="mb-6 -mt-1 flex flex-wrap items-center gap-1 border-b border-default pb-2 text-sm" aria-label="Settings">
-    <NuxtLink to="/admin" class="mr-2 flex items-center gap-1.5 font-semibold" :class="route.path === '/admin' ? 'text-highlighted' : 'text-muted hover:text-highlighted'">
-      <UIcon name="i-lucide-settings" class="size-4" />Settings
-    </NuxtLink>
-    <NuxtLink
-      v-for="l in links" :key="l.to" :to="l.to"
-      class="rounded-md px-2.5 py-1 transition-colors"
-      :class="active(l) ? 'bg-elevated text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
-    >{{ l.label }}</NuxtLink>
-  </nav>
+  <SubNav v-if="isAdmin || can('manage_settings') || can('manage_people')" title="Settings" home="/admin" :sections="sections" />
 </template>

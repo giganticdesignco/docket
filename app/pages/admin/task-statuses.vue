@@ -2,7 +2,7 @@
 import type { Tables } from '~~/shared/types/database'
 import { STATUS_COLORS, type StatusColor } from '~~/shared/types/app'
 
-// The task status list: order, label, colour, and the flags the app relies
+// The task status list: order, label, color, and the flags the app relies
 // on. Keys never change once made; deleting is only possible while no task
 // uses the status (deactivate instead).
 definePageMeta({ middleware: 'can', permission: 'manage_settings' })
@@ -144,7 +144,7 @@ const flags = (s: Status) => [s.is_done && 'done', s.is_paused && 'paused', s.is
           <UFormField label="Label">
             <UInput v-model="form.label" class="w-full" autofocus />
           </UFormField>
-          <UFormField label="Colour">
+          <UFormField label="Color">
             <USelect v-model="form.color" :items="STATUS_COLORS" class="w-full" />
           </UFormField>
           <div class="grid gap-2 sm:grid-cols-2">

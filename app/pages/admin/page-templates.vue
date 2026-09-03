@@ -90,7 +90,7 @@ async function move(r: Row, dir: -1 | 1) {
             <th class="px-2 py-2 text-right font-medium">Hours</th>
             <th class="px-2 py-2 text-right font-medium">Rate</th>
             <th class="px-2 py-2 font-medium">Task type</th>
-            <th class="px-2 py-2 font-medium">Colour</th>
+            <th class="px-2 py-2 font-medium">Color</th>
             <th class="px-4 py-2" />
           </tr>
         </thead>
@@ -125,7 +125,7 @@ async function move(r: Row, dir: -1 | 1) {
             <UFormField label="Rate" help="Blank uses the rate already on the quote for the task type."><UInput v-model="form.rate" type="number" step="1" min="0" class="w-full" /></UFormField>
           </div>
           <UFormField label="Task type" help="Where the time logs when the pages become work."><USelect v-model="form.task_id" :items="taskOptions" class="w-full" /></UFormField>
-          <UFormField label="Colour"><USelect v-model="form.color" :items="COLORS" class="w-full" /></UFormField>
+          <UFormField label="Color"><USelect v-model="form.color" :items="COLORS" class="w-full" /></UFormField>
           <USwitch v-model="form.is_active" label="Offered on the sitemap" />
         </div>
       </template>

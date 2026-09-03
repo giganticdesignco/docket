@@ -300,7 +300,7 @@ protect trigger only guards role, rate, active, email).
 - The rail has a Help entry above the theme toggle: replay the current
   page's tour, replay Getting around, or open the keyboard shortcuts
   sheet (its open state is now `useState('shortcut-sheet-open')`).
-- Popover styling in `main.css` uses the app's colour tokens.
+- Popover styling in `main.css` uses the app's color tokens.
 - Verified in the browser: auto-start, all five steps of Getting
   around anchored correctly, tours_seen saved, Tasks tour auto-started
   on the next page and Skip closed it. Luke's tours_seen reset to {} so
@@ -465,7 +465,7 @@ Pages:
 - `/reports` (`app/pages/reports/index.vue`) is the new report. Time or
   Expenses; timeframe bar (Week, Semimonth, Month, Quarter, Year, Custom,
   with arrows); rollup strip with "vs last year" (an in-progress period
-  compares to the same days last year, labelled "to date"); an SVG bar
+  compares to the same days last year, labeled "to date"); an SVG bar
   chart by day, week, or month depending on the span (billable stacked
   over total); tabs Clients, Projects, Tasks (Categories for expenses),
   Team; filters for client, project, task or category, person, and
@@ -696,14 +696,14 @@ Client review link:
 
 Editable statuses (Luke's ask):
 
-- `work_statuses` table replaces the enum: key, label, colour, position,
+- `work_statuses` table replaces the enum: key, label, color, position,
   and flags is_done (completed_at, hidden from open lists and capacity),
   is_paused (hidden from capacity), is_client_review, is_return,
   is_active. `work_items.status` is text with a FK (on update cascade).
   The trigger and the capacity view read the flags. Seeded with the nine
   ClickUp statuses.
 - `useWorkStatuses()` (awaited in setup, cached in useState) feeds every
-  status menu, label, and colour. `/admin/task-statuses` (Settings) adds,
+  status menu, label, and color. `/admin/task-statuses` (Settings) adds,
   edits, reorders, deactivates, and deletes unused statuses.
 
 Task list rebuilt like ClickUp (`/tasks`): collapsible groups by status,
@@ -718,7 +718,7 @@ stack with a "+N" past five.
 
 ## Step 10: task management (2026-09-02)
 
-Luke reframed the scope: ClickUp is being cancelled, so Docket takes over
+Luke reframed the scope: ClickUp is being canceled, so Docket takes over
 tasks. Client review links are step 11 (a link is enough, but clients
 may comment). Migrations `work_items` and `work_item_file_links`,
 mirrored in schema.sql.
@@ -772,7 +772,7 @@ App:
   column on the right with comments and a composer pinned at the bottom
   (Cmd+Enter posts). No edit modal; WorkItemForm is only for creating.
 - Project page: Tasks card (open count, Show completed, New task). The
-  billing task-type card and button are now labelled "Task types".
+  billing task-type card and button are now labeled "Task types".
 - Capacity: drill-down lists the person's tasks due that week with the
   split estimate; no ClickUp button.
 - `/admin/clickup` + `server/api/clickup/import.post.ts`: one-time import
@@ -845,7 +845,7 @@ token fails with a clear message; adding two days of PTO on /time-off
 showed 16:00 and dropped that week's available hours to 24:00 on
 /capacity; the entry was deleted afterwards.
 
-SUPERSEDED by step 10: ClickUp is being cancelled, so the sync and the
+SUPERSEDED by step 10: ClickUp is being canceled, so the sync and the
 clickup_assignments mirror are gone; capacity books from Docket tasks.
 What remains of ClickUp is the one-time import on /admin/clickup, which
 needs NUXT_CLICKUP_TOKEN and NUXT_CLICKUP_TEAM_ID=8666791 once, before
@@ -1166,7 +1166,7 @@ Next is step 7: reports + CSV.
   calls it after creating projects, so history feeds budgets after the
   2026 sync runs.
 - Project page: Budget card (hours and billable amount used vs budget,
-  progress bars, colour at 80% and 100%) and Recent entries (last 10 from
+  progress bars, color at 80% and 100%) and Recent entries (last 10 from
   time_detail; staff see their own). Client page: Retainers card with
   used / available, carried in, left or over, progress bar, and admin
   New / Edit / Delete through `RetainerForm`.
@@ -1564,7 +1564,7 @@ a card per page (title, path, template, hours), tidy top-down layout
 with elbow connectors, add child or sibling from the card, Enter and
 Tab on the keyboard, drag a card onto another to reparent, zoom and
 fit. `page_templates` (Settings, Page templates: name, hours, rate,
-task type, colour) give a page its hours unless overridden
+task type, color) give a page its hours unless overridden
 (`quote_sitemap_nodes.template_id`, `hours`). "Price the sitemap" on
 the quote makes or updates one scope line per template
 (`quote_line_items.template_id`) and links the pages to it.
@@ -1601,7 +1601,7 @@ editor has a "Who, week" column, and `quote_line_margins(p_quote_id)`
 saved lines so cost rates never leave Postgres. `accept_quote()` assigns
 each page's task to its line's person. `capacity_weekly.forecast_hours`
 sums those lines on draft or sent quotes; the capacity page draws them
-as a grey bar under the plan. Guide updated.
+as a gray bar under the plan. Guide updated.
 
 ## Quotes board, owner, stale dot, Phase 4 item 3 (2026-09-03)
 
@@ -1639,3 +1639,24 @@ seeded with ClickUp's Department field values, and
 project form has a Department select; the Projects list has a
 department filter and column. Existing projects start unassigned.
 Guide updated.
+
+## Inline task timer and rail clock, Phase 4 item 6 (2026-09-03)
+
+`TaskTimerControl.vue` (task page top bar; compact on the project's
+task rows) starts a timer on the task through `useTimer().startNew`
+with the project's one active task type, or asks which when there are
+several; shows the live count and Stop when that task's timer runs.
+`TimeClockPopover.vue` replaces the rail's Time link on desktop: same
+link, a dot while a timer runs, and a hover popover with the running
+timer plus Stop and the person's open assigned tasks with logged of
+estimate. No schema change. Guide updated.
+
+## Settings sidebar (2026-09-03)
+
+Luke: "when there is subnav make it layout like Supabase does."
+`SubNav.vue` is a fixed second sidebar right of the rail (title, grouped
+links) that folds to a strip on phones; `SettingsNav.vue` uses it with
+Team, Work, Money, Data groups, and `app.vue` pads the shell by the
+extra 14rem on settings routes. Reports' tabs are content tabs on one
+page, not a subnav, so they stay as they are. Also this commit: all UI
+copy and docs moved to American spelling (rule added to CLAUDE.md).

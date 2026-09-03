@@ -35,7 +35,12 @@ Time is the reason Docket exists, so it is the first screen.
 - **Notes go on invoices.** Keep them short, one line per thing you did,
   starting each with `- `. They are what the client reads.
 - **The timer.** Play on an entry starts the clock; stop folds the time
-  into the entry's hours. One timer runs per person; starting another
+  into the entry's hours. A task has its own Start timer button (on the
+  task page, and the play icon on a project's task list), which makes
+  the entry for you; a project with several task types asks which one
+  first. The clock in the left rail shows a dot while a timer runs, and
+  hovering it lists your open tasks with logged against estimate and a
+  Stop for whatever is running. One timer runs per person; starting another
   stops nothing, it refuses, so stop the first one. A timer left running
   ten hours gets you an email.
 - **Locked entries** (a lock icon) are on a billing batch or an invoice
@@ -112,7 +117,7 @@ sees hours.
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.
 
-- **Quoted hours** show on Capacity as a grey bar under the plan: scope
+- **Quoted hours** show on Capacity as a gray bar under the plan: scope
   lines on draft or sent quotes that name a person and a week. They
   drop off once the quote is decided.
 
@@ -336,7 +341,7 @@ tasks and approve or request changes. They see nothing else.
 
 ## Imports and the morning sync
 
-Until Harvest and ClickUp are cancelled, Docket pulls from both every
+Until Harvest and ClickUp are canceled, Docket pulls from both every
 morning: ClickUp's open tasks, and Harvest's time, expenses, and project
 budgets for the current month (plus the previous one at the start of a
 month). The Imports settings page runs the same imports by hand and
@@ -350,6 +355,10 @@ project for the client; the Unsorted tasks page (from Tasks) is where
 they get sorted.
 
 ## Settings and permissions
+
+Settings has its own sidebar beside the rail, grouped Team, Work, Money,
+and Data, with the page to the right. On a phone it folds into a strip
+across the top.
 
 Roles are Admin, Manager, Staff, and Client, plus any you add. Each role
 has a set of permissions: see all time, see money, see all tasks, manage

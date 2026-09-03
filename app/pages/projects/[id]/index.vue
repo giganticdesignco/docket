@@ -354,7 +354,8 @@ async function copyFolder() {
           </span>
           <span class="w-16 text-right tabular-nums" :class="i.due_on && i.due_on < todayString() && !ws.isDone(i.status) ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
           <UBadge :color="ws.color(i.status)" variant="subtle" size="sm">{{ ws.label(i.status) }}</UBadge>
-          <UButton icon="i-lucide-timer" variant="ghost" color="neutral" size="xs" aria-label="Log time" title="Log time" @click="loggingTimeItem = { id: i.id, title: i.title };" />
+          <TaskTimerControl compact :work-item="{ id: i.id, title: i.title, project_id: id }" :project-tasks="projectTasksForForm" @changed="__ad9.refresh()" />
+          <UButton icon="i-lucide-timer" variant="ghost" color="neutral" size="xs" aria-label="Log time" title="Log time: enter hours, or a different day" @click="loggingTimeItem = { id: i.id, title: i.title };" />
         </li>
       </ul>
       <p v-else class="px-4 py-6 text-center text-sm text-muted">No tasks on this project yet.</p>

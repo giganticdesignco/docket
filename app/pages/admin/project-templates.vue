@@ -154,7 +154,7 @@ async function remove() {
       <template #body>
         <div class="space-y-4">
           <UFormField label="Name" required><UInput v-model="form.name" class="w-full" placeholder="Brand identity" /></UFormField>
-          <UFormField label="Description"><UInput v-model="form.description" class="w-full" placeholder="Logo, colour, type, and a short standards sheet." /></UFormField>
+          <UFormField label="Description"><UInput v-model="form.description" class="w-full" placeholder="Logo, color, type, and a short standards sheet." /></UFormField>
           <div>
             <div class="mb-1 flex items-center gap-2">
               <span class="text-sm font-medium">Tasks</span>

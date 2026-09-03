@@ -28,7 +28,8 @@ run `vercel --prod` (it once uploaded the 2 GB desktop build).
   `server/`.
 - **Rates are frozen per entry.** `time_entries.rate_snapshot` is set by
   a DB trigger. Never recompute a rate at read time in app code.
-- **No em dashes in any UI copy.**
+- **No em dashes in any UI copy.** American spelling (color, gray,
+  canceled), in the app and the docs.
 - **Never delete real data in tests.** ClickUp tasks and Harvest entries
   are live. Test rows carry an obvious marker and are removed after.
 - **Commit and push only when Luke says "commit push".** Leave

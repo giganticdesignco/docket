@@ -14,7 +14,7 @@
   .app-shell { padding-left: 0 !important; }
 }
 
-/* Walkthrough popovers (driver.js) in the app's type and colours. */
+/* Walkthrough popovers (driver.js) in the app's type and colors. */
 .driver-popover { font-family: inherit; color: var(--ui-text); background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 0.5rem; box-shadow: 0 10px 30px rgb(0 0 0 / 0.15); }
 .driver-popover-title { font-size: 1rem; font-weight: 600; }
 .driver-popover-description { font-size: 0.875rem; color: var(--ui-text-muted); }

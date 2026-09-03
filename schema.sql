@@ -458,12 +458,12 @@ create table project_tasks (
   primary key (project_id, task_id)
 );
 
--- ---------- Tasks (step 10; ClickUp is being cancelled) ----------
+-- ---------- Tasks (step 10; ClickUp is being canceled) ----------
 -- Statuses are a table admins manage (Settings > Task statuses). Flags say
 -- which status means done (completed_at, off open lists), paused (off
 -- capacity), client review (Share for review moves there), and returned
 -- (a client's "changes requested" moves there). Keys are stable; labels,
--- colours, and order are not.
+-- colors, and order are not.
 create table work_statuses (
   key              text primary key,
   label            text not null,
@@ -1110,7 +1110,7 @@ insert into estimator_materials (legacy_id, name, types, width_in, length_in, co
 (108, 'Cascade Blue / Cast Cut Vinyl / Avery Dennison® SC950', array['Cut Vinyl'], 24, 360, 76.04, 925, false, 9),
 (48, 'Chrome Yellow / Gloss / Gerber 220 High Performance 220-145', array['Cut Vinyl'], 15, 1800, 271.37, 925, false, 10),
 (72, 'Corrugated Plastic / 6 mm / White', array['Substrate'], 96, 48, 31.33, 925, false, 11),
-(50, 'Dark Grey / Gloss / Oracal® 751C High Performance Cast Vinyl Film', array['Cut Vinyl'], 24, 1800, 348.12, 925, false, 12),
+(50, 'Dark Gray / Gloss / Oracal® 751C High Performance Cast Vinyl Film', array['Cut Vinyl'], 24, 1800, 348.12, 925, false, 12),
 (63, 'Fire Red / Gloss / Avery Dennison® SC950', array['Cut Vinyl'], 24, 1800, 358.55, 925, false, 13),
 (110, 'Foam Board', array['Substrate'], 24, 36, 12.84, 925, false, 14),
 (115, 'GATORFOAM', array['Substrate'], 48, 96, 84.19, 925, false, 15),
@@ -1120,7 +1120,7 @@ insert into estimator_materials (legacy_id, name, types, width_in, length_in, co
 (6, 'Hanging Banner / White / Matte / Alpha Premium Frontlit Banner - 13oz', array['Print Vinyl'], 54, 1440, 155.11, 925, true, 19),
 (47, 'Heat Press / White / Semi-Gloss / Siser Colorprint Solvent Easy Printable HTV', array['Print Vinyl'], 20, 360, 76.64, 925, true, 20),
 (68, 'Heat Press / White / Semi-Gloss / Siser EasyWeed - 3.5 Mil', array['Cut Vinyl'], 15, 180, 38, 925, false, 21),
-(89, 'Komatsu Grey / Cast Cut Vinyl / ORACAL® 751C High Performance Cast Vinyl', array['Cut Vinyl'], 24, 360, 80.34, 925, false, 22),
+(89, 'Komatsu Gray / Cast Cut Vinyl / ORACAL® 751C High Performance Cast Vinyl', array['Cut Vinyl'], 24, 360, 80.34, 925, false, 22),
 (3, 'Laminate / Clear / Gloss / Arlon 3420 Premium Calendered Overlam - 3 mil', array['Overlaminate'], 54, 1800, 256.66, 925, false, 23),
 (19, 'Laminate / Clear / Matte / Arlon 3220 Premium Calendered Overlam - 2 mil', array['Overlaminate'], 54, 1800, 492.43, 925, false, 24),
 (20, 'Laminate / Clear / Matte / Arlon 3420 Premium Calendered Overlam - 3 mil', array['Overlaminate'], 54, 1800, 256.66, 500, false, 25),

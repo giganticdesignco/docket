@@ -85,14 +85,17 @@ watch(() => route.path, () => { mobileOpen.value = false })
         <div v-if="s.label" class="mx-3 mt-2 mb-1 border-t border-default pt-2 text-[10px] font-semibold uppercase tracking-wider text-dimmed">
           <span class="hidden group-hover:inline">{{ s.label }}</span>
         </div>
-        <NuxtLink
-          v-for="l in s.links" :key="l.to" :to="l.to" :title="l.label"
-          class="mx-2 flex h-9 items-center gap-3 rounded-md px-2 text-sm transition-colors"
-          :class="active(l.to) ? 'bg-elevated text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
-        >
-          <UIcon :name="l.icon" class="size-5 shrink-0" />
-          <span class="hidden truncate group-hover:inline">{{ l.label }}</span>
-        </NuxtLink>
+        <template v-for="l in s.links" :key="l.to">
+          <TimeClockPopover v-if="l.to === '/time'" :active="active(l.to)" />
+          <NuxtLink
+            v-else :to="l.to" :title="l.label"
+            class="mx-2 flex h-9 items-center gap-3 rounded-md px-2 text-sm transition-colors"
+            :class="active(l.to) ? 'bg-elevated text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
+          >
+            <UIcon :name="l.icon" class="size-5 shrink-0" />
+            <span class="hidden truncate group-hover:inline">{{ l.label }}</span>
+          </NuxtLink>
+        </template>
       </div>
     </nav>
 
