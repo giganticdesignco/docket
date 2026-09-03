@@ -99,6 +99,8 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
   const depth = (t: (typeof tasks)[number]): number => { let d = 0; let cur = t; const seen = new Set<string>(); while (cur.parent && byClickup.has(cur.parent) && !seen.has(cur.id)) { seen.add(cur.id); cur = byClickup.get(cur.parent)!; d++ } return d }
   const rootOf = (t: (typeof tasks)[number]) => { let cur = t; const seen = new Set<string>(); while (cur.parent && byClickup.has(cur.parent) && !seen.has(cur.id)) { seen.add(cur.id); cur = byClickup.get(cur.parent)! } return cur }
   let flattened = 0
+  // Where the subtasks would land, by ClickUp list, for deciding what to bring in.
+  const subtasksByList: Record<string, number> = {}
   const ordered = [...tasks].filter(t => includeSubtasks || !t.parent).sort((a, b) => depth(a) - depth(b))
   for (const t of ordered) {
     const clientId = findClient(t.list?.name)
@@ -124,6 +126,8 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
         parentId = existingByClickup.get(root.id) ?? null
       }
       if (parentId) { subtasks++; const pp = projectByItem.get(parentId); if (pp) projectId = pp } else orphanSubtasks++
+      const ln = t.list?.name ?? '(no list)'
+      subtasksByList[ln] = (subtasksByList[ln] ?? 0) + 1
     }
     const row = {
       project_id: projectId,
@@ -162,7 +166,7 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     }
   }
 
-  return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
+  return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, subtasksByList, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
