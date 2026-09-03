@@ -108,18 +108,16 @@ const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running
       </div>
     </div>
 
-    <!-- Morning brief -->
-    <UCard v-if="brief" :ui="{ body: 'p-4 sm:p-5' }">
-      <div class="flex items-baseline gap-3">
-        <h2 class="font-semibold">Morning brief</h2>
-        <span class="text-xs text-muted">{{ brief.day === today ? 'Today' : longDate(brief.day) }}</span>
-        <NuxtLink to="/account" class="ml-auto text-xs text-muted hover:underline" title="Have this emailed to you each weekday morning">{{ profile?.brief_email ? 'Emailed to you each morning' : 'Get it by email' }}</NuxtLink>
-      </div>
-      <p class="mt-2 whitespace-pre-line text-sm leading-relaxed">{{ brief.text }}</p>
-    </UCard>
-
-    <!-- Today strip -->
+    <!-- Brief on the left, two columns wide; timer, today, and week stacked beside it. Without a brief the three sit in a row. -->
     <div class="grid gap-4 sm:grid-cols-3">
+      <UCard v-if="brief" class="sm:col-span-2 sm:row-span-3" :ui="{ body: 'p-4 sm:p-5 h-full' }">
+        <div class="flex items-baseline gap-3">
+          <h2 class="font-semibold">Morning brief</h2>
+          <span class="text-xs text-muted">{{ brief.day === today ? 'Today' : longDate(brief.day) }}</span>
+          <NuxtLink to="/account" class="ml-auto text-xs text-muted hover:underline" title="Have this emailed to you each weekday morning">{{ profile?.brief_email ? 'Emailed to you each morning' : 'Get it by email' }}</NuxtLink>
+        </div>
+        <p class="mt-2 whitespace-pre-line text-sm leading-relaxed">{{ brief.text }}</p>
+      </UCard>
       <UCard :ui="{ body: 'p-3 sm:p-4' }">
         <div class="text-xs text-muted">Timer</div>
         <template v-if="timer.running.value">
