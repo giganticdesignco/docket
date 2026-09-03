@@ -15,6 +15,7 @@ const sections = computed<Section[]>(() => {
   const daily: Section = {
     label: '',
     links: [
+      { label: 'Home', to: '/', icon: 'i-lucide-house' },
       { label: 'Time', to: '/time', icon: 'i-lucide-clock' },
       { label: 'Tasks', to: '/tasks', icon: 'i-lucide-list-todo' },
       { label: 'Projects', to: '/projects', icon: 'i-lucide-folder-kanban' },

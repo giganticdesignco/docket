@@ -9,6 +9,11 @@ keyboard shortcuts alone.
 ## Getting around
 
 - **Sign in** with your Gigantic Google account. There are no passwords.
+- **Home** is your day: the timer and this week's hours against your
+  target, your open tasks (overdue first), the projects you are working
+  in, and an agenda of today or this week. The agenda merges your
+  Google Calendar's busy blocks (times only, no titles) with the tasks
+  due; connect the calendar on the Account page to see meetings.
 - **The rail** on the left holds the everyday screens at the top (Time,
   Tasks, Projects, Clients, Reports) and everything else below. Hover to
   see the names.
@@ -25,7 +30,7 @@ keyboard shortcuts alone.
 
 ## Time
 
-Time is the reason Docket exists, so it is the first screen.
+Time is the reason Docket exists, so it sits right under Home.
 
 - **The week strip** at the top shows each day's hours; click a day to
   see and add its entries. This week's total against your 30 hour

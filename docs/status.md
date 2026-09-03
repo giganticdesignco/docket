@@ -1691,3 +1691,13 @@ arithmetic as Capacity, this week plus six). Native drag of a dated
 task lights up its due week's cells; dropping inserts a
 `work_item_assignees` row with an Undo. Undated or far-off tasks get a
 dropdown of people. No schema change. Guide updated.
+
+## Home page, Phase 4 item 10 (2026-09-03)
+
+`/` is a dashboard instead of a redirect to /time: timer and today's
+and this week's hours (report_rollup, availability target), my open
+tasks in overdue / this week / later buckets, my projects (a task or
+time in the last 30 days), and `HomeAgenda.vue` (day or week, persisted
+in user_views under `home`): calendar_busy blocks merged with tasks due,
+with a connect link when there is no Google connection. A titled
+calendar is out of scope: the sync only stores free/busy. Guide updated.
