@@ -26,10 +26,16 @@ const __ad3 = useAsyncData('estimator-quotes', async () => {
   const { data } = await supabase.from('quotes').select('id, number, title, status, clients(name)').eq('status', 'draft').order('created_at', { ascending: false }).limit(50)
   return data ?? []
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3])
+const __ad4 = useAsyncData('estimator-clients', async () => {
+  if (!can('manage_quotes')) return []
+  const { data } = await supabase.from('clients').select('id, name').eq('is_active', true).order('name')
+  return data ?? []
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
 const { data: materials } = __ad1
 const { data: settings } = __ad2
 const { data: quotes } = __ad3
+const { data: clients } = __ad4
 
 // ---------- the job being built ----------
 const NONE = '__none__'
@@ -75,24 +81,45 @@ function loadJob(j: SavedJob) {
   for (const l of LAYERS) picked[l.key] = j.job.materials[l.key]?.id ?? NONE
 }
 
+// ---------- a new quote from the jobs ----------
+// Same drawer as Quotes' New quote, then the jobs go straight on.
+const creating = ref(false)
+const newClientId = ref<string | undefined>()
+const newTitle = ref('')
+const creatingBusy = ref(false)
+async function createQuote() {
+  if (!newClientId.value || !newTitle.value.trim()) return
+  creatingBusy.value = true
+  try {
+    const { data, error } = await supabase.rpc('create_quote', { p_client_id: newClientId.value, p_title: newTitle.value.trim() })
+    if (error) throw error
+    creating.value = false
+    await addToQuote(data)
+  } catch (e) {
+    toast.add({ title: 'Could not create the quote', description: (e as Error).message, color: 'error' })
+  } finally {
+    creatingBusy.value = false
+  }
+}
+
 // ---------- onto a quote ----------
 const quoteId = ref<string | undefined>(typeof route.query.quote === 'string' ? route.query.quote : undefined)
 const quoteOptions = computed(() => (quotes.value ?? []).map(q => ({ label: `${q.number} ${q.title} (${q.clients?.name})`, value: q.id })))
 const adding = ref(false)
-async function addToQuote() {
-  if (!quoteId.value || !jobs.value.length) return
+async function addToQuote(target = quoteId.value) {
+  if (!target || !jobs.value.length) return
   adding.value = true
   try {
-    const { data: existing } = await supabase.from('quote_line_items').select('sort_order').eq('quote_id', quoteId.value).order('sort_order', { ascending: false }).limit(1)
+    const { data: existing } = await supabase.from('quote_line_items').select('sort_order').eq('quote_id', target).order('sort_order', { ascending: false }).limit(1)
     let order = (existing?.[0]?.sort_order ?? 0) + 1
     const rows = jobs.value.map(j => ({
-      quote_id: quoteId.value!, sort_order: order++, description: j.description, amount: j.price.total,
+      quote_id: target, sort_order: order++, description: j.description, amount: j.price.total,
       details: JSON.parse(JSON.stringify({ job: { ...j.job, materials: Object.fromEntries(Object.entries(j.job.materials).filter(([, m]) => m).map(([k, m]) => [k, { id: m!.id, name: m!.name }])) }, price: j.price })),
     }))
     const { error } = await supabase.from('quote_line_items').insert(rows)
     if (error) throw error
     toast.add({ title: `${rows.length} ${rows.length === 1 ? 'line' : 'lines'} added to the quote`, color: 'success' })
-    await navigateTo(`/quotes/${quoteId.value}`)
+    await navigateTo(`/quotes/${target}`)
   } catch (e) {
     toast.add({ title: 'Could not add to the quote', description: (e as Error).message, color: 'error' })
   } finally {
@@ -179,7 +206,8 @@ const printPage = () => window.print()
             <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-printer" :disabled="!jobs.length" @click="printPage">Print</UButton>
             <template v-if="can('manage_quotes')">
               <USelectMenu v-model="quoteId" :items="quoteOptions" value-key="value" size="sm" class="w-64" placeholder="Pick a draft quote" />
-              <UButton size="sm" icon="i-lucide-file-signature" :loading="adding" :disabled="!quoteId || !jobs.length" @click="addToQuote">Add to quote</UButton>
+              <UButton size="sm" icon="i-lucide-file-signature" :loading="adding" :disabled="!quoteId || !jobs.length" @click="addToQuote()">Add to quote</UButton>
+              <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-plus" :disabled="!jobs.length" @click="creating = true;">New quote</UButton>
             </template>
           </div>
         </div>
@@ -193,5 +221,25 @@ const printPage = () => window.print()
       </ul>
       <p v-else class="py-4 text-center text-sm text-muted">Price a job above and add it here. Each becomes a line on the quote.</p>
     </UCard>
+
+    <AppDrawer v-model:open="creating" title="New quote from these jobs">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="Client">
+            <ClientPicker v-model="newClientId" :clients="clients ?? []" @created="c => clients?.push(c)" />
+          </UFormField>
+          <UFormField label="Title" help="Becomes the project name when accepted.">
+            <UInput v-model="newTitle" class="w-full" placeholder="Vinyl banners" />
+          </UFormField>
+          <p class="text-sm text-muted">{{ jobs.length }} {{ jobs.length === 1 ? 'job goes' : 'jobs go' }} on the draft as lines, and you land on the quote.</p>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="creating = false;">Cancel</UButton>
+          <UButton :loading="creatingBusy || adding" :disabled="!newClientId || !newTitle.trim()" @click="createQuote">Create draft</UButton>
+        </div>
+      </template>
+    </AppDrawer>
   </div>
 </template>

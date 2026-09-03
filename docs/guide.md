@@ -205,7 +205,8 @@ the next one what it needs, so nothing is typed twice.
    the quote a number and a title. The title becomes the project's name
    later, so make it the name you want to see on the time sheet.
 3. **Fill the lines.** Add to quote on the Estimator drops each priced
-   job in as a line with its description and amount. Design and web
+   job onto a draft you pick, or New quote there makes the draft (client
+   and title) and puts the jobs on it in one go. Design and web
    lines are typed by hand, with hours and a rate, or the Assistant can
    draft them from a short brief using what similar work cost before.
    Add an intro, terms, and a valid-until date.

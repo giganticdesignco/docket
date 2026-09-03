@@ -1768,3 +1768,9 @@ forecast hours from it, Schedule's person view reads its strip. The
 `see_capacity` permission key is unchanged, relabeled "See planner".
 Quoted hours from scope lines now show beside a person's name on
 Planner for the weeks in view. Guide updated.
+
+## Estimator: new quote from the jobs (2026-09-03)
+
+Beside "Add to quote" on `/estimator`, "New quote" opens the same
+client and title drawer as Quotes, calls `create_quote`, and reuses
+`addToQuote(id)` to put the jobs on it. Nav unchanged. Guide updated.
