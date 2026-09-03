@@ -15,6 +15,13 @@ const { data: departments, refresh } = await useAsyncData('departments', async (
   if (error) throw error
   return data
 }, fresh)
+const { data: people } = await useAsyncData('departments-people', async () => {
+  const { data } = await supabase.from('profiles').select('id, full_name, department_id').eq('is_active', true).neq('role', 'client').order('full_name')
+  return data ?? []
+}, fresh)
+const leadName = (id: string | null) => people.value?.find(p => p.id === id)?.full_name ?? ''
+const members = (d: Tables<'departments'>) => (people.value ?? []).filter(p => p.department_id === d.id)
+const unplaced = computed(() => (people.value ?? []).filter(p => !p.department_id))
 
 const rows = computed(() => (departments.value ?? []).filter(d => showInactive.value || d.is_active))
 
@@ -30,7 +37,7 @@ function done() {
     <div class="flex items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Departments</h1>
-        <p class="text-sm text-muted">A label on a project, so the Projects list can show one kind of work. Deactivate rather than delete once a project uses one.</p>
+        <p class="text-sm text-muted">A label on a project, and the team's org chart: each person belongs to one, and its lead reviews their submitted time. Set a person's department on the People page.</p>
       </div>
       <USwitch v-model="showInactive" label="Show inactive" size="sm" class="ml-auto" />
       <UButton icon="i-lucide-plus" @click="creating = true;">New department</UButton>
@@ -41,6 +48,8 @@ function done() {
         <thead class="text-left text-muted">
           <tr class="border-b border-default">
             <th class="px-4 py-2 font-medium">Name</th>
+            <th class="px-4 py-2 font-medium">Lead</th>
+            <th class="px-4 py-2 font-medium">People</th>
             <th class="px-4 py-2 font-medium">Status</th>
             <th class="px-4 py-2" />
           </tr>
@@ -48,6 +57,8 @@ function done() {
         <tbody>
           <tr v-for="d in rows" :key="d.id" class="border-b border-default last:border-0">
             <td class="px-4 py-2 font-medium">{{ d.name }}</td>
+            <td class="px-4 py-2">{{ leadName(d.lead_id) || '' }}<span v-if="!d.lead_id && d.is_active" class="text-xs text-warning">No lead: their time falls to approve time holders</span></td>
+            <td class="px-4 py-2 text-xs text-muted">{{ members(d).map(p => p.full_name).join(', ') || 'Nobody yet' }}</td>
             <td class="px-4 py-2">
               <UBadge :color="d.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ d.is_active ? 'Active' : 'Inactive' }}</UBadge>
             </td>
@@ -56,7 +67,12 @@ function done() {
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="3" class="px-4 py-8 text-center text-muted">No departments yet.</td>
+            <td colspan="5" class="px-4 py-8 text-center text-muted">No departments yet.</td>
+          </tr>
+          <tr v-if="unplaced.length" class="border-t border-default">
+            <td class="px-4 py-2 text-muted">Not in a department</td>
+            <td class="px-4 py-2 text-xs text-warning">Reviewed by approve time holders</td>
+            <td class="px-4 py-2 text-xs text-muted" colspan="3">{{ unplaced.map(p => p.full_name).join(', ') }}</td>
           </tr>
         </tbody>
       </table>

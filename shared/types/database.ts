@@ -488,16 +488,19 @@ export type Database = {
         Row: {
           id: string
           is_active: boolean
+          lead_id: string | null
           name: string
         }
         Insert: {
           id?: string
           is_active?: boolean
+          lead_id?: string | null
           name: string
         }
         Update: {
           id?: string
           is_active?: boolean
+          lead_id?: string | null
           name?: string
         }
         Relationships: []
@@ -1348,6 +1351,7 @@ export type Database = {
           cost_rate: number | null
           created_at: string
           default_rate: number | null
+          department_id: string | null
           email: string
           full_name: string
           id: string
@@ -1360,6 +1364,7 @@ export type Database = {
           cost_rate?: number | null
           created_at?: string
           default_rate?: number | null
+          department_id?: string | null
           email: string
           full_name: string
           id: string
@@ -1372,6 +1377,7 @@ export type Database = {
           cost_rate?: number | null
           created_at?: string
           default_rate?: number | null
+          department_id?: string | null
           email?: string
           full_name?: string
           id?: string
@@ -3148,6 +3154,14 @@ export type Database = {
       }
     }
     Functions: {
+      approver_of: {
+        Args: { p_user: string }
+        Returns: string
+      }
+      can_review: {
+        Args: { p_user: string }
+        Returns: boolean
+      }
       approve_time_entries: {
         Args: { p_ids: string[] }
         Returns: number

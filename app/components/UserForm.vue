@@ -26,11 +26,17 @@ const state = reactive({
   default_rate: (props.profile.default_rate == null ? '' : String(props.profile.default_rate)) as string | number,
   cost_rate: (props.profile.cost_rate == null ? '' : String(props.profile.cost_rate)) as string | number,
   is_active: props.profile.is_active,
+  department_id: props.profile.department_id ?? undefined as string | undefined,
   hours_per_week: (props.hoursPerWeek == null ? '' : String(props.hoursPerWeek)) as string | number,
 })
 const saving = ref(false)
 
 const { data: roles } = await useRoles()
+const { data: departments } = await useAsyncData('user-form-departments', async () => {
+  const { data } = await supabase.from('departments').select('id, name, lead_id').eq('is_active', true).order('name')
+  return data ?? []
+}, fresh)
+const departmentItems = computed(() => [{ label: 'None', value: undefined as string | undefined }, ...(departments.value ?? []).map(d => ({ label: d.name, value: d.id }))])
 const roleOptions = computed(() => (roles.value ?? []).map(r => ({ label: r.label, value: r.key })))
 
 function num(v: string | number): number | null {
@@ -57,6 +63,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
       default_rate: num(state.default_rate),
       ...(seeMoney.value ? { cost_rate: num(state.cost_rate) } : {}),
       is_active: state.is_active,
+      department_id: state.department_id ?? null,
     }).eq('id', props.profile.id)
     if (error) throw error
 
@@ -107,6 +114,9 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     </div>
     <UFormField v-if="seeMoney" label="Cost rate" name="cost_rate" help="What an hour of this person costs the company. Quotes use it for margin; nothing client-facing shows it.">
       <UInput v-model="state.cost_rate" type="number" step="0.01" min="0" icon="i-lucide-dollar-sign" class="w-full" />
+    </UFormField>
+    <UFormField label="Department" name="department_id" help="Its lead reviews this person's submitted time.">
+      <USelectMenu v-model="state.department_id" :items="departmentItems" value-key="value" class="w-full" placeholder="None" />
     </UFormField>
     <div class="grid grid-cols-2 items-end gap-4">
       <UFormField label="Hours per week" name="hours_per_week" hint="From today">

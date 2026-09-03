@@ -1774,3 +1774,19 @@ Planner for the weeks in view. Guide updated.
 Beside "Add to quote" on `/estimator`, "New quote" opens the same
 client and title drawer as Quotes, calls `create_quote`, and reuses
 `addToQuote(id)` to put the jobs on it. Nav unchanged. Guide updated.
+
+## Approvals go to the department lead (2026-09-03)
+
+`departments.lead_id`, `profiles.department_id` (admin-only via
+`protect_profile_columns`). `approver_of(user)` is the lead of the
+person's active department unless that is themselves; `can_review(user)`
+is that or approve_time. `approve_time_entries` / `reject_time_entries`
+check can_review per entry. `lead_time_select` lets a lead read their
+people's entries (one uncorrelated subquery). A statement trigger on
+time_entries notifies the lead (`time_submitted`) when a week is
+submitted, or every approve_time holder and admin when there is no
+lead. App: `useCurrentUser().leads / isLead / canReview`; the `can`
+middleware lets leads onto pages marked `leadOk`; Approvals hides a
+lead's own weeks unless they hold approve_time and labels each person
+with department and reviewer; Departments shows lead and members;
+People form sets the department. Guide updated.

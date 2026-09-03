@@ -187,8 +187,9 @@ begin
     or new.default_rate is distinct from old.default_rate
     or new.cost_rate    is distinct from old.cost_rate
     or new.is_active    is distinct from old.is_active
+    or new.department_id is distinct from old.department_id
     or new.email        is distinct from old.email then
-      raise exception 'Only admins can change role, default_rate, cost_rate, is_active, or email';
+      raise exception 'Only admins can change role, default_rate, cost_rate, is_active, department, or email';
     end if;
   end if;
   return new;
@@ -3512,7 +3513,9 @@ create or replace function public.approve_time_entries(p_ids uuid[]) returns int
 language plpgsql security definer set search_path = '' as $$
 declare v_want int := (select count(distinct x) from unnest(p_ids) x); v_got int;
 begin
-  if not public.has_permission('approve_time') then raise exception 'Approve time permission needed'; end if;
+  if exists (select 1 from public.time_entries t where t.id = any(p_ids) and not public.can_review(t.user_id)) then
+    raise exception 'You do not review this person''s time';
+  end if;
   update public.time_entries set status = 'approved', reviewed_by = auth.uid(), reviewed_at = now()
   where id = any(p_ids) and status = 'submitted' and deleted_at is null;
   get diagnostics v_got = row_count;
@@ -3524,7 +3527,9 @@ create or replace function public.reject_time_entries(p_ids uuid[], p_reason tex
 language plpgsql security definer set search_path = '' as $$
 declare v_want int := (select count(distinct x) from unnest(p_ids) x); v_got int; r record;
 begin
-  if not public.has_permission('approve_time') then raise exception 'Approve time permission needed'; end if;
+  if exists (select 1 from public.time_entries t where t.id = any(p_ids) and not public.can_review(t.user_id)) then
+    raise exception 'You do not review this person''s time';
+  end if;
   if coalesce(trim(p_reason), '') = '' then raise exception 'Say what needs to change'; end if;
   update public.time_entries set status = 'rejected', reject_reason = trim(p_reason), reviewed_by = auth.uid(), reviewed_at = now()
   where id = any(p_ids) and status = 'submitted' and deleted_at is null;
@@ -3573,3 +3578,78 @@ create policy visible_select on work_item_plans for select to authenticated
 create policy visible_write on work_item_plans for all to authenticated
   using (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end)
   with check (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);
+
+-- Approvals go to the department lead. Each department has a lead and
+-- each person belongs to a department; the lead reviews their people's
+-- submitted time. approve_time holders remain the backstop for anyone
+-- without a lead and for the leads themselves.
+alter table departments add column lead_id uuid references profiles(id) on delete set null;
+alter table profiles add column department_id uuid references departments(id) on delete set null;
+create index profiles_department on profiles (department_id);
+
+-- Who reviews this person's time: their department's lead, never themselves.
+create or replace function public.approver_of(p_user uuid) returns uuid
+language sql stable security definer set search_path = '' as $$
+  select d.lead_id
+  from public.profiles p
+  join public.departments d on d.id = p.department_id
+  where p.id = p_user and d.is_active and d.lead_id is not null and d.lead_id <> p_user
+$$;
+revoke execute on function public.approver_of(uuid) from public, anon;
+
+-- May the caller review this person's time? Their lead, or approve_time.
+create or replace function public.can_review(p_user uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  -- approver_of() is null for a lead's own time; coalesce so "not
+  -- can_review()" in the approve functions never lets null through.
+  select public.has_permission('approve_time') or coalesce(public.approver_of(p_user) = auth.uid(), false)
+$$;
+revoke execute on function public.can_review(uuid) from public, anon;
+
+-- Leads read their people's time. The subquery depends only on the
+-- caller, so it runs once per query.
+create policy lead_time_select on time_entries for select to authenticated
+  using (deleted_at is null and user_id in (
+    select p.id from profiles p join departments d on d.id = p.department_id
+    where d.lead_id = (select auth.uid())));
+
+-- protect_profile_columns() above now also guards department_id.
+-- approve_time_entries() and reject_time_entries() above now check
+-- can_review(user_id) for every entry instead of approve_time alone.
+
+-- When a week is submitted, tell whoever reviews it: the lead, or every
+-- approve_time holder when there is no lead. One notification per
+-- person per submit, not one per entry.
+create or replace function public.notify_on_time_submit() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare r record; v_to uuid; v_name text; x uuid;
+begin
+  for r in
+    select n.user_id, min(n.spent_on) as first_on, count(*) as n
+    from new_table n join old_table o on o.id = n.id
+    where n.status = 'submitted' and o.status <> 'submitted'
+    group by n.user_id
+  loop
+    select full_name into v_name from public.profiles where id = r.user_id;
+    v_to := public.approver_of(r.user_id);
+    if v_to is not null then
+      perform public.notify(v_to, 'time_submitted',
+        v_name || ' submitted ' || r.n || case when r.n = 1 then ' time entry' else ' time entries' end,
+        'Week of ' || to_char(date_trunc('week', r.first_on::timestamp), 'Mon FMDD'), '/approvals', r.user_id);
+    else
+      for x in
+        select p.id from public.profiles p
+        where p.is_active and p.id <> r.user_id
+          and (p.role = 'admin' or exists (select 1 from public.permissions pm where pm.role = p.role and pm.key = 'approve_time'))
+      loop
+        perform public.notify(x, 'time_submitted',
+          v_name || ' submitted ' || r.n || case when r.n = 1 then ' time entry' else ' time entries' end || ' (no department lead)',
+          'Week of ' || to_char(date_trunc('week', r.first_on::timestamp), 'Mon FMDD'), '/approvals', r.user_id);
+      end loop;
+    end if;
+  end loop;
+  return null;
+end $$;
+create trigger time_entries_notify_submit after update on time_entries
+  referencing old table as old_table new table as new_table
+  for each statement execute function public.notify_on_time_submit();

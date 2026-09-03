@@ -2,7 +2,7 @@
 // Left rail, Supabase style: icons only until you hover, then it widens
 // over the page with labels and section headings. On phones it becomes a
 // top bar with a menu that slides in from the left.
-const { profile, isAdmin, can, signOut } = useCurrentUser()
+const { profile, isAdmin, can, signOut, canReview } = useCurrentUser()
 const route = useRoute()
 
 type Link = { label: string, to: string, icon: string }
@@ -32,7 +32,7 @@ const sections = computed<Section[]>(() => {
       { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
       ...(can('manage_quotes') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
       ...(can('see_capacity') ? [{ label: 'Planner', to: '/planner', icon: 'i-lucide-move' }] : []),
-      ...(can('approve_time') ? [{ label: 'Approvals', to: '/approvals', icon: 'i-lucide-badge-check' }] : []),
+      ...(canReview ? [{ label: 'Approvals', to: '/approvals', icon: 'i-lucide-badge-check' }] : []),
       ...(can('manage_invoices')
         ? [
             { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },

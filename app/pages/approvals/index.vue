@@ -2,13 +2,15 @@
 // Timesheets waiting for a decision, by person and week. Approve a
 // week, or send it back with a reason, which the person gets as a
 // notification. Only approved time can go on a billing batch.
-definePageMeta({ middleware: 'can', permission: 'approve_time' })
+definePageMeta({ middleware: 'can', permission: 'approve_time', leadOk: true })
 useHead({ title: 'Approvals' })
 
 const supabase = useSupabaseClient()
 const toast = useToast()
-const { can } = useCurrentUser()
+const { can, user, leads } = useCurrentUser()
 const seeMoney = computed(() => can('see_money'))
+// A lead never reviews their own week; approve_time holders do (admins, Tom, Jen).
+const backstop = computed(() => can('approve_time'))
 
 const { data: rows, refresh } = await useAsyncData('approvals', async () => {
   const { data, error } = await supabase
@@ -20,11 +22,26 @@ const { data: rows, refresh } = await useAsyncData('approvals', async () => {
   return data
 }, fresh)
 type Row = NonNullable<typeof rows.value>[number]
+// Which department each person is in and who leads it, for the labels.
+const __pp = useAsyncData('approvals-people', async () => {
+  const { data } = await supabase.from('profiles').select('id, full_name, department_id').eq('is_active', true)
+  return data ?? []
+}, fresh)
+const __dd = useAsyncData('approvals-departments', async () => {
+  const { data } = await supabase.from('departments').select('id, name, lead_id')
+  return data ?? []
+}, fresh)
+await Promise.all([__pp, __dd])
+const { data: people } = __pp
+const { data: departments } = __dd
+const deptOf = (uid: string) => { const d = people.value?.find(p => p.id === uid)?.department_id; return d ? departments.value?.find(x => x.id === d) ?? null : null }
+const leadName = (uid: string) => { const d = deptOf(uid); return d?.lead_id && d.lead_id !== uid ? people.value?.find(p => p.id === d.lead_id)?.full_name ?? null : null }
 
 // Person, then week, newest week first.
 const groups = computed(() => {
   const byPerson = new Map<string, { userId: string, name: string, weeks: Map<string, Row[]> }>()
   for (const r of rows.value ?? []) {
+    if (r.user_id === user.value?.sub && !backstop.value) continue
     const p = byPerson.get(r.user_id!) ?? { userId: r.user_id!, name: r.user_name ?? '', weeks: new Map() }
     const wk = weekDays(r.spent_on!)[0]!
     p.weeks.set(wk, [...(p.weeks.get(wk) ?? []), r])
@@ -80,7 +97,7 @@ async function reject() {
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Approvals <span class="text-base font-normal text-muted">{{ formatHours(total) }} waiting</span></h1>
-        <p class="text-sm text-muted">Timesheets people have submitted, by week. Approve a week and it can be billed; send it back and they get a note saying what to fix.</p>
+        <p class="text-sm text-muted">Timesheets people have submitted, by week. Approve a week and it can be billed; send it back and they get a note saying what to fix.<template v-if="leads.length"> You review {{ leads.map(l => l.name).join(' and ') }}.</template></p>
       </div>
     </div>
 
@@ -91,6 +108,8 @@ async function reject() {
         <div class="flex items-baseline gap-3">
           <h2 class="font-semibold">{{ p.name }}</h2>
           <span class="text-xs text-muted">{{ p.weeks.length }} {{ p.weeks.length === 1 ? 'week' : 'weeks' }}</span>
+          <span v-if="deptOf(p.userId)" class="text-xs text-muted">&middot; {{ deptOf(p.userId)!.name }}<template v-if="leadName(p.userId)">, reviewed by {{ leadName(p.userId) }}</template></span>
+          <UBadge v-if="backstop && !leadName(p.userId)" color="warning" variant="subtle" size="sm" title="No department lead to review this person, so it falls to you">No lead</UBadge>
         </div>
       </template>
       <div class="divide-y divide-default">

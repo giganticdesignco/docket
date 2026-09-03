@@ -11,6 +11,8 @@ export function useCurrentUser() {
   const profile = useState<Tables<'profiles'> | null>('current-profile', () => null)
   // The keys this person's role carries; admins carry all of them.
   const permissions = useState<string[]>('current-permissions', () => [])
+  // Departments this person leads; a lead reviews their people's time.
+  const leads = useState<{ id: string, name: string }[]>('current-leads', () => [])
 
   async function load() {
     if (!user.value) {
@@ -28,11 +30,16 @@ export function useCurrentUser() {
     profile.value = data
     const { data: perms } = await supabase.from('permissions').select('key').eq('role', data.role)
     permissions.value = (perms ?? []).map(p => p.key)
+    const { data: led } = await supabase.from('departments').select('id, name').eq('lead_id', data.id).eq('is_active', true)
+    leads.value = led ?? []
   }
 
   const isAdmin = computed(() => profile.value?.role === 'admin')
   // UI convenience only, same as isAdmin: RLS is what enforces it.
   const can = (key: PermissionKey) => isAdmin.value || permissions.value.includes(key)
+  const isLead = computed(() => leads.value.length > 0)
+  // Approvals is open to leads as well as approve_time holders.
+  const canReview = computed(() => can('approve_time') || isLead.value)
 
   async function signOut() {
     await supabase.auth.signOut()
@@ -40,5 +47,5 @@ export function useCurrentUser() {
     await navigateTo('/login')
   }
 
-  return { user, profile, isAdmin, can, permissions, load, signOut }
+  return { user, profile, isAdmin, can, permissions, leads, isLead, canReview, load, signOut }
 }

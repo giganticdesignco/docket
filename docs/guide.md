@@ -49,10 +49,11 @@ Time is the reason Docket exists, so it sits right under Home.
   stops nothing, it refuses, so stop the first one. A timer left running
   ten hours gets you an email.
 - **Submit week** sends the week's entries for approval. Submitted and
-  approved entries are frozen; a reviewer (someone with the approve
-  time permission, managers by default) approves them on the Approvals
-  page or sends them back with a reason, which you get as a
-  notification. Editing a sent-back entry makes it a draft again; submit
+  approved entries are frozen. Your department's lead gets a
+  notification and approves them on the Approvals page or sends them
+  back with a reason, which you get as a notification. A lead's own
+  weeks, and anyone not in a department, go to the people with the
+  approve time permission (managers by default) instead. Editing a sent-back entry makes it a draft again; submit
   it once it is fixed. Only approved time can go on a billing batch.
 - **Locked entries** (a lock icon) are on a billing batch or an invoice
   and cannot be changed. Ask whoever runs billing to void the batch if
@@ -402,7 +403,8 @@ Roles are Admin, Manager, Staff, and Client, plus any you add. Each role
 has a set of permissions: see all time, see money, see all tasks, manage
 tasks, manage reference data (clients, projects, task types), quotes,
 invoices (batches, invoices, payments, Harvest history), retainers,
-manage people, manage settings, see planner. Quotes, invoices, and
+approve time (the backstop reviewer for anyone without a department
+lead), manage people, manage settings, see planner. Quotes, invoices, and
 retainers used to be one "billing" permission; any of the three opens
 the client page's billing card and the portal preview. Admins have all
 of them. Staff by default see their own time and expenses, all tasks,
