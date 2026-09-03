@@ -1714,3 +1714,17 @@ key, seeded to manager) lists submitted entries by person and week;
 the latter notifying the owner (`time_rejected`). `time_detail` carries
 status; `unbilled_time` and `create_billing_batch()` accept approved
 time only, no admin bypass. Guide updated.
+
+## Invoice cost and margin, Phase 4 item 12 (2026-09-03)
+
+`time_entries.cost_snapshot` is frozen by `set_rate_snapshot()` from
+`profiles.cost_rate` (item 2) and guarded like rate_snapshot.
+`create_invoice()` sums it onto `invoice_lines.cost_amount` for service
+lines in all three detail levels, null if any entry lacks a cost.
+`invoice_lines_detail` (security invoker) blanks cost and margin without
+see_money; the invoice page reads it and passes an optional `margin`
+prop to `InvoiceDocument.vue`, which adds Cost and Margin columns and a
+total. `loadInvoiceDoc()`, the public page, and the email are untouched.
+The editor keeps cost_amount when it rewrites lines. Base-table selects
+by manage_invoices holders can still read cost_amount; the view is the
+sanctioned path. Guide updated.

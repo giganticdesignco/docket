@@ -4,7 +4,15 @@ import type { InvoiceDoc } from '~~/shared/types/invoice'
 // The invoice as the client sees it: on the public page, in the admin's
 // preview, and on paper. Plain HTML on a white sheet so it prints the same
 // everywhere; no Nuxt UI components in here.
-const props = defineProps<{ doc: InvoiceDoc }>()
+// margin is only ever passed by the internal editor: cost and margin per
+// line for people who see money. The public page and email never do.
+const props = defineProps<{ doc: InvoiceDoc, margin?: { lineId: string, costAmount: number | null, marginAmount: number | null }[] }>()
+const marginFor = (id: string) => props.margin?.find(m => m.lineId === id)
+const marginTotals = computed(() => {
+  const rows = (props.margin ?? []).filter(m => m.costAmount != null)
+  if (!rows.length) return null
+  return { cost: rows.reduce((s, m) => s + (m.costAmount ?? 0), 0), margin: rows.reduce((s, m) => s + (m.marginAmount ?? 0), 0), partial: rows.length < props.doc.lines.filter(l => l.kind === 'service').length }
+})
 
 const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const date = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -63,6 +71,10 @@ const methodLabel = (m: string | null) => ({ check: 'Check', ach: 'ACH', card: '
           <th class="py-2 pr-4 text-right font-medium">Qty</th>
           <th class="py-2 pr-4 text-right font-medium">Rate</th>
           <th class="py-2 text-right font-medium">Amount</th>
+          <template v-if="margin">
+            <th class="border-l border-dashed border-gray-300 py-2 pl-3 pr-4 text-right font-medium text-amber-700">Cost</th>
+            <th class="py-2 text-right font-medium text-amber-700">Margin</th>
+          </template>
         </tr>
       </thead>
       <tbody>
@@ -71,9 +83,13 @@ const methodLabel = (m: string | null) => ({ check: 'Check', ach: 'ACH', card: '
           <td class="py-2 pr-4 text-right tabular-nums">{{ l.kind === 'service' ? hours(l.quantity) : qty(l.quantity) }}</td>
           <td class="py-2 pr-4 text-right tabular-nums">{{ money(l.unit_price) }}</td>
           <td class="py-2 text-right tabular-nums">{{ money(l.amount) }}</td>
+          <template v-if="margin">
+            <td class="border-l border-dashed border-gray-300 py-2 pl-3 pr-4 text-right tabular-nums text-amber-800">{{ marginFor(l.id)?.costAmount != null ? money(marginFor(l.id)!.costAmount!) : '' }}</td>
+            <td class="py-2 text-right tabular-nums" :class="(marginFor(l.id)?.marginAmount ?? 0) < 0 ? 'text-red-700' : 'text-amber-800'">{{ marginFor(l.id)?.marginAmount != null ? money(marginFor(l.id)!.marginAmount!) : '' }}</td>
+          </template>
         </tr>
         <tr v-if="!doc.lines.length">
-          <td colspan="4" class="py-6 text-center text-gray-400">No lines yet.</td>
+          <td :colspan="margin ? 6 : 4" class="py-6 text-center text-gray-400">No lines yet.</td>
         </tr>
       </tbody>
     </table>
@@ -97,6 +113,11 @@ const methodLabel = (m: string | null) => ({ check: 'Check', ach: 'ACH', card: '
       </dl>
     </div>
     <p v-if="doc.lines.some(l => l.taxable) && doc.invoice.tax_rate" class="mt-1 text-right text-xs text-gray-400">* taxable</p>
+    <p v-if="margin" class="mt-2 rounded border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-right text-xs text-amber-800">
+      <template v-if="marginTotals">Cost {{ money(marginTotals.cost) }}, margin <strong>{{ money(marginTotals.margin) }}</strong><template v-if="marginTotals.partial"> on the lines with a known cost</template>.</template>
+      <template v-else>No cost known for these lines: set cost rates on People, and cost is frozen on time logged from then on.</template>
+      Internal only; the client never sees this.
+    </p>
 
     <div v-if="doc.invoice.notes" class="mt-8 whitespace-pre-line text-sm">{{ doc.invoice.notes }}</div>
 

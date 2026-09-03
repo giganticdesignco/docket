@@ -228,9 +228,16 @@ begin
      or new.task_id    is distinct from old.task_id
      or new.user_id    is distinct from old.user_id then
     new.rate_snapshot := public.resolve_rate(new.project_id, new.task_id, new.user_id);
-  elsif new.rate_snapshot is distinct from old.rate_snapshot
-        and auth.uid() is not null and not public.is_admin() then
-    new.rate_snapshot := old.rate_snapshot;
+    new.cost_snapshot := (select cost_rate from public.profiles where id = new.user_id);
+  else
+    if new.rate_snapshot is distinct from old.rate_snapshot
+       and auth.uid() is not null and not public.is_admin() then
+      new.rate_snapshot := old.rate_snapshot;
+    end if;
+    if new.cost_snapshot is distinct from old.cost_snapshot
+       and auth.uid() is not null and not public.is_admin() then
+      new.cost_snapshot := old.cost_snapshot;
+    end if;
   end if;
   new.updated_at := now();
   return new;
@@ -2297,6 +2304,7 @@ declare
   v_period text;
   v_hours  numeric;
   v_amount numeric;
+  v_cost   numeric;
 begin
   if not public.has_permission('manage_invoices') then raise exception 'Invoices permission needed'; end if;
   if p_detail not in ('task', 'project', 'summary') then raise exception 'Unknown detail level %', p_detail; end if;
@@ -2319,7 +2327,9 @@ begin
   if p_detail = 'task' then
     for r in
       select p.id as project_id, p.name as project_name, t.name as task_name,
-             coalesce(te.rate_snapshot, 0) as rate, sum(te.hours) as hours
+             coalesce(te.rate_snapshot, 0) as rate, sum(te.hours) as hours,
+             -- Cost is known only when every entry carries a cost snapshot.
+             case when bool_and(te.cost_snapshot is not null) then round(sum(te.hours * te.cost_snapshot), 2) end as cost
       from public.time_entries te
       join public.projects p on p.id = te.project_id
       join public.tasks    t on t.id = te.task_id
@@ -2328,8 +2338,8 @@ begin
       order by p.name, t.name, 4 desc
     loop
       v_pos := v_pos + 1;
-      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
-      values (v_id, v_pos, 'service', r.project_name || ' / ' || r.task_name, r.hours, r.rate, r.project_id);
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id, cost_amount)
+      values (v_id, v_pos, 'service', r.project_name || ' / ' || r.task_name, r.hours, r.rate, r.project_id, r.cost);
     end loop;
     for r in
       select p.id as project_id, p.name as project_name, c.name as category_name, sum(e.amount) as amount
@@ -2350,6 +2360,7 @@ begin
       select p.id as project_id, p.name as project_name,
              sum(te.hours) as hours,
              sum(te.hours * coalesce(te.rate_snapshot, 0)) as amount,
+             case when bool_and(te.cost_snapshot is not null) then round(sum(te.hours * te.cost_snapshot), 2) end as cost,
              (select string_agg(x.task_name || ' ' || public.hours_text(x.h) || 'h', ', ' order by x.h desc)
                 from (select t.name as task_name, sum(te2.hours) as h
                       from public.time_entries te2
@@ -2363,10 +2374,10 @@ begin
       order by p.name
     loop
       v_pos := v_pos + 1;
-      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id, cost_amount)
       values (v_id, v_pos, 'service',
               r.project_name || ': ' || public.hours_text(r.hours) || ' hours (' || r.breakdown || ')',
-              1, r.amount, r.project_id);
+              1, r.amount, r.project_id, r.cost);
     end loop;
     for r in
       select p.id as project_id, p.name as project_name, sum(e.amount) as amount
@@ -2382,14 +2393,16 @@ begin
     end loop;
 
   else
-    select sum(te.hours), sum(te.hours * coalesce(te.rate_snapshot, 0)) into v_hours, v_amount
+    select sum(te.hours), sum(te.hours * coalesce(te.rate_snapshot, 0)),
+           case when bool_and(te.cost_snapshot is not null) then round(sum(te.hours * te.cost_snapshot), 2) end
+      into v_hours, v_amount, v_cost
     from public.time_entries te where te.batch_id = p_batch_id and te.deleted_at is null;
     if v_hours is not null then
       v_pos := v_pos + 1;
-      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id)
+      insert into public.invoice_lines (invoice_id, position, kind, description, quantity, unit_price, project_id, cost_amount)
       values (v_id, v_pos, 'service',
               'Design and development, ' || v_period || ' (' || public.hours_text(v_hours) || ' hours)',
-              1, v_amount, b.project_id);
+              1, v_amount, b.project_id, v_cost);
     end if;
     select sum(e.amount) into v_amount from public.expenses e where e.batch_id = p_batch_id and e.deleted_at is null;
     if v_amount is not null then
@@ -3493,3 +3506,17 @@ begin
 end $$;
 revoke execute on function public.approve_time_entries(uuid[]) from public, anon;
 revoke execute on function public.reject_time_entries(uuid[], text) from public, anon;
+
+-- Phase 4, item 12: cost and margin on invoices. A person's cost rate
+-- (profiles.cost_rate) is frozen onto each entry the way the billable
+-- rate is, summed onto the invoice line at creation, and read back only
+-- through invoice_lines_detail, which blanks it without see_money. The
+-- public invoice and the email never carry it.
+alter table time_entries add column cost_snapshot numeric(10,2);   -- cost frozen at save; see profiles.cost_rate
+alter table invoice_lines add column cost_amount numeric(12,2);    -- cost behind a service line; null when any entry had no cost
+create view invoice_lines_detail with (security_invoker = true) as
+select l.id, l.invoice_id, l.position, l.kind, l.description, l.quantity, l.unit_price, l.amount, l.taxable, l.project_id,
+       case when (select public.has_permission('see_money')) then l.cost_amount end as cost_amount,
+       case when (select public.has_permission('see_money')) and l.cost_amount is not null then l.amount - l.cost_amount end as margin_amount
+from invoice_lines l;
+grant select on invoice_lines_detail to authenticated;

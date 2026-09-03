@@ -263,6 +263,15 @@ time entry freezes its rate when it is saved.
 
 ## Billing and invoices
 
+- **Cost and margin.** Each person can carry a cost rate (People page,
+  visible with see money). It is frozen onto every time entry as it is
+  saved, the way the billable rate is, and summed onto the invoice line
+  when a batch becomes an invoice. On the invoice page, people who see
+  money get a Cost and Margin column beside each line and a total under
+  the document. The client's copy and the email never include it. A
+  line whose entries predate the cost rate shows no cost rather than a
+  false margin.
+
 Docket bills directly; QuickBooks and Harvest are not in the path.
 
 - **Unbilled** (under Invoices) lists each client's unbilled billable

@@ -42,12 +42,22 @@ const { data: payments, refresh: refreshPayments } = __ad3
 // The document exactly as the public page renders it.
 const { data: doc, refresh: refreshDoc } = await useAsyncData(`invoice-${id}-doc`, () =>
   $fetch<InvoiceDoc>(`/api/i/${invoice.value!.public_token}`), fresh)
+// Cost and margin per line, for people who see money. Comes from the
+// gated view, never from the public document.
+const { can } = useCurrentUser()
+const seeMoney = computed(() => can('see_money'))
+const { data: margins, refresh: refreshMargins } = await useAsyncData(`invoice-${id}-margins`, async () => {
+  const { data, error } = await supabase.from('invoice_lines_detail').select('id, cost_amount, margin_amount').eq('invoice_id', id)
+  if (error) throw error
+  return data
+}, fresh)
+const marginProp = computed(() => (seeMoney.value ? (margins.value ?? []).map(m => ({ lineId: m.id!, costAmount: m.cost_amount, marginAmount: m.margin_amount })) : undefined))
 
 useHead({ title: () => (invoice.value ? `Invoice ${invoice.value.number}` : 'Invoice') })
 useAssistantScreen(() => ({ invoice: invoice.value ? `Invoice ${invoice.value.number}` : undefined, client: invoice.value?.clients?.name }))
 
 async function refreshAll() {
-  await Promise.all([refreshInvoice(), refreshLines(), refreshPayments()])
+  await Promise.all([refreshInvoice(), refreshLines(), refreshPayments(), refreshMargins()])
   await refreshDoc()
 }
 
@@ -66,7 +76,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
 
 // ---------- draft editor ----------
 
-type LineDraft = { key: number, kind: string, description: string, quantity: number | string, unit_price: number | string, taxable: boolean, project_id: string | null }
+type LineDraft = { key: number, kind: string, description: string, quantity: number | string, unit_price: number | string, taxable: boolean, project_id: string | null, cost_amount: number | null }
 let nextKey = 0
 const form = reactive({ number: '', subject: '', issue_date: '', due_date: '', tax_rate: 0 as number | string, notes: '' })
 const draftLines = ref<LineDraft[]>([])
@@ -82,7 +92,7 @@ function loadEditor() {
   form.tax_rate = i.tax_rate
   form.notes = i.notes ?? ''
   draftLines.value = (lines.value ?? []).map(l => ({
-    key: nextKey++, kind: l.kind, description: l.description, quantity: l.quantity, unit_price: l.unit_price, taxable: l.taxable, project_id: l.project_id,
+    key: nextKey++, kind: l.kind, description: l.description, quantity: l.quantity, unit_price: l.unit_price, taxable: l.taxable, project_id: l.project_id, cost_amount: l.cost_amount,
   }))
   snapshot.value = JSON.stringify([form, draftLines.value])
 }
@@ -95,7 +105,7 @@ const editorSubtotal = computed(() => round2(draftLines.value.reduce((s, l) => s
 const editorTax = computed(() => round2(draftLines.value.filter(l => l.taxable).reduce((s, l) => s + lineAmount(l), 0) * (Number(form.tax_rate) || 0) / 100))
 
 function addLine() {
-  draftLines.value.push({ key: nextKey++, kind: 'other', description: '', quantity: 1, unit_price: 0, taxable: false, project_id: null })
+  draftLines.value.push({ key: nextKey++, kind: 'other', description: '', quantity: 1, unit_price: 0, taxable: false, project_id: null, cost_amount: null })
 }
 function removeLine(i: number) {
   draftLines.value.splice(i, 1)
@@ -130,6 +140,7 @@ async function save(): Promise<boolean> {
         unit_price: Number(l.unit_price) || 0,
         taxable: l.taxable,
         project_id: l.project_id,
+        cost_amount: l.cost_amount,
       })))
       if (ins.error) throw ins.error
     }
@@ -387,7 +398,7 @@ async function voidInvoice() {
     </template>
 
     <h2 class="text-lg font-semibold">{{ isDraft ? 'Preview' : 'Invoice' }}</h2>
-    <InvoiceDocument v-if="doc" :doc="doc" />
+    <InvoiceDocument v-if="doc" :doc="doc" :margin="marginProp" />
 
     <AppDrawer v-model:open="sendOpen" :title="sendKind === 'reminder' ? 'Send a reminder' : 'Send invoice'">
       <template #body>

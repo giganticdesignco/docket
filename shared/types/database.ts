@@ -918,6 +918,7 @@ export type Database = {
       invoice_lines: {
         Row: {
           amount: number | null
+          cost_amount: number | null
           description: string
           id: string
           invoice_id: string
@@ -930,6 +931,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          cost_amount?: number | null
           description: string
           id?: string
           invoice_id: string
@@ -942,6 +944,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          cost_amount?: number | null
           description?: string
           id?: string
           invoice_id?: string
@@ -2178,6 +2181,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           batch_id: string | null
+          cost_snapshot: number | null
           created_at: string
           ended_at: string | null
           harvest_id: number | null
@@ -2204,6 +2208,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           batch_id?: string | null
+          cost_snapshot?: number | null
           created_at?: string
           ended_at?: string | null
           harvest_id?: number | null
@@ -2230,6 +2235,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           batch_id?: string | null
+          cost_snapshot?: number | null
           created_at?: string
           ended_at?: string | null
           harvest_id?: number | null
@@ -2927,6 +2933,23 @@ export type Database = {
             referencedColumns: ["client_id"]
           },
         ]
+      }
+      invoice_lines_detail: {
+        Row: {
+          amount: number | null
+          cost_amount: number | null
+          description: string | null
+          id: string | null
+          invoice_id: string | null
+          kind: string | null
+          margin_amount: number | null
+          position: number | null
+          project_id: string | null
+          quantity: number | null
+          taxable: boolean | null
+          unit_price: number | null
+        }
+        Relationships: []
       }
       time_detail: {
         Row: {
