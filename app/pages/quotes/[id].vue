@@ -404,7 +404,7 @@ async function deleteQuote() {
             <tr class="border-b border-default">
               <th class="px-4 py-2 font-medium">Description</th>
               <th class="w-40 px-2 py-2 font-medium">Task type</th>
-              <th class="w-40 px-2 py-2 font-medium" title="Who will do it. Their week shows on Capacity as quoted, not yet won.">Who, week</th>
+              <th class="w-40 px-2 py-2 font-medium" title="Who will do it. Their week shows on Planner as quoted, not yet won.">Who, week</th>
               <th class="w-20 px-2 py-2 text-right font-medium">Hours</th>
               <th class="w-24 px-2 py-2 text-right font-medium">Rate</th>
               <th class="w-28 px-2 py-2 text-right font-medium">Amount</th>
@@ -421,7 +421,7 @@ async function deleteQuote() {
               <td class="px-2 py-1.5"><USelect :model-value="l.task_id ?? '__none__'" :items="taskOptions" size="sm" class="w-full" @update:model-value="setTask(l, $event as string)" /></td>
               <td class="px-2 py-1.5">
                 <USelect :model-value="l.assignee_id ?? '__none__'" :items="peopleOptions" size="sm" class="w-full" @update:model-value="l.assignee_id = $event === '__none__' ? null : ($event as string)" />
-                <UInput v-if="l.assignee_id" :model-value="l.target_week" type="date" size="sm" class="mt-1 w-full" title="The week the work lands, for Capacity" @update:model-value="setWeek(l, $event as string)" />
+                <UInput v-if="l.assignee_id" :model-value="l.target_week" type="date" size="sm" class="mt-1 w-full" title="The week the work lands, shown on Planner as quoted" @update:model-value="setWeek(l, $event as string)" />
               </td>
               <td class="px-2 py-1.5"><UInput v-model="l.hours" type="number" step="0.25" size="sm" class="w-full" :ui="{ base: 'text-right' }" /></td>
               <td class="px-2 py-1.5"><UInput v-model="l.rate" type="number" step="1" size="sm" class="w-full" :ui="{ base: 'text-right' }" /></td>

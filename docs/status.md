@@ -1759,3 +1759,12 @@ undo. `capacity_weekly.booked_hours` now sums plan rows in the week, adds
 the remainder of a partly set task spread over its unset weekdays
 (a lateral generate_series per task), and falls back to the estimate
 in the due week only for tasks where the person has no rows at all. Guide updated.
+
+## Capacity page removed (2026-09-03)
+
+`/capacity` is gone; Planner (days, hours) and Schedule (months, by
+project) cover it. `capacity_weekly` stays: Planner reads base and
+forecast hours from it, Schedule's person view reads its strip. The
+`see_capacity` permission key is unchanged, relabeled "See planner".
+Quoted hours from scope lines now show beside a person's name on
+Planner for the weeks in view. Guide updated.

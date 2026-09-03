@@ -109,7 +109,7 @@ function fail(message: string) {
     <UFormField label="Due">
       <UInput v-model="state.due_on" type="date" class="w-full" />
     </UFormField>
-    <UFormField label="Estimate (hours)" help="Feeds the capacity page, split across assignees.">
+    <UFormField label="Estimate (hours)" help="Spread across the task's days on Planner, split across assignees.">
       <UInput v-model="state.estimate_hours" type="number" step="0.25" :min="0" class="w-full" />
     </UFormField>
     <UFormField label="Description" class="sm:col-span-2">

@@ -27,7 +27,7 @@ const to = computed(() => days.value[days.value.length - 1]!)
 const move = (n: number) => { anchor.value = addDays(anchor.value, 7 * n * weekCount.value) }
 
 const __ad1 = useAsyncData('planner-capacity', async () => {
-  const { data, error } = await supabase.from('capacity_weekly').select('user_id, user_name, week_start, base_hours').gte('week_start', from.value).lte('week_start', to.value).order('user_name')
+  const { data, error } = await supabase.from('capacity_weekly').select('user_id, user_name, week_start, base_hours, forecast_hours').gte('week_start', from.value).lte('week_start', to.value).order('user_name')
   if (error) throw error
   return data
 }, { ...fresh, watch: [from, to] })
@@ -71,14 +71,15 @@ const { data: busyRows } = __ad4
 
 type Task = NonNullable<typeof tasks.value>[number]
 type Busy = NonNullable<typeof busyRows.value>[number]
-type Person = { id: string, name: string, base: Map<string, number> }
+type Person = { id: string, name: string, base: Map<string, number>, quoted: number }
 
 // ---------- people and their days ----------
 const allPeople = computed<Person[]>(() => {
   const m = new Map<string, Person>()
   for (const c of cap.value ?? []) {
-    const p = m.get(c.user_id!) ?? { id: c.user_id!, name: c.user_name ?? '', base: new Map() }
+    const p = m.get(c.user_id!) ?? { id: c.user_id!, name: c.user_name ?? '', base: new Map(), quoted: 0 }
     p.base.set(c.week_start!, c.base_hours ?? 0)
+    p.quoted += c.forecast_hours ?? 0
     m.set(c.user_id!, p)
   }
   return [...m.values()].sort((a, b) => a.name.localeCompare(b.name))
@@ -379,7 +380,6 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
         <p class="text-sm text-muted">Who is doing what on which day. Drag a task onto a person's day to plan it there, or drag a block to move it. Estimates spread across the days of a task.</p>
       </div>
       <div class="ml-auto flex gap-2">
-        <UButton to="/capacity" variant="outline" color="neutral" icon="i-lucide-gauge">Capacity</UButton>
         <UButton to="/schedule" variant="outline" color="neutral" icon="i-lucide-gantt-chart">Schedule</UButton>
       </div>
     </div>
@@ -455,6 +455,7 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
                     <div>
                       <div class="font-medium">{{ p.name }}</div>
                       <div class="text-xs tabular-nums" :class="pctColor(rangePct(p))">{{ rangePct(p) }}% <span class="text-dimmed">{{ h(rangePlanned(p)) }} of {{ h(rangeAvailable(p)) }}</span></div>
+                      <div v-if="p.quoted" class="text-[11px] tabular-nums text-dimmed" title="Scope lines on draft or sent quotes that name this person and a week in view">{{ h(p.quoted) }} quoted</div>
                     </div>
                   </div>
                 </td>

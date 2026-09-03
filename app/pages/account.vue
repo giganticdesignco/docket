@@ -72,7 +72,7 @@ const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-US
         </div>
       </template>
       <div v-if="mine" class="space-y-3 text-sm">
-        <p>Connected as <strong>{{ mine.google_email }}</strong>. Busy time for the next eight weeks syncs every night and shows on the Capacity page as booked hours.</p>
+        <p>Connected as <strong>{{ mine.google_email }}</strong>. Busy time for the next eight weeks syncs every night and shows on Planner and Schedule as busy time.</p>
         <p class="text-xs text-muted">Last synced {{ stamp(mine.last_synced_at) }}.<span v-if="mine.last_error" class="text-error"> Last error: {{ mine.last_error }}</span></p>
         <div class="flex gap-2">
           <UButton size="sm" icon="i-lucide-refresh-cw" :loading="busy" @click="sync()">Sync now</UButton>
@@ -80,7 +80,7 @@ const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-US
         </div>
       </div>
       <div v-else class="space-y-3 text-sm">
-        <p>Connect your Google Calendar and Docket reads only when you are busy, never what the events are. That time is subtracted from your week on the Capacity page.</p>
+        <p>Connect your Google Calendar and Docket reads only when you are busy, never what the events are. That time is subtracted from your available hours on Planner and Schedule.</p>
         <UButton to="/api/google/connect" external icon="i-simple-icons-google">Connect Google Calendar</UButton>
       </div>
     </UCard>

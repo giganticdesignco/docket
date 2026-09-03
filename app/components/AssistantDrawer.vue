@@ -44,7 +44,7 @@ const suggestions = computed(() => {
   if (p.startsWith('/invoices/')) return [`Where does ${s.invoice ?? 'this invoice'} stand?`, `What else is unbilled for ${s.client ?? 'this client'}?`]
   if (p.startsWith('/projects/')) return [`How much of ${s.project ?? 'this project'}'s budget is used?`, `What is open on ${s.project ?? 'this project'}?`, `Who has logged time on ${s.project ?? 'it'} this month?`]
   if (p.startsWith('/clients/')) return [`How much have we billed ${s.client ?? 'this client'} this year?`, `What is open for ${s.client ?? 'this client'}?`, `What is unbilled for ${s.client ?? 'this client'}?`]
-  if (p.startsWith('/schedule') || p.startsWith('/capacity')) return ['Who is overbooked next week?', 'What is due this week?']
+  if (p.startsWith('/schedule') || p.startsWith('/planner')) return ['Who is overbooked next week?', 'What is due this week?']
   return ['What is due this week?', 'Which projects are over budget?', 'What is unbilled, by client?', 'log: 45m CheckAlt meeting']
 })
 

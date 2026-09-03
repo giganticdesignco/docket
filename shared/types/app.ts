@@ -42,6 +42,6 @@ export const PERMISSIONS = [
   { key: 'approve_time', label: 'Approve time', hint: 'Review submitted timesheets; approve, or send back with a reason.' },
   { key: 'manage_people', label: 'Manage people', hint: 'Roles, rates, hours per week, everyone\'s time off.' },
   { key: 'manage_settings', label: 'Settings', hint: 'Statuses, categories, invoice settings, imports.' },
-  { key: 'see_capacity', label: 'See capacity', hint: 'The capacity page and calendar busy time.' },
+  { key: 'see_capacity', label: 'See planner', hint: 'The Planner page and everyone\'s calendar busy time.' },
 ] as const
 export type PermissionKey = typeof PERMISSIONS[number]['key']

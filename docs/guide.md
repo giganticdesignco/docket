@@ -110,20 +110,13 @@ sees hours.
   can be brought back with Undo in the toast for thirty seconds, and it
   is only removed for good after thirty days.
 
-### Schedule and capacity
+### Schedule and Planner
 
 - **Schedule** is the timeline: tasks as bars by project or by person,
   by day, week, or month. Drag a bar to move it, an edge to stretch it,
   hold Shift while dragging to bring along everything that waits on it.
   Unscheduled tasks sit under the chart with a Schedule button. Hover a
   bar or a cut-off name for the full details.
-- **Capacity** shows who has room. Each person's available hours are
-  their weekly hours minus time off minus meetings from their Google
-  Calendar. Past weeks show what was logged against that; this week
-  and the coming ones show the hours still free after the tasks due
-  that week (estimates split across assignees). Click a cell to see
-  the tasks behind it. "Nothing planned" can also mean the tasks have
-  no estimates yet.
 - **Planner** is people as rows and weekdays as columns, one block for
   every task on each day it is planned for. An estimate spreads evenly
   across the weekdays of the task's span and across its assignees, so
@@ -138,7 +131,7 @@ sees hours.
   block to type what that person does that day (a four hour task can
   be 3:00 Monday and 1:00 Tuesday); set days show in bold, the other
   days share what is left, and clearing a day puts it back on the even
-  split. Capacity counts set hours the same way. Undo has thirty seconds. The small assign button
+  split. Schedule's capacity strip counts set hours the same way. Undo has thirty seconds. The small assign button
   on a card gives it a person without touching its dates. Switch
   between one week and three, pick which people to show (Me is a
   shortcut), and filter by project. Schedule stays the place for the Gantt view and
@@ -147,9 +140,9 @@ sees hours.
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.
 
-- **Quoted hours** show on Capacity as a gray bar under the plan: scope
-  lines on draft or sent quotes that name a person and a week. They
-  drop off once the quote is decided.
+- **Quoted hours** show on Planner next to a person's name: scope
+  lines on draft or sent quotes that name that person and a week in
+  view. They drop off once the quote is decided.
 
 ## Clients and projects
 
@@ -268,9 +261,9 @@ time entry freezes its rate when it is saved.
   types). Pick a task type on a blank scope line and the rate and
   description fill in; anything already typed stays.
 - **Who, week.** A scope line can name the person who will do it and
-  the week it should land. The week shows on the Capacity page as
-  "quoted" hours, on top of what is already planned, until the quote is
-  accepted or declined. When it is accepted, the sitemap pages tied to
+  the week it should land. The week shows on Planner as "quoted" hours
+  beside that person's name, on top of what is already planned, until
+  the quote is accepted or declined. When it is accepted, the sitemap pages tied to
   that line become tasks assigned to that person.
 - **Margin** (people who see money only) is the line's amount minus its
   hours at the person's cost rate, as last saved. Cost rates are set on
@@ -408,7 +401,7 @@ Roles are Admin, Manager, Staff, and Client, plus any you add. Each role
 has a set of permissions: see all time, see money, see all tasks, manage
 tasks, manage reference data (clients, projects, task types), quotes,
 invoices (batches, invoices, payments, Harvest history), retainers,
-manage people, manage settings, see capacity. Quotes, invoices, and
+manage people, manage settings, see planner. Quotes, invoices, and
 retainers used to be one "billing" permission; any of the three opens
 the client page's billing card and the portal preview. Admins have all
 of them. Staff by default see their own time and expenses, all tasks,
