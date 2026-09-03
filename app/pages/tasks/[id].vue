@@ -56,9 +56,39 @@ const __ad7 = useAsyncData('projects-for-tasks', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
+// Subtasks: the children of this task, and the parent if this is one.
+const __ad8 = useAsyncData(`task-${id}-children`, async () => {
+  const { data, error } = await supabase.from('work_items').select('id, title, status, due_on, estimate_hours, work_item_assignees(user_id, profiles(full_name))').eq('parent_id', id).order('position').order('created_at')
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8])
 const ws = await __ad1
+const { data: children, refresh: refreshChildren } = __ad8
 const { data: item, refresh } = __ad2
+const { data: parent } = await useAsyncData(`task-${id}-parent`, async () => {
+  if (!item.value?.parent_id) return null
+  const { data } = await supabase.from('work_items').select('id, title').eq('id', item.value.parent_id).maybeSingle()
+  return data
+}, fresh)
+const childrenDone = computed(() => (children.value ?? []).filter(c => ws.isDone(c.status)).length)
+const newChild = ref('')
+const addingChild = ref(false)
+async function addChild() {
+  const title = newChild.value.trim()
+  if (!title || !item.value || !user.value) return
+  addingChild.value = true
+  try {
+    const { error } = await supabase.from('work_items').insert({ project_id: item.value.project_id, parent_id: item.value.id, title, created_by: user.value.sub })
+    if (error) throw error
+    newChild.value = ''
+    await refreshChildren()
+  } catch (e) {
+    toast.add({ title: 'Could not add the subtask', description: (e as Error).message, color: 'error' })
+  } finally {
+    addingChild.value = false
+  }
+}
 const { data: comments, refresh: refreshComments } = __ad3
 const { data: attachments, refresh: refreshFiles } = __ad4
 const { data: timeLogged, refresh: refreshTimeLogged } = __ad5
@@ -516,6 +546,10 @@ function startResize(e: PointerEvent) {
       <NuxtLink :to="`/clients/${item.projects?.clients?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.clients?.name }}</NuxtLink>
       <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
       <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name === 'General' ? 'General tasks' : item.projects?.name }}</NuxtLink>
+      <template v-if="parent">
+        <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
+        <NuxtLink :to="`/tasks/${parent.id}`" class="text-muted hover:text-highlighted" title="This is a subtask">{{ parent.title }}</NuxtLink>
+      </template>
       <div class="ml-auto flex items-center gap-2">
         <UButton variant="outline" size="sm" icon="i-lucide-share-2" @click="openShare">Share for review</UButton>
         <TaskTimerControl :work-item="{ id: item.id, title: item.title, project_id: item.project_id }" :project-tasks="itemProjectTasks ?? []" @changed="refreshTimeLogged" />
@@ -610,6 +644,31 @@ function startResize(e: PointerEvent) {
             <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-sparkles" class="ml-auto" :loading="drafting === 'description'" @click="draftDescription">{{ draft.description ? 'Tidy' : 'Draft' }}</UButton>
           </div>
           <UTextarea v-model="draft.description" variant="none" autoresize :rows="3" class="w-full" :ui="{ base: 'px-0' }" placeholder="Add a description" @blur="saveDescription" />
+        </div>
+
+        <div v-if="!item.parent_id">
+          <div class="mb-2 flex items-center gap-3">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-dimmed">Subtasks <span class="font-normal">{{ children?.length ? `${childrenDone} of ${children.length} done` : '' }}</span></h2>
+            <UProgress v-if="children?.length" :model-value="childrenDone / children.length * 100" size="xs" class="w-32" />
+          </div>
+          <UCard :ui="{ body: 'p-0 sm:p-0' }">
+            <ul v-if="children?.length" class="divide-y divide-default text-sm">
+              <li v-for="c in children" :key="c.id" class="flex items-center gap-3 px-4 py-2">
+                <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(c.status)" :title="ws.label(c.status)" />
+                <NuxtLink :to="`/tasks/${c.id}`" class="min-w-0 flex-1 truncate font-medium hover:underline" :class="ws.isDone(c.status) ? 'text-muted line-through' : ''">{{ c.title }}</NuxtLink>
+                <span v-if="c.work_item_assignees.length" class="flex -space-x-1.5" :title="c.work_item_assignees.map(a => a.profiles?.full_name).join(', ')">
+                  <span v-for="a in c.work_item_assignees.slice(0, 3)" :key="a.user_id" class="grid size-5 place-items-center rounded-full bg-elevated text-[9px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                </span>
+                <span v-if="c.estimate_hours" class="text-xs tabular-nums text-muted">{{ formatHours(c.estimate_hours) }}</span>
+                <span class="w-14 text-right text-xs tabular-nums" :class="c.due_on && c.due_on < todayString() && !ws.isDone(c.status) ? 'text-error' : 'text-muted'">{{ c.due_on ? shortDate(c.due_on) : '' }}</span>
+              </li>
+            </ul>
+            <form class="flex items-center gap-2 px-3 py-2" @submit.prevent="addChild">
+              <UIcon name="i-lucide-corner-down-right" class="size-4 text-dimmed" />
+              <UInput v-model="newChild" variant="none" size="sm" class="flex-1" placeholder="Add a subtask and press Enter" :ui="{ base: 'px-0' }" />
+              <UButton v-if="newChild.trim()" type="submit" size="xs" :loading="addingChild">Add</UButton>
+            </form>
+          </UCard>
         </div>
 
         <div>

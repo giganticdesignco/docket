@@ -35,7 +35,7 @@ function resetView() { view.$reset(); collapsed.value = new Set() }
 const __ad1 = useAsyncData('work-items', async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, due_on, estimate_hours, project_id, updated_at, projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
+    .select('id, title, status, priority, due_on, estimate_hours, project_id, parent_id, updated_at, projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
     .order('due_on', { ascending: true, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .limit(2000)
@@ -120,6 +120,8 @@ const groups = computed<Group[]>(() => {
 })
 
 const toggle = (key: string) => { collapsed.value.has(key) ? collapsed.value.delete(key) : collapsed.value.add(key) }
+// A subtask shows its parent's title beside it.
+const parentTitle = (i: { parent_id: string | null }) => (i.parent_id ? items.value?.find(x => x.id === i.parent_id)?.title ?? '' : '')
 const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const priorityIcon = (p: string) => (p === 'urgent' ? 'i-lucide-flame' : p === 'high' ? 'i-lucide-flag' : p === 'low' ? 'i-lucide-arrow-down' : 'i-lucide-minus')
 const priorityClass = (p: string) => (p === 'urgent' ? 'text-error' : p === 'high' ? 'text-warning' : 'text-dimmed')
@@ -376,6 +378,7 @@ function created(id: string) {
                 <span class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" />
                 <span class="line-clamp-2 font-medium">{{ i.title }}</span>
               </div>
+              <div v-if="i.parent_id" class="mt-1 truncate text-xs text-dimmed"><UIcon name="i-lucide-corner-down-right" class="inline size-3 align-[-2px]" /> {{ parentTitle(i) }}</div>
               <div class="mt-auto flex items-center gap-2 pt-3 text-xs text-muted">
                 <span :class="i.due_on && i.due_on < today && !ws.isDone(i.status) ? 'text-error' : ''">{{ i.due_on ? shortDate(i.due_on) : 'no date' }}</span>
                 <UIcon :name="priorityIcon(i.priority)" class="size-3.5" :class="priorityClass(i.priority)" />
@@ -418,8 +421,10 @@ function created(id: string) {
             <td class="w-6 px-1 py-1.5">
               <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
             </td>
-            <td class="min-w-0 px-2 py-1.5">
+            <td class="min-w-0 px-2 py-1.5" :class="i.parent_id ? 'pl-6' : ''">
+              <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1 inline size-3.5 align-[-2px] text-dimmed" :title="`Subtask of ${parentTitle(i)}`" />
               <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
+              <span v-if="i.parent_id" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
               <span v-if="groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
             </td>
             <td class="hidden px-2 py-1.5 sm:table-cell">

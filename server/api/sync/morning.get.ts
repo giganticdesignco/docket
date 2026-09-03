@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   if (cfg.clickupToken) {
     // Tasks that ClickUp creates need an owner; the first admin stands in.
     const { data: owner } = await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).order('created_at').limit(1).maybeSingle()
-    if (owner) await step('clickup', () => importClickup(admin, owner.id, dryRun))
+    if (owner) await step('clickup', () => importClickup(admin, owner.id, dryRun, getQuery(event).subtasks === '1'))
     else results.clickup = { error: 'No active admin to own new tasks' }
   } else {
     results.clickup = { skipped: 'NUXT_CLICKUP_TOKEN is not set' }

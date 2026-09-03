@@ -3717,3 +3717,38 @@ grant select on morning_briefs to authenticated;
 
 -- The option on the Account page. Anyone may change their own.
 alter table profiles add column brief_email boolean not null default false;
+
+-- Subtasks: a task may have a parent in the same project, one level
+-- deep. Children are ordinary tasks everywhere (list, planner, time);
+-- the parent's page shows them and their progress. The ClickUp import
+-- brings subtasks in as children of their parent.
+alter table work_items add column parent_id uuid references work_items(id) on delete cascade;
+create index work_items_parent on work_items (parent_id);
+
+create or replace function public.work_item_parent_check() returns trigger
+language plpgsql set search_path = '' as $$
+declare p record;
+begin
+  if new.parent_id is null then return new; end if;
+  if new.parent_id = new.id then raise exception 'A task cannot be its own parent'; end if;
+  select id, parent_id, project_id into p from public.work_items where id = new.parent_id;
+  if p.id is null then raise exception 'Parent task not found'; end if;
+  if p.parent_id is not null then raise exception 'Subtasks go one level deep'; end if;
+  if p.project_id <> new.project_id then raise exception 'A subtask belongs to its parent''s project'; end if;
+  if exists (select 1 from public.work_items c where c.parent_id = new.id) then raise exception 'A task with subtasks cannot become a subtask'; end if;
+  return new;
+end $$;
+create trigger work_items_parent_check before insert or update of parent_id, project_id on work_items
+  for each row execute function public.work_item_parent_check();
+
+-- Deleting (soft) or restoring a parent takes its subtasks along.
+create or replace function public.work_item_cascade_children() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.deleted_at is distinct from old.deleted_at then
+    update public.work_items set deleted_at = new.deleted_at, deleted_by = new.deleted_by where parent_id = new.id;
+  end if;
+  return new;
+end $$;
+create trigger work_items_cascade_children after update of deleted_at on work_items
+  for each row execute function public.work_item_cascade_children();

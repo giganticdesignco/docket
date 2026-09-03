@@ -10,6 +10,9 @@ import type { Database } from '~~/shared/types/database'
 //                wins), else a "General" project made for the client
 //   assignees -> profiles by email (client guests are dropped)
 //   status    -> the same names Docket uses; anything else becomes new
+//   subtasks  -> children of their parent (parent_id), imported after the
+//                parents; a subtask whose parent is not in Docket comes
+//                in on its own
 
 type Db = SupabaseClient<Database>
 type Status = string
@@ -30,20 +33,24 @@ const PRIORITY: Record<string, Database['public']['Enums']['work_priority']> = {
 // Runs as whichever client is handed in: the signed-in admin from the
 // Imports page (RLS applies) or the service role from the morning cron.
 // userId owns any task the import creates.
-export async function importClickup(supabase: Db, userId: string, dryRun: boolean) {
+// includeSubtasks: bring ClickUp subtasks in as children. Off until Luke
+// says go (the first run adds thousands of tasks); the morning cron
+// passes ?subtasks=1 once it is on.
+export async function importClickup(supabase: Db, userId: string, dryRun: boolean, includeSubtasks = false) {
 
   const [tasks, profiles, clients, projects, existing] = await Promise.all([
     clickupOpenTasks(),
     all(supabase.from('profiles').select('id, email')),
     all(supabase.from('clients').select('id, name')),
     all(supabase.from('projects').select('id, client_id, name')),
-    all(supabase.from('work_items').select('id, clickup_id').not('clickup_id', 'is', null)),
+    all(supabase.from('work_items').select('id, clickup_id, project_id').not('clickup_id', 'is', null)),
   ])
 
   const profileByEmail = new Map(profiles.map(p => [p.email.toLowerCase(), p.id]))
   const clientKeys = clients.map(c => ({ id: c.id, key: norm(c.name) }))
   const projectKeys = projects.map(p => ({ id: p.id, client_id: p.client_id, key: norm(p.name), name: p.name }))
   const existingByClickup = new Map(existing.map(w => [w.clickup_id!, w.id]))
+  const projectByItem = new Map(existing.map(w => [w.id, w.project_id]))
 
   function findClient(listName: string | undefined): string | null {
     if (!listName) return null
@@ -82,9 +89,18 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
   let updated = 0
   let assignments = 0
   let droppedAssignees = 0
+  let subtasks = 0
+  let orphanSubtasks = 0
 
-  for (const t of tasks) {
-    if (t.parent) continue // subtasks come along as their parent's checklist in spirit; keep the list flat
+  // Parents first, then children by depth, so a child can point at its
+  // parent's Docket id. ClickUp nests deeper than one level; Docket keeps
+  // one, so anything deeper hangs off its top-most open ancestor.
+  const byClickup = new Map(tasks.map(t => [t.id, t]))
+  const depth = (t: (typeof tasks)[number]): number => { let d = 0; let cur = t; const seen = new Set<string>(); while (cur.parent && byClickup.has(cur.parent) && !seen.has(cur.id)) { seen.add(cur.id); cur = byClickup.get(cur.parent)!; d++ } return d }
+  const rootOf = (t: (typeof tasks)[number]) => { let cur = t; const seen = new Set<string>(); while (cur.parent && byClickup.has(cur.parent) && !seen.has(cur.id)) { seen.add(cur.id); cur = byClickup.get(cur.parent)! } return cur }
+  let flattened = 0
+  const ordered = [...tasks].filter(t => includeSubtasks || !t.parent).sort((a, b) => depth(a) - depth(b))
+  for (const t of ordered) {
     const clientId = findClient(t.list?.name)
     if (!clientId) {
       if (t.list?.name) unmatchedLists.add(t.list.name)
@@ -99,8 +115,19 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     const people = [...new Set(t.assignees.map(a => (a.email ? profileByEmail.get(a.email.toLowerCase()) : undefined)).filter((x): x is string => !!x))]
     droppedAssignees += t.assignees.length - people.length
 
+    // A child sits in its parent's project whatever its own name says.
+    let parentId: string | null = null
+    if (t.parent) {
+      const root = rootOf(t)
+      if (root.id !== t.id) {
+        if (root.id !== t.parent) flattened++
+        parentId = existingByClickup.get(root.id) ?? null
+      }
+      if (parentId) { subtasks++; const pp = projectByItem.get(parentId); if (pp) projectId = pp } else orphanSubtasks++
+    }
     const row = {
       project_id: projectId,
+      parent_id: parentId,
       title: t.name,
       description: t.text_content?.trim() || t.description?.trim() || null,
       status: STATUS[(t.status?.status ?? '').toLowerCase()] ?? 'new',
@@ -114,7 +141,7 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     if (existingId) updated++
     else created++
     assignments += people.length
-    if (dryRun) continue
+    if (dryRun) { if (!existingId) { existingByClickup.set(t.id, `dry-${t.id}`); projectByItem.set(`dry-${t.id}`, projectId) } continue }
 
     let itemId = existingId
     if (itemId) {
@@ -124,7 +151,9 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
       const { data, error } = await supabase.from('work_items').insert({ ...row, created_by: userId }).select('id').single()
       if (error) throw createError({ statusCode: 500, statusMessage: error.message })
       itemId = data.id
+      existingByClickup.set(t.id, itemId)
     }
+    projectByItem.set(itemId, projectId)
     const del = await supabase.from('work_item_assignees').delete().eq('work_item_id', itemId)
     if (del.error) throw createError({ statusCode: 500, statusMessage: del.error.message })
     if (people.length) {
@@ -133,7 +162,7 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     }
   }
 
-  return { dryRun, fetched: tasks.length, created, updated, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
+  return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')

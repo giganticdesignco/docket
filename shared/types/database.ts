@@ -2707,6 +2707,7 @@ export type Database = {
           estimate_hours: number | null
           id: string
           is_milestone: boolean
+          parent_id: string | null
           position: number
           priority: Database["public"]["Enums"]["work_priority"]
           project_id: string
@@ -2732,6 +2733,7 @@ export type Database = {
           estimate_hours?: number | null
           id?: string
           is_milestone?: boolean
+          parent_id?: string | null
           position?: number
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id: string
@@ -2757,6 +2759,7 @@ export type Database = {
           estimate_hours?: number | null
           id?: string
           is_milestone?: boolean
+          parent_id?: string | null
           position?: number
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id?: string

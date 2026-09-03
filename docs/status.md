@@ -1861,3 +1861,18 @@ default off) sends it through Resend. ai_events logs each run. The
 facts carry ids and the model writes names as `[name](/tasks/id)`
 (also /projects, /clients, /quotes); Home splits those into NuxtLinks
 and the email turns them into `name (url)`.
+
+## Subtasks (2026-09-03)
+
+`work_items.parent_id` (one level, same project, enforced by
+`work_item_parent_check`); `work_item_cascade_children` copies a
+parent's deleted_at to its children on delete and restore. Task page:
+Subtasks section with progress and an inline add; a child's breadcrumb
+links its parent. Task list: children indented with the parent named.
+ClickUp import can bring subtasks in (`includeSubtasks`, off by
+default; the cron passes `?subtasks=1` once Luke says go): parents
+first, then children by depth, deeper nesting flattened onto the
+top-most open ancestor (`flattened`), a child whose parent is not in
+Docket on its own (`orphanSubtasks`). Dry run 2026-09-03: 4,935 new
+tasks, 3,403 under existing parents, 1,530 orphans, 1,343 flattened,
+most landing in General projects. Not run. Guide updated.

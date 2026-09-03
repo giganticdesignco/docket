@@ -126,6 +126,14 @@ sees hours.
   can be brought back with Undo in the toast for thirty seconds, and it
   is only removed for good after thirty days.
 
+- **Subtasks.** A task can have subtasks, one level deep, in the same
+  project. Add them at the bottom of the task's Subtasks list (type and
+  press Enter); the list shows how many are done. A subtask is an
+  ordinary task everywhere else, with its parent named beside it on
+  the task list and in its breadcrumb. Deleting a parent deletes its
+  subtasks with it, and Undo brings them all back. The ClickUp sync
+  brings subtasks in under their parent.
+
 ### Schedule and Planner
 
 - **Schedule** is the timeline: tasks as bars by project or by person,

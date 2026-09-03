@@ -3,7 +3,7 @@ import type { Database } from '~~/shared/types/database'
 
 // Imports page: pull ClickUp's open tasks now. The work is in
 // server/utils/clickupImport.ts, shared with the morning cron.
-type Body = { dryRun?: boolean }
+type Body = { dryRun?: boolean, subtasks?: boolean }
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event).catch(() => ({} as Body))
@@ -12,5 +12,5 @@ export default defineEventHandler(async (event) => {
   if (adminErr || !isAdmin) throw createError({ statusCode: 403, statusMessage: 'Admins only' })
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw createError({ statusCode: 403, statusMessage: 'Admins only' })
-  return await importClickup(supabase, user.id, !!body?.dryRun)
+  return await importClickup(supabase, user.id, !!body?.dryRun, !!body?.subtasks)
 })
