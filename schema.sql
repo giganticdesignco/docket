@@ -1364,9 +1364,19 @@ select
       and cb.starts_at >= w.week_start
       and cb.starts_at <  w.week_start + 7
   ), 0) as meeting_hours,
-  -- Estimates split evenly across a task's assignees; done and paused
-  -- statuses do not book time.
+  -- Hours someone set per day on Planner (work_item_plans) where they
+  -- exist for this person and task; otherwise the estimate split evenly
+  -- across assignees, in the due week. Done and paused do not book.
   coalesce((
+    select sum(pl.hours)
+    from work_item_plans pl
+    join work_items wi on wi.id = pl.work_item_id
+    join work_statuses s on s.key = wi.status
+    where pl.user_id = pr.id
+      and not s.is_done and not s.is_paused
+      and pl.day >= w.week_start
+      and pl.day <  w.week_start + 7
+  ), 0) + coalesce((
     select sum(coalesce(wi.estimate_hours, 0)
                / greatest((select count(*) from work_item_assignees a2 where a2.work_item_id = wi.id), 1))
     from work_items wi
@@ -1376,6 +1386,29 @@ select
       and not s.is_done and not s.is_paused
       and wi.due_on >= w.week_start
       and wi.due_on <  w.week_start + 7
+      and not exists (select 1 from work_item_plans pl where pl.work_item_id = wi.id and pl.user_id = pr.id)
+  ), 0) + coalesce((
+    -- A partly set task: whatever is left of the person's share sits
+    -- evenly on the span's unset weekdays, the way Planner shows it.
+    select sum(
+      greatest(0, coalesce(wi.estimate_hours, 0)
+                  / greatest((select count(*) from work_item_assignees a2 where a2.work_item_id = wi.id), 1)
+                  - (select sum(p2.hours) from work_item_plans p2 where p2.work_item_id = wi.id and p2.user_id = pr.id))
+      * u.in_week / u.total)
+    from work_items wi
+    join work_item_assignees a on a.work_item_id = wi.id and a.user_id = pr.id
+    join work_statuses s on s.key = wi.status
+    cross join lateral (
+      select count(*) filter (where d >= w.week_start and d < w.week_start + 7) as in_week, count(*) as total
+      from generate_series(
+        (case when wi.start_on is not null and wi.start_on <= wi.due_on then wi.start_on else wi.due_on end)::timestamp,
+        wi.due_on::timestamp, interval '1 day') d
+      where extract(isodow from d) < 6
+        and not exists (select 1 from work_item_plans p3 where p3.work_item_id = wi.id and p3.user_id = pr.id and p3.day = d::date)
+    ) u
+    where not s.is_done and not s.is_paused
+      and wi.due_on is not null and u.total > 0
+      and exists (select 1 from work_item_plans p4 where p4.work_item_id = wi.id and p4.user_id = pr.id)
   ), 0) as booked_hours,
   coalesce((
     select count(*)
@@ -3520,3 +3553,23 @@ select l.id, l.invoice_id, l.position, l.kind, l.description, l.quantity, l.unit
        case when (select public.has_permission('see_money')) and l.cost_amount is not null then l.amount - l.cost_amount end as margin_amount
 from invoice_lines l;
 grant select on invoice_lines_detail to authenticated;
+
+-- Planner: hours a person plans to spend on a task on a given day. Set
+-- by clicking the hours on a block; days without a row share the rest
+-- of that person's estimate evenly. Goes away with the assignment.
+create table work_item_plans (
+  work_item_id uuid not null,
+  user_id      uuid not null,
+  day          date not null,
+  hours        numeric(5,2) not null check (hours >= 0),
+  updated_at   timestamptz not null default now(),
+  primary key (work_item_id, user_id, day),
+  foreign key (work_item_id, user_id) references work_item_assignees (work_item_id, user_id) on delete cascade
+);
+create index work_item_plans_user_day on work_item_plans (user_id, day);
+alter table work_item_plans enable row level security;
+create policy visible_select on work_item_plans for select to authenticated
+  using (case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);
+create policy visible_write on work_item_plans for all to authenticated
+  using (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end)
+  with check (not (select is_client()) and case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);

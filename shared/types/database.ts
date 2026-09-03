@@ -2631,6 +2631,30 @@ export type Database = {
           },
         ]
       }
+      work_item_plans: {
+        Row: {
+          day: string
+          hours: number
+          updated_at: string
+          user_id: string
+          work_item_id: string
+        }
+        Insert: {
+          day: string
+          hours: number
+          updated_at?: string
+          user_id: string
+          work_item_id: string
+        }
+        Update: {
+          day?: string
+          hours?: number
+          updated_at?: string
+          user_id?: string
+          work_item_id?: string
+        }
+        Relationships: []
+      }
       work_items: {
         Row: {
           deleted_at: string | null

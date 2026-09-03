@@ -55,9 +55,17 @@ const __ad4 = useAsyncData('planner-busy', async () => {
   if (error) throw error
   return data
 }, { ...fresh, watch: [from, to] })
-await Promise.all([__ad1, __ad2, __ad3, __ad4])
+// Hours people set per day. Small table, so all of it.
+const __ad5 = useAsyncData('planner-plans', async () => {
+  const { data, error } = await supabase.from('work_item_plans').select('work_item_id, user_id, day, hours').limit(10000)
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
 const { data: cap } = __ad1
 const { data: tasks, refresh: refreshTasks } = __ad2
+const { data: plans, refresh: refreshPlans } = __ad5
+const refreshAll = () => Promise.all([refreshTasks(), refreshPlans()])
 const { data: off } = __ad3
 const { data: busyRows } = __ad4
 
@@ -104,7 +112,19 @@ function plannedDays(t: Task): string[] {
   for (let d = barStart(t); d <= due; d = addDays(d, 1)) if (isWeekday(d)) out.push(d)
   return out.length ? out : [due]
 }
-const perDay = (t: Task, n: number) => (t.estimate_hours ? t.estimate_hours / Math.max(t.work_item_assignees.length, 1) / n : 0)
+const planKey = (tid: string, uid: string, d: string) => `${tid}|${uid}|${d}`
+const planMap = computed(() => new Map((plans.value ?? []).map(p => [planKey(p.work_item_id, p.user_id, p.day), p.hours])))
+const setHours = (t: Task, uid: string, d: string) => planMap.value.get(planKey(t.id, uid, d))
+// A person's hours on a task on a day: what they set, or an even share
+// of whatever is left of their part of the estimate across unset days.
+function hoursOn(t: Task, uid: string, d: string, ds: string[]) {
+  const set = setHours(t, uid, d)
+  if (set != null) return set
+  const share = t.estimate_hours ? t.estimate_hours / Math.max(t.work_item_assignees.length, 1) : 0
+  const unset = ds.filter(x => setHours(t, uid, x) == null)
+  const taken = ds.reduce((sum, x) => sum + (setHours(t, uid, x) ?? 0), 0)
+  return unset.length ? Math.max(0, share - taken) / unset.length : 0
+}
 const search = ref('')
 const projectId = ref('all')
 const projectLabel = (t: Task) => `${t.projects?.clients?.name ?? ''} / ${t.projects?.name ?? ''}`
@@ -118,7 +138,7 @@ const projectItems = computed(() => {
   for (const t of tasks.value ?? []) if (t.project_id && t.projects) m.set(t.project_id, `${t.projects.clients?.name ?? ''} / ${t.projects.name}`)
   return [{ label: 'All projects', value: 'all' }, ...[...m.entries()].map(([value, label]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label))]
 })
-type Block = { t: Task, hours: number, due: boolean, span: number }
+type Block = { t: Task, hours: number, due: boolean, span: number, set: boolean }
 const blocks = computed(() => {
   const m = new Map<string, Block[]>()
   for (const t of tasks.value ?? []) {
@@ -129,7 +149,7 @@ const blocks = computed(() => {
       if (d < from.value || d > to.value) continue
       for (const a of t.work_item_assignees) {
         const k = key(a.user_id, d)
-        m.set(k, [...(m.get(k) ?? []), { t, hours: perDay(t, ds.length), due: d === due, span: ds.length }])
+        m.set(k, [...(m.get(k) ?? []), { t, hours: hoursOn(t, a.user_id, d, ds), due: d === due, span: ds.length, set: setHours(t, a.user_id, d) != null }])
       }
     }
   }
@@ -185,12 +205,18 @@ const daysBetween = (a: string, b: string) => Math.round((parseDateString(b).get
 const busy = ref<string | null>(null)
 // Plan a task on a person's day: the span keeps its length and starts
 // there; the person replaces whoever it was dragged from.
+const plansFor = (tid: string, uid: string) => (plans.value ?? []).filter(p => p.work_item_id === tid && p.user_id === uid)
 async function plan(t: Task, fromUser: string | null, uid: string, day: string) {
   const before = { start_on: t.start_on, due_on: t.due_on }
   const after = { start_on: day, due_on: t.due_on ? addDays(day, daysBetween(barStart(t), t.due_on)) : day }
   const sameDates = !!t.due_on && barStart(t) === day && t.due_on === after.due_on
   const samePerson = fromUser === uid || (!fromUser && t.work_item_assignees.some(a => a.user_id === uid))
   if (sameDates && samePerson) return
+  // The set hours travel with the task: same offsets from its start, new person.
+  const delta = t.due_on ? daysBetween(barStart(t), day) : 0
+  const owner = fromUser ?? uid
+  const kept = plansFor(t.id, owner)
+  const shifted = kept.map(r => ({ work_item_id: t.id, user_id: uid, day: addDays(r.day, delta), hours: r.hours }))
   busy.value = t.id
   try {
     if (!sameDates) {
@@ -207,7 +233,13 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
         if (error) throw error
       }
     }
-    await refreshTasks()
+    if (kept.length && (!sameDates || !samePerson)) {
+      const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).eq('user_id', uid)
+      if (del.error) throw del.error
+      const ins = await supabase.from('work_item_plans').insert(shifted)
+      if (ins.error) throw ins.error
+    }
+    await refreshAll()
     const name = allPeople.value.find(p => p.id === uid)?.name ?? 'them'
     undo.offer(`${t.title}: ${name}, ${shortDate(day)}`, async () => {
       if (!sameDates) {
@@ -222,7 +254,13 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
           if (ins.error) throw ins.error
         }
       }
-    }, () => refreshTasks())
+      if (kept.length) {
+        const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).eq('user_id', uid)
+        if (del.error) throw del.error
+        const ins = await supabase.from('work_item_plans').insert(kept.map(r => ({ work_item_id: t.id, user_id: owner, day: r.day, hours: r.hours })))
+        if (ins.error) throw ins.error
+      }
+    }, () => refreshAll())
   } catch (e) {
     toast.add({ title: 'Could not plan that', description: (e as Error).message, color: 'error' })
   } finally {
@@ -254,17 +292,60 @@ function startResize(t: Task, e: PointerEvent) {
 async function stretch(t: Task, due: string) {
   const before = { start_on: t.start_on, due_on: t.due_on }
   const after = { start_on: barStart(t), due_on: due }
+  const dropped = (plans.value ?? []).filter(p => p.work_item_id === t.id && p.day > due)
   busy.value = t.id
   try {
     const { error } = await supabase.from('work_items').update(after).eq('id', t.id)
     if (error) throw error
-    await refreshTasks()
+    if (dropped.length) {
+      const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).gt('day', due)
+      if (del.error) throw del.error
+    }
+    await refreshAll()
     undo.offer(`${t.title}: ${shortDate(after.start_on)} to ${shortDate(due)}`, async () => {
       const { error: back } = await supabase.from('work_items').update(before).eq('id', t.id)
       if (back) throw back
-    }, () => refreshTasks())
+      if (dropped.length) {
+        const ins = await supabase.from('work_item_plans').insert(dropped)
+        if (ins.error) throw ins.error
+      }
+    }, () => refreshAll())
   } catch (e) {
     toast.add({ title: 'Could not change the dates', description: (e as Error).message, color: 'error' })
+  } finally {
+    busy.value = null
+  }
+}
+// ---------- hours on a day ----------
+// Click the hours on a block to type what that person does that day.
+// Empty puts the day back on the even split.
+const editing = ref<{ tid: string, uid: string, day: string, text: string, initial: string } | null>(null)
+function startEdit(b: Block, uid: string, day: string) {
+  const text = b.hours ? formatHours(b.hours) : ''
+  editing.value = { tid: b.t.id, uid, day, text, initial: text }
+}
+const focusEl = (v: { el: HTMLInputElement | null }) => v.el?.select()
+async function commitEdit() {
+  const e = editing.value
+  editing.value = null
+  if (!e) return
+  const text = e.text.trim()
+  // Clicking in and out again pins nothing.
+  if (text === e.initial.trim()) return
+  const hours = text ? parseHours(text) : null
+  if (text && hours == null) { toast.add({ title: 'Hours like 2:30 or 2.5', color: 'error', duration: 2500 }); return }
+  const was = planMap.value.get(planKey(e.tid, e.uid, e.day))
+  if ((hours ?? undefined) === was) return
+  busy.value = e.tid
+  try {
+    const q = supabase.from('work_item_plans')
+    const { error } = hours == null
+      ? await q.delete().eq('work_item_id', e.tid).eq('user_id', e.uid).eq('day', e.day)
+      : await q.upsert({ work_item_id: e.tid, user_id: e.uid, day: e.day, hours })
+    if (error) throw error
+    await refreshPlans()
+  } catch (err) {
+    toast.add({ title: 'Could not save the hours', description: (err as Error).message, color: 'error' })
   } finally {
     busy.value = null
   }
@@ -392,7 +473,7 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
                       <span class="truncate">Busy {{ h(b.hours) }}</span>
                     </div>
                     <div
-                      v-for="b in cellBlocks(p.id, d)" :key="b.t.id" :draggable="!resizing"
+                      v-for="b in cellBlocks(p.id, d)" :key="b.t.id" :draggable="!resizing && !editing"
                       class="relative cursor-grab rounded-md border border-default border-l-2 bg-default px-1.5 py-1 pr-2.5 text-xs hover:bg-elevated active:cursor-grabbing"
                       :class="[projectColor(b.t.project_id), dragging?.task.id === b.t.id ? 'opacity-40' : '', resizing?.task.id === b.t.id ? 'border-primary bg-primary/10' : '']"
                       @dragstart="onDragStart(b.t, p.id, $event)" @dragend="reset"
@@ -402,8 +483,15 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
                       <div v-if="zoom === 'week'" class="truncate text-[11px] text-muted">{{ projectLabel(b.t) }}</div>
                       <div class="flex items-center gap-1 text-[11px] text-muted tabular-nums">
                         <UIcon v-if="b.t.is_milestone" name="i-lucide-flag" class="size-3" />
-                        <span v-if="b.hours">{{ h(b.hours) }}</span>
-                        <span v-else-if="!b.t.is_milestone" class="text-dimmed" title="No estimate on this task">no estimate</span>
+                        <input
+                          v-if="editing && editing.tid === b.t.id && editing.uid === p.id && editing.day === d"
+                          v-model="editing.text" class="w-12 rounded border border-primary bg-default px-1 py-0 text-[11px] text-highlighted outline-none" placeholder="h:mm"
+                          @vue:mounted="focusEl" @keydown.enter.prevent="commitEdit" @keydown.esc.prevent="editing = null" @blur="commitEdit" @pointerdown.stop @click.stop
+                        >
+                        <button v-else-if="!b.t.is_milestone" type="button" class="inline-flex items-center rounded px-0.5 hover:bg-primary/10 hover:text-highlighted" :class="b.set ? 'font-medium text-highlighted' : ''" :title="b.set ? 'Hours set for this day. Click to change; clear to go back to the even split.' : 'Click to set the hours for this day'" @click.stop="startEdit(b, p.id, d)">
+                          <template v-if="b.hours">{{ h(b.hours) }}</template>
+                          <UIcon v-else name="i-lucide-clock" class="size-3 text-dimmed" />
+                        </button>
                         <span v-if="b.due && b.span > 1" class="ml-auto">due</span>
                       </div>
                     </div>

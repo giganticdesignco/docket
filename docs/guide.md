@@ -134,7 +134,11 @@ sees hours.
   planned there: they are assigned and the task's dates move to start
   that day, keeping their length. Drag a block to another day or
   person to move it, or drag its right edge across the days to set the
-  due date; the hours re-spread as it stretches. Undo has thirty seconds. The small assign button
+  due date; the hours re-spread as it stretches. Click the hours on a
+  block to type what that person does that day (a four hour task can
+  be 3:00 Monday and 1:00 Tuesday); set days show in bold, the other
+  days share what is left, and clearing a day puts it back on the even
+  split. Capacity counts set hours the same way. Undo has thirty seconds. The small assign button
   on a card gives it a person without touching its dates. Switch
   between one week and three, pick which people to show (Me is a
   shortcut), and filter by project. Schedule stays the place for the Gantt view and

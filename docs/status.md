@@ -1746,3 +1746,16 @@ drags the due date along the `data-day` cells (start_on is pinned to
 the old bar start on commit); the block's HTML5 drag is suppressed
 while stretching. View state: zoom and the people filter (a list of ids, empty for
 everyone). No schema change. Guide updated.
+
+## Planner hours per day (2026-09-03)
+
+`work_item_plans (work_item_id, user_id, day, hours)`, keyed to the
+assignment row so unassigning removes the plan. Clicking a block's
+hours upserts a row; clearing deletes it. Unset days share the rest of
+that person's part of the estimate evenly, floor zero. Moving a task
+shifts that person's rows by the same delta (and re-homes them when
+the person changes); stretching drops rows past the new due date; both
+undo. `capacity_weekly.booked_hours` now sums plan rows in the week, adds
+the remainder of a partly set task spread over its unset weekdays
+(a lateral generate_series per task), and falls back to the estimate
+in the due week only for tasks where the person has no rows at all. Guide updated.
