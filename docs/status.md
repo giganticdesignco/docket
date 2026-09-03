@@ -1682,3 +1682,12 @@ returns the billable entries behind the period (amount with see_money;
 nothing for pre-cutover periods). The client page groups periods per
 contract, links to the page, and keeps the per-period edit and delete.
 Portal untouched. Guide updated.
+
+## Planner, Phase 4 item 9 (2026-09-03)
+
+`/planner` (see_capacity): unassigned open tasks on the left (dated,
+sorted by due date, and undated), the capacity grid on the right (same
+arithmetic as Capacity, this week plus six). Native drag of a dated
+task lights up its due week's cells; dropping inserts a
+`work_item_assignees` row with an Undo. Undated or far-off tasks get a
+dropdown of people. No schema change. Guide updated.

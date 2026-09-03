@@ -113,6 +113,10 @@ sees hours.
   that week (estimates split across assignees). Click a cell to see
   the tasks behind it. "Nothing planned" can also mean the tasks have
   no estimates yet.
+- **Planner** puts open tasks nobody is on beside who has room, this
+  week and six ahead. Drag a task onto a person in the week it is due
+  and they are assigned (Undo has thirty seconds). It never changes
+  dates; a task with no date gets a plain assign menu until it has one.
 - **Time off** is logged by each person; admins log anyone's and company
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.
