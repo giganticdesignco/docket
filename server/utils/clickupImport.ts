@@ -13,6 +13,7 @@ import type { Database } from '~~/shared/types/database'
 //   subtasks  -> children of their parent (parent_id), imported after the
 //                parents; a subtask whose parent is not in Docket comes
 //                in on its own
+//   lists in EXCLUDED_LISTS are skipped entirely
 
 type Db = SupabaseClient<Database>
 type Status = string
@@ -29,6 +30,10 @@ const STATUS: Record<string, Status> = {
   'completed': 'completed', 'complete': 'completed', 'closed': 'completed', 'done': 'completed',
 }
 const PRIORITY: Record<string, Database['public']['Enums']['work_priority']> = { low: 'low', normal: 'normal', high: 'high', urgent: 'urgent' }
+// ClickUp lists that never come across (Luke, 2026-09-03: Hills Bank is
+// run out of ClickUp and its thousands of subtasks would swamp Docket).
+const EXCLUDED_LISTS = ['hills bank']
+const excluded = (listName: string | undefined) => !!listName && EXCLUDED_LISTS.some(x => listName.toLowerCase().includes(x))
 
 // Runs as whichever client is handed in: the signed-in admin from the
 // Imports page (RLS applies) or the service role from the morning cron.
@@ -91,6 +96,7 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
   let droppedAssignees = 0
   let subtasks = 0
   let orphanSubtasks = 0
+  let skippedExcluded = 0
 
   // Parents first, then children by depth, so a child can point at its
   // parent's Docket id. ClickUp nests deeper than one level; Docket keeps
@@ -103,6 +109,7 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
   const subtasksByList: Record<string, number> = {}
   const ordered = [...tasks].filter(t => includeSubtasks || !t.parent).sort((a, b) => depth(a) - depth(b))
   for (const t of ordered) {
+    if (excluded(t.list?.name)) { skippedExcluded++; continue }
     const clientId = findClient(t.list?.name)
     if (!clientId) {
       if (t.list?.name) unmatchedLists.add(t.list.name)
@@ -166,7 +173,7 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     }
   }
 
-  return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, subtasksByList, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
+  return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, subtasksByList, skippedExcluded, excludedLists: EXCLUDED_LISTS, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')

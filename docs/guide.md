@@ -132,7 +132,8 @@ sees hours.
   ordinary task everywhere else, with its parent named beside it on
   the task list and in its breadcrumb. Deleting a parent deletes its
   subtasks with it, and Undo brings them all back. The ClickUp sync
-  brings subtasks in under their parent.
+  brings subtasks in under their parent, except for lists it is told to
+  skip (Hills Bank, which is run out of ClickUp).
 
 ### Schedule and Planner
 
