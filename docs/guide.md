@@ -204,6 +204,16 @@ Nothing along this path is recomputed later: the estimate is frozen in
 the quote line, the quote's rates are frozen in the project, and each
 time entry freezes its rate when it is saved.
 
+### The Quotes page
+
+- **List or board.** The list has the status filters and an Owner
+  column (who wrote the quote). The board (grid icon) has a column per
+  stage, Draft to Declined, each with a count and a total; click a card
+  to open the quote. Moving a quote between stages still happens on the
+  quote itself, since accepting or declining needs the client's name.
+- **The amber dot** on a sent quote means it went out five or more days
+  ago with no answer. Past its valid-until date it reads expired instead.
+
 ### Rates, people, and margin on a quote
 
 - **Task types carry a default rate and wording** (Settings, Task

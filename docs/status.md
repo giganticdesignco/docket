@@ -1602,3 +1602,13 @@ saved lines so cost rates never leave Postgres. `accept_quote()` assigns
 each page's task to its line's person. `capacity_weekly.forecast_hours`
 sums those lines on draft or sent quotes; the capacity page draws them
 as a grey bar under the plan. Guide updated.
+
+## Quotes board, owner, stale dot, Phase 4 item 3 (2026-09-03)
+
+`/quotes` remembers `layout` (list or board) in its view state. The
+board is four columns by status with count and subtotal per column,
+cards linking to the quote; expired-by-date quotes stay in Sent with
+the red badge (the enum's `expired` is never written). Both layouts
+show the owner (`quotes.created_by` initials) and an amber dot on sent
+quotes five or more days old with no decision. Threshold is a constant
+in the page. Guide updated.
