@@ -28,6 +28,20 @@ keyboard shortcuts alone.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
 
+## Home and the morning brief
+
+- **Home** is your day: the timer, hours today and this week against
+  your target, your open tasks by when they are due, the projects you
+  are working in, and today's or this week's agenda from your Google
+  Calendar.
+- **Morning brief.** Each weekday morning Docket writes you a short
+  note from your own facts: what is overdue or due today, weeks waiting
+  for your approval, a last week you have not submitted, quotes out
+  with clients, today's meetings, and where the week's hours stand. It
+  sits at the top of Home. Turn on "Also email it to me" on your
+  Account page to get it by email as well. The note is written by the
+  assistant from those facts and never adds anything of its own.
+
 ## Time
 
 Time is the reason Docket exists, so it sits right under Home.

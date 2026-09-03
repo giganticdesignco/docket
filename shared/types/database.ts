@@ -1267,6 +1267,33 @@ export type Database = {
           },
         ]
       }
+      morning_briefs: {
+        Row: {
+          created_at: string
+          day: string
+          emailed_at: string | null
+          facts: Json
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          emailed_at?: string | null
+          facts?: Json
+          text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          emailed_at?: string | null
+          facts?: Json
+          text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_prefs: {
         Row: {
           email: string
@@ -1347,6 +1374,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          brief_email: boolean
           client_id: string | null
           cost_rate: number | null
           created_at: string
@@ -1360,6 +1388,7 @@ export type Database = {
           tours_seen: Json
         }
         Insert: {
+          brief_email?: boolean
           client_id?: string | null
           cost_rate?: number | null
           created_at?: string
@@ -1373,6 +1402,7 @@ export type Database = {
           tours_seen?: Json
         }
         Update: {
+          brief_email?: boolean
           client_id?: string | null
           cost_rate?: number | null
           created_at?: string

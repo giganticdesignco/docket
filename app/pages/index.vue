@@ -47,7 +47,14 @@ const __ad3 = useAsyncData('home-recent-project-ids', async () => {
   const { data } = await supabase.from('time_entries').select('project_id').eq('user_id', user.value.sub).gte('spent_on', addDays(today, -30))
   return [...new Set((data ?? []).map(e => e.project_id))]
 }, { ...fresh, server: false })
-await Promise.all([__ad1, __ad2, __ad3, timer.load()])
+// This morning's brief, written by the cron before the day starts.
+const __ad4 = useAsyncData('home-brief', async () => {
+  if (!user.value) return null
+  const { data } = await supabase.from('morning_briefs').select('day, text, created_at').eq('user_id', user.value.sub).order('day', { ascending: false }).limit(1).maybeSingle()
+  return data
+}, { ...fresh, server: false })
+await Promise.all([__ad1, __ad2, __ad3, __ad4, timer.load()])
+const { data: brief } = __ad4
 const { data: pace } = __ad1
 const { data: tasks } = __ad2
 const { data: recentIds } = __ad3
@@ -100,6 +107,16 @@ const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running
         <UButton to="/tasks" variant="outline" color="neutral" icon="i-lucide-list-todo">Tasks</UButton>
       </div>
     </div>
+
+    <!-- Morning brief -->
+    <UCard v-if="brief" :ui="{ body: 'p-4 sm:p-5' }">
+      <div class="flex items-baseline gap-3">
+        <h2 class="font-semibold">Morning brief</h2>
+        <span class="text-xs text-muted">{{ brief.day === today ? 'Today' : longDate(brief.day) }}</span>
+        <NuxtLink to="/account" class="ml-auto text-xs text-muted hover:underline" title="Have this emailed to you each weekday morning">{{ profile?.brief_email ? 'Emailed to you each morning' : 'Get it by email' }}</NuxtLink>
+      </div>
+      <p class="mt-2 whitespace-pre-line text-sm leading-relaxed">{{ brief.text }}</p>
+    </UCard>
 
     <!-- Today strip -->
     <div class="grid gap-4 sm:grid-cols-3">

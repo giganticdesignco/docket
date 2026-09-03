@@ -3698,3 +3698,22 @@ as $$
   left join h on h.client_id = c.id;
 $$;
 revoke execute on function public.client_money() from public, anon;
+
+-- Morning brief: one note per person per weekday, written by the cron
+-- (/api/ai/brief) from that person's own facts (tasks due, meetings,
+-- hours, approvals waiting). Shown on Home; emailed when they turn it on.
+create table morning_briefs (
+  user_id    uuid not null references profiles(id) on delete cascade,
+  day        date not null,
+  text       text not null,
+  facts      jsonb not null default '{}'::jsonb,
+  emailed_at timestamptz,
+  created_at timestamptz not null default now(),
+  primary key (user_id, day)
+);
+alter table morning_briefs enable row level security;
+create policy own_brief on morning_briefs for select to authenticated using (user_id = (select auth.uid()));
+grant select on morning_briefs to authenticated;
+
+-- The option on the Account page. Anyone may change their own.
+alter table profiles add column brief_email boolean not null default false;

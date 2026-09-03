@@ -55,6 +55,18 @@ async function disconnect() {
   }
 }
 const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never')
+
+// The morning brief email, saved on the profile. Own row, so RLS allows it.
+const briefBusy = ref(false)
+async function setBriefEmail(on: boolean) {
+  if (!profile.value) return
+  briefBusy.value = true
+  const { error } = await supabase.from('profiles').update({ brief_email: on }).eq('id', profile.value.id)
+  briefBusy.value = false
+  if (error) { toast.add({ title: 'Not saved', description: error.message, color: 'error' }); return }
+  profile.value = { ...profile.value, brief_email: on }
+  toast.add({ title: on ? 'You will get the brief by email each weekday morning' : 'Brief email off', color: 'success', duration: 2500 })
+}
 </script>
 
 <template>
@@ -97,6 +109,12 @@ const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-US
         </li>
       </ul>
       <p v-else class="text-sm text-muted">Nobody else has connected a calendar yet. Each person does it from this page.</p>
+    </UCard>
+
+    <UCard>
+      <template #header><h2 class="font-semibold">Morning brief</h2></template>
+      <p class="text-sm text-muted">Each weekday morning Docket writes you a short note: what is overdue or due today, weeks waiting for your approval, quotes out with clients, today's meetings, and where the week's hours stand. It is on your Home page either way.</p>
+      <USwitch class="mt-3" :model-value="!!profile?.brief_email" label="Also email it to me each morning" :loading="briefBusy" @update:model-value="setBriefEmail" />
     </UCard>
 
     <UCard>
