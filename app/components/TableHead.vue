@@ -34,10 +34,10 @@ const menu = computed(() => [
         </button>
         <span v-else>{{ c.label }}</span>
       </th>
-      <th class="w-10 px-2 py-1 text-right">
+      <th class="w-px whitespace-nowrap px-2 py-1 text-right">
         <slot name="trailing" />
         <UDropdownMenu :items="menu" :content="{ align: 'end' }">
-          <UButton icon="i-lucide-settings-2" variant="ghost" color="neutral" size="xs" aria-label="Choose columns" title="Choose columns. Drag a header to move it; click one to sort." />
+          <UButton icon="i-lucide-settings-2" variant="outline" color="neutral" size="xs" aria-label="Choose columns" title="Show or hide columns. Drag a header to move it; click one to sort.">Columns</UButton>
         </UDropdownMenu>
       </th>
     </tr>
