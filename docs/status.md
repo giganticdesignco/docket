@@ -1879,17 +1879,30 @@ excluding it: 256 created, 388 updated, 230 subtasks, 25 orphans,
 4,984 skipped. The 305 Hills Bank tasks already imported are left in
 place, untouched from now on. Guide updated.
 
-## Hills Bank tasks removed (2026-09-03)
+## Hills Bank removed from Docket (2026-09-03)
 
-Luke: do not import Hills Bank, and delete what is there. The 305
-ClickUp tasks (all in Hills Bank's "General" catch-all, no time or
-comments against any of them) were soft deleted, so restore_deleted()
-can bring them back until 2026-10-03. The projects were NOT deleted:
-18 of the 19 hold 212 time entries (302.75 hours, Jan to Aug 2026) and
-24 expenses, and time_entries.project_id / expenses.project_id are ON
-DELETE RESTRICT, so the database blocks it and deleting them would
-destroy billable history. The 19th ("General") is empty on screen but
-still referenced by the soft-deleted tasks, so removing it now would
-forfeit the undo window. Note `is_active` on a project is overwritten
-each morning from Harvest (harvestImport.ts:378), so marking these
-inactive in Docket does not stick.
+Luke: do not import Hills Bank, and delete its tasks and projects. They
+are run out of ClickUp and Harvest and will be billed there before the
+team moves to Docket.
+
+Removed (hard, via the `remove_hills_bank_projects` migration with
+`docket.purge = 'on'`): 19 projects, 305 ClickUp tasks, 212 time
+entries (302.75 hours, Jan to Aug 2026), 24 expenses ($9,700.08), and
+41 project_tasks by cascade. No billing batch, invoice, quote, or
+retainer referenced any of it. A full JSON dump was taken first at
+scratchpad/hills-bank-backup/hills-bank-2026-09-03.json (658 KB,
+includes every row and the receipt_path of the 10 expenses whose
+receipt files stay in Storage, now orphaned).
+
+Kept on purpose: the Hills Bank client row (so the name still resolves)
+and its 247 harvest_archive_monthly rows, which key on client name and
+carry the pre-cutover reporting history.
+
+Both importers now skip Hills Bank, so nothing recreates it:
+`EXCLUDED_LISTS` in clickupImport.ts (ClickUp list name) and
+`EXCLUDED_CLIENTS` in harvestImport.ts (client name, checked at the top
+of the live-time and expenses loops; importProjects only updates rows
+that already exist, so it needs no check). Both report a
+`skippedExcluded` count. Verified by a morning-sync dry run: ClickUp
+skipped 306, Harvest skipped 5 time entries and 4 expenses in August,
+and created 0 clients and 0 projects for Hills Bank.

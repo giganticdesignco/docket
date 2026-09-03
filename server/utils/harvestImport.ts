@@ -162,6 +162,15 @@ async function importArchive(supabase: Db, periodMonth: string, entries: Harvest
   return { rows: list.length, hours, amount }
 }
 
+// Clients whose Harvest time and expenses never come across. Hills Bank
+// is run out of ClickUp and Harvest and is being billed there before the
+// move (Luke, 2026-09-03); clickupImport.ts has the matching list for
+// ClickUp lists. importProjects() only updates projects that already
+// exist, so it needs no check of its own.
+const EXCLUDED_CLIENTS = ['hills bank']
+const excludedClient = (name: string | undefined) =>
+  !!name && EXCLUDED_CLIENTS.some(x => name.toLowerCase().includes(x))
+
 // ---------- reference rows ----------
 
 const newCreated = () => ({ clients: 0, projects: 0, tasks: 0, project_tasks: 0, categories: 0 })
@@ -275,7 +284,9 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
 
   type Row = Database['public']['Tables']['time_entries']['Insert']
   const rows: Row[] = []
+  let skippedExcluded = 0
   for (const e of entries) {
+    if (excludedClient(e.client?.name)) { skippedExcluded++; continue }
     const profile = findProfile(refs, e.user)
     if (!profile) {
       const email = refs.harvestEmail.get(e.user.id)
@@ -351,7 +362,7 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
     else relinked = data ?? 0
   }
 
-  return { imported: rows.length, deleted, fixedRates, relinked, relinkError, skippedUsers: [...skippedUsers.values()], created }
+  return { imported: rows.length, deleted, fixedRates, relinked, relinkError, skippedExcluded, skippedUsers: [...skippedUsers.values()], created }
 }
 
 // ---------- projects ----------
@@ -420,7 +431,9 @@ async function importExpenses(supabase: Db, from: string, to: string, dryRun: bo
   const receiptErrors: string[] = []
   let receipts = 0
 
+  let skippedExcluded = 0
   for (const e of all) {
+    if (excludedClient(e.client?.name)) { skippedExcluded++; continue }
     const profile = findProfile(refs, e.user)
     if (!profile) {
       const email = refs.harvestEmail.get(e.user.id)
@@ -496,7 +509,7 @@ async function importExpenses(supabase: Db, from: string, to: string, dryRun: bo
   }
 
   const amount = round2(rows.reduce((sum, r) => sum + r.amount, 0))
-  return { fetched: all.length, imported: rows.length, amount, deleted, receipts, receiptErrors, skippedUsers: [...skippedUsers.values()], created }
+  return { fetched: all.length, imported: rows.length, amount, deleted, receipts, receiptErrors, skippedExcluded, skippedUsers: [...skippedUsers.values()], created }
 }
 
 // ---------- invoices ----------
