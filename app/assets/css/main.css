@@ -34,8 +34,9 @@
    hidden until you happen to scroll). */
 .table-scroll {
   overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-border-accented) transparent;
+  /* No scrollbar-width here: in Chrome it would override the
+     ::-webkit-scrollbar rules below, which are what force a classic,
+     always-visible bar. */
 }
 .table-scroll::-webkit-scrollbar { height: 8px; }
 .table-scroll::-webkit-scrollbar-track { background: transparent; }
