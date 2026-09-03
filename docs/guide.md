@@ -124,10 +124,20 @@ sees hours.
   that week (estimates split across assignees). Click a cell to see
   the tasks behind it. "Nothing planned" can also mean the tasks have
   no estimates yet.
-- **Planner** puts open tasks nobody is on beside who has room, this
-  week and six ahead. Drag a task onto a person in the week it is due
-  and they are assigned (Undo has thirty seconds). It never changes
-  dates; a task with no date gets a plain assign menu until it has one.
+- **Planner** is people as rows and weekdays as columns, one block for
+  every task on each day it is planned for. An estimate spreads evenly
+  across the weekdays of the task's span and across its assignees, so
+  a 10 hour task from Monday to Friday shows 2:00 a day. Meetings from
+  Google Calendar and time off sit in the cell too, and the footer
+  says how much of the day is planned and how much is left; over goes
+  red. Drag a task from "Needs a person" onto a person's day and it is
+  planned there: they are assigned and the task's dates move to start
+  that day, keeping their length. Drag a block to another day or
+  person to move it. Undo has thirty seconds. The small assign button
+  on a card gives it a person without touching its dates. Switch
+  between one week and three, everyone or just you, and filter by
+  project. Schedule stays the place for the Gantt view and
+  dependencies.
 - **Time off** is logged by each person; admins log anyone's and company
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.

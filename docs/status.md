@@ -1728,3 +1728,18 @@ total. `loadInvoiceDoc()`, the public page, and the email are untouched.
 The editor keeps cost_amount when it rewrites lines. Base-table selects
 by manage_invoices holders can still read cost_amount; the view is the
 sanctioned path. Guide updated.
+
+## Planner laid out like Scoro (2026-09-03)
+
+`/planner` rewritten: people as rows, weekdays as columns (one or three
+weeks), a block per task per planned day. Hours per block are
+`estimate / assignees / weekdays in span`, which differs from
+`capacity_weekly.booked_hours` (whole estimate in the due week) only
+when a span crosses weeks. Day availability is `base_hours / 5` minus
+time off that day minus calendar busy that day; time off and busy
+blocks render in the cell. Drop plans the task: `work_items.start_on`
+moves to the day and `due_on` keeps the span length, and the target
+person replaces the one dragged from (or is added when dragged from
+the left). Undo reverses both. A card's assign button still assigns
+without dates. View state: zoom and who. No schema change. Guide
+updated.
