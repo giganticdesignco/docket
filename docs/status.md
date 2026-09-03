@@ -1802,5 +1802,7 @@ and status pickers everywhere carry the status dot (`chip` on
 reorder (native drag on th), show/hide (gear menu), reset; saved per
 person in user_views as `columns:<key>` {order, hidden, sort}. Pages
 render `<td v-for="c in cols.visible">` and branch on `c.key`, and
-wrap their rows in `cols.sorted()`. Applied to Projects first, with
-new Tasks (open count) and Assigned (people on open tasks) columns.
+wrap their rows in `cols.sorted()`. Applied to Projects (with new
+Tasks and Assigned columns), Clients, Invoices, Quotes (list layout),
+Expenses (Person column only with Everyone, via TableHead's `only`),
+and People. Tasks and Time keep their own layouts.

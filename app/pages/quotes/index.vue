@@ -36,7 +36,16 @@ const filters: { value: Filter, label: string }[] = [
   { value: 'all', label: 'All' }, { value: 'draft', label: 'Drafts' }, { value: 'sent', label: 'Sent' }, { value: 'accepted', label: 'Accepted' }, { value: 'declined', label: 'Declined' },
 ]
 const today = todayString()
-const rows = computed(() => (quotes.value ?? []).filter(q => filter.value === 'all' || q.status === filter.value))
+const cols = await useColumns<Row>('quotes', [
+  { key: 'number', label: 'Number', sort: q => q.number, always: true },
+  { key: 'client', label: 'Client', sort: q => q.clients?.name },
+  { key: 'title', label: 'Title', sort: q => q.title },
+  { key: 'owner', label: 'Owner', sort: q => owner(q) },
+  { key: 'valid', label: 'Valid until', sort: q => q.valid_until },
+  { key: 'total', label: 'Total', align: 'right', sort: q => q.subtotal },
+  { key: 'status', label: 'Status', sort: q => badge(q).label },
+])
+const rows = computed(() => cols.sorted((quotes.value ?? []).filter(q => filter.value === 'all' || q.status === filter.value)))
 const outstanding = computed(() => (quotes.value ?? []).filter(q => q.status === 'sent').reduce((s, q) => s + q.subtotal, 0))
 const won = computed(() => (quotes.value ?? []).filter(q => q.status === 'accepted' && q.accepted_at && q.accepted_at.slice(0, 4) === today.slice(0, 4)).reduce((s, q) => s + q.subtotal, 0))
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -123,34 +132,25 @@ async function create() {
 
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <table class="w-full text-sm">
-          <thead class="text-left text-muted">
-            <tr class="border-b border-default">
-              <th class="px-4 py-2 font-medium">Number</th>
-              <th class="px-2 py-2 font-medium">Client</th>
-              <th class="px-2 py-2 font-medium">Title</th>
-              <th class="px-2 py-2 font-medium">Owner</th>
-              <th class="px-2 py-2 font-medium">Valid until</th>
-              <th class="px-2 py-2 text-right font-medium">Total</th>
-              <th class="px-4 py-2 font-medium">Status</th>
-            </tr>
-          </thead>
+          <TableHead :cols="cols" />
           <tbody>
             <tr v-for="q in rows" :key="q.id" class="border-b border-default last:border-0">
-              <td class="px-4 py-2 font-medium tabular-nums"><NuxtLink :to="`/quotes/${q.id}`" class="hover:underline">{{ q.number }}</NuxtLink></td>
-              <td class="px-2 py-2"><NuxtLink :to="`/clients/${q.client_id}`" class="hover:underline">{{ q.clients?.name }}</NuxtLink></td>
-              <td class="max-w-sm truncate px-2 py-2"><NuxtLink :to="`/quotes/${q.id}`" class="hover:underline">{{ q.title }}</NuxtLink></td>
-              <td class="px-2 py-2"><span v-if="owner(q)" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default" :title="owner(q)">{{ initials(owner(q)) }}</span></td>
-              <td class="px-2 py-2 tabular-nums">{{ q.valid_until ? shortDate(q.valid_until) : '' }}</td>
-              <td class="px-2 py-2 text-right tabular-nums">{{ money(q.subtotal) }}</td>
-              <td class="px-4 py-2">
-                <span class="inline-flex items-center gap-1.5">
+              <td v-for="c in cols.visible" :key="c.key" class="px-4 py-2" :class="[c.align === 'right' ? 'text-right tabular-nums' : '', c.key === 'title' ? 'max-w-sm truncate' : '']">
+                <NuxtLink v-if="c.key === 'number'" :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
+                <NuxtLink v-else-if="c.key === 'client'" :to="`/clients/${q.client_id}`" class="hover:underline">{{ q.clients?.name }}</NuxtLink>
+                <NuxtLink v-else-if="c.key === 'title'" :to="`/quotes/${q.id}`" class="hover:underline">{{ q.title }}</NuxtLink>
+                <span v-else-if="c.key === 'owner' && owner(q)" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default" :title="owner(q)">{{ initials(owner(q)) }}</span>
+                <span v-else-if="c.key === 'valid'" class="tabular-nums">{{ q.valid_until ? shortDate(q.valid_until) : '' }}</span>
+                <template v-else-if="c.key === 'total'">{{ money(q.subtotal) }}</template>
+                <span v-else-if="c.key === 'status'" class="inline-flex items-center gap-1.5">
                   <UBadge :color="badge(q).color" variant="subtle" size="sm">{{ badge(q).label }}</UBadge>
                   <UTooltip v-if="stale(q)" :text="staleNote(q)"><span class="block size-2 rounded-full bg-warning" aria-label="Waiting on a reply" /></UTooltip>
                 </span>
               </td>
+              <td />
             </tr>
             <tr v-if="!rows.length">
-              <td colspan="7" class="px-4 py-8 text-center text-muted">No quotes here.</td>
+              <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">No quotes here.</td>
             </tr>
           </tbody>
         </table>

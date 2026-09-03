@@ -69,7 +69,17 @@ const monthText = (name: string) => {
   if (!r || Number(r.hours) === 0) return ''
   return `${formatHours(r.hours)} (${Math.round(Number(r.billable_hours) / Number(r.hours) * 100)}% billable)`
 }
-const rows = computed(() => (profiles.value ?? []).filter(p => showInactive.value || p.is_active))
+type Person = NonNullable<typeof profiles.value>[number]
+const cols = await useColumns<Person>('people', [
+  { key: 'name', label: 'Name', sort: p => p.full_name, always: true },
+  { key: 'email', label: 'Email', sort: p => p.email },
+  { key: 'role', label: 'Role', sort: p => p.role },
+  { key: 'rate', label: 'Default rate', align: 'right', sort: p => p.default_rate },
+  { key: 'hours', label: 'Hours / week', align: 'right', sort: p => hoursFor(p.id) },
+  { key: 'month', label: 'This month', align: 'right', sort: p => Number(monthFor(p.full_name)?.hours ?? 0) },
+  { key: 'status', label: 'Status', sort: p => (p.is_active ? 0 : 1) },
+])
+const rows = computed(() => cols.sorted((profiles.value ?? []).filter(p => showInactive.value || p.is_active)))
 const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 
 function done() {
@@ -94,37 +104,24 @@ function done() {
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <table class="w-full text-sm">
-        <thead class="text-left text-muted">
-          <tr class="border-b border-default">
-            <th class="px-4 py-2 font-medium">Name</th>
-            <th class="px-4 py-2 font-medium">Email</th>
-            <th class="px-4 py-2 font-medium">Role</th>
-            <th class="px-4 py-2 text-right font-medium">Default rate</th>
-            <th class="px-4 py-2 text-right font-medium">Hours / week</th>
-            <th class="px-4 py-2 text-right font-medium">This month</th>
-            <th class="px-4 py-2 font-medium">Status</th>
-            <th class="px-4 py-2" />
-          </tr>
-        </thead>
+        <TableHead :cols="cols" />
         <tbody>
           <tr v-for="p in rows" :key="p.id" class="border-b border-default last:border-0">
-            <td class="px-4 py-2 font-medium">{{ p.full_name }}<span v-if="p.id === user?.sub" class="ml-2 text-xs font-normal text-muted">you</span></td>
-            <td class="px-4 py-2 text-muted">{{ p.email }}</td>
-            <td class="px-4 py-2">
-              <UBadge :color="p.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" size="sm">{{ p.role }}</UBadge>
+            <td v-for="c in cols.visible" :key="c.key" class="px-4 py-2" :class="[c.align === 'right' ? 'text-right tabular-nums' : '', c.key === 'month' ? 'whitespace-nowrap' : '']">
+              <template v-if="c.key === 'name'"><span class="font-medium">{{ p.full_name }}</span><span v-if="p.id === user?.sub" class="ml-2 text-xs text-muted">you</span></template>
+              <span v-else-if="c.key === 'email'" class="text-muted">{{ p.email }}</span>
+              <UBadge v-else-if="c.key === 'role'" :color="p.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" size="sm">{{ p.role }}</UBadge>
+              <template v-else-if="c.key === 'rate'">{{ money(p.default_rate) }}</template>
+              <template v-else-if="c.key === 'hours'">{{ hoursFor(p.id) ?? '' }}</template>
+              <template v-else-if="c.key === 'month'">{{ monthText(p.full_name) }}</template>
+              <UBadge v-else-if="c.key === 'status'" :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
             </td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ money(p.default_rate) }}</td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ hoursFor(p.id) ?? '' }}</td>
-            <td class="px-4 py-2 text-right tabular-nums whitespace-nowrap">{{ monthText(p.full_name) }}</td>
-            <td class="px-4 py-2">
-              <UBadge :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
-            </td>
-            <td class="px-4 py-2 text-right">
+            <td class="px-2 py-2 text-right">
               <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" size="sm" aria-label="Edit" @click="editing = p;" />
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="8" class="px-4 py-8 text-center text-muted">Nobody here.</td>
+            <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">Nobody here.</td>
           </tr>
         </tbody>
       </table>

@@ -52,6 +52,17 @@ const deleting = ref<Row | null>(null)
 const busy = ref<string | null>(null)
 
 const total = computed(() => (expenses.value ?? []).reduce((sum, e) => sum + e.amount, 0))
+const cols = await useColumns<Row>('expenses', [
+  { key: 'date', label: 'Date', sort: e => e.spent_on, always: true },
+  { key: 'person', label: 'Person', sort: e => e.profiles?.full_name },
+  { key: 'project', label: 'Project', sort: e => e.projects?.name },
+  { key: 'category', label: 'Category', sort: e => e.expense_categories?.name },
+  { key: 'notes', label: 'Notes', sort: e => e.notes },
+  { key: 'amount', label: 'Amount', align: 'right', sort: e => e.amount },
+])
+// The Person column only means something when the list shows everyone.
+const visibleCols = computed(() => cols.visible.filter(c => c.key !== 'person' || everyone.value))
+const rows = computed(() => cols.sorted(expenses.value ?? []))
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 function saved() {
@@ -102,34 +113,26 @@ async function confirmDelete() {
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <table class="w-full text-sm">
-        <thead class="text-left text-muted">
-          <tr class="border-b border-default">
-            <th class="px-4 py-2 font-medium">Date</th>
-            <th v-if="everyone" class="px-4 py-2 font-medium">Person</th>
-            <th class="px-4 py-2 font-medium">Project</th>
-            <th class="px-4 py-2 font-medium">Category</th>
-            <th class="px-4 py-2 font-medium">Notes</th>
-            <th class="px-4 py-2 text-right font-medium">Amount</th>
-            <th class="px-4 py-2" />
-          </tr>
-        </thead>
+        <TableHead :cols="cols" :only="visibleCols" />
         <tbody>
-          <tr v-for="e in expenses" :key="e.id" class="border-b border-default last:border-0">
-            <td class="px-4 py-2 whitespace-nowrap tabular-nums">{{ shortDate(e.spent_on) }}</td>
-            <td v-if="everyone" class="px-4 py-2">{{ e.profiles?.full_name }}</td>
-            <td class="px-4 py-2">
-              <div class="font-medium">{{ e.projects?.name }}</div>
-              <div class="text-muted">{{ e.projects?.clients?.name }}</div>
+          <tr v-for="e in rows" :key="e.id" class="border-b border-default last:border-0">
+            <td v-for="c in visibleCols" :key="c.key" class="px-4 py-2" :class="[c.align === 'right' ? 'text-right tabular-nums' : '', c.key === 'date' ? 'whitespace-nowrap tabular-nums' : '', c.key === 'notes' ? 'max-w-xs' : '']">
+              <template v-if="c.key === 'date'">{{ shortDate(e.spent_on) }}</template>
+              <template v-else-if="c.key === 'person'">{{ e.profiles?.full_name }}</template>
+              <template v-else-if="c.key === 'project'">
+                <div class="font-medium">{{ e.projects?.name }}</div>
+                <div class="text-muted">{{ e.projects?.clients?.name }}</div>
+              </template>
+              <template v-else-if="c.key === 'category'">{{ e.expense_categories?.name }}</template>
+              <template v-else-if="c.key === 'notes'">
+                <div class="truncate">{{ e.notes }}</div>
+                <div class="flex gap-1">
+                  <UBadge v-if="!e.is_billable" color="neutral" variant="subtle" size="sm">Non-billable</UBadge>
+                  <UBadge v-if="e.is_reimbursable" color="primary" variant="subtle" size="sm">Reimburse</UBadge>
+                </div>
+              </template>
+              <template v-else-if="c.key === 'amount'">{{ money(e.amount) }}</template>
             </td>
-            <td class="px-4 py-2">{{ e.expense_categories?.name }}</td>
-            <td class="px-4 py-2 max-w-xs">
-              <div class="truncate">{{ e.notes }}</div>
-              <div class="flex gap-1">
-                <UBadge v-if="!e.is_billable" color="neutral" variant="subtle" size="sm">Non-billable</UBadge>
-                <UBadge v-if="e.is_reimbursable" color="primary" variant="subtle" size="sm">Reimburse</UBadge>
-              </div>
-            </td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ money(e.amount) }}</td>
             <td class="px-4 py-2">
               <div class="flex justify-end gap-1">
                 <UButton v-if="e.receipt_path" icon="i-lucide-paperclip" variant="ghost" color="neutral" size="sm" aria-label="View receipt" @click="view(e)" />
@@ -140,13 +143,12 @@ async function confirmDelete() {
             </td>
           </tr>
           <tr v-if="!expenses?.length">
-            <td :colspan="everyone ? 7 : 6" class="px-4 py-8 text-center text-muted">No expenses in {{ year }}.</td>
+            <td :colspan="visibleCols.length + 1" class="px-4 py-8 text-center text-muted">No expenses in {{ year }}.</td>
           </tr>
         </tbody>
         <tfoot v-if="expenses?.length">
           <tr class="border-t border-default font-medium">
-            <td :colspan="everyone ? 5 : 4" class="px-4 py-2 text-right text-muted">Total</td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ money(total) }}</td>
+            <td :colspan="visibleCols.length" class="px-4 py-2 text-right tabular-nums"><span class="mr-3 text-muted">Total</span>{{ money(total) }}</td>
             <td />
           </tr>
         </tfoot>

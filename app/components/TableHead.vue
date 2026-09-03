@@ -5,7 +5,8 @@ import type { Columns } from '~/composables/useColumns'
 // one onto another to reorder, and the gear at the end shows or hides
 // columns. Pass a trailing slot for a header cell the page adds itself
 // (an actions column).
-const props = defineProps<{ cols: Columns<Row> }>()
+const props = defineProps<{ cols: Columns<Row>, only?: Columns<Row>['visible'] }>()
+const shown = computed(() => props.only ?? props.cols.visible)
 const dragging = ref<string | null>(null)
 const over = ref<string | null>(null)
 function onDrop(to: string) {
@@ -23,7 +24,7 @@ const menu = computed(() => [
   <thead class="text-left text-muted">
     <tr class="border-b border-default">
       <th
-        v-for="c in cols.visible" :key="c.key"
+        v-for="c in shown" :key="c.key"
         class="px-4 py-2 font-medium select-none" :class="[c.align === 'right' ? 'text-right' : '', c.class ?? '', over === c.key && dragging !== c.key ? 'border-l-2 border-primary' : '', dragging === c.key ? 'opacity-40' : '']"
         draggable="true" @dragstart="dragging = c.key" @dragend="dragging = null; over = null" @dragover.prevent="over = c.key" @dragleave="over === c.key && (over = null)" @drop.prevent="onDrop(c.key)"
       >

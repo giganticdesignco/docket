@@ -26,9 +26,14 @@ await Promise.all([__ad1, __ad2])
 const { data: clients, refresh } = __ad1
 const { data: projectCounts } = __ad2
 
-const rows = computed(() =>
+const cols = await useColumns<Tables<'clients'>>('clients', [
+  { key: 'name', label: 'Name', sort: c => c.name, always: true },
+  { key: 'projects', label: 'Active projects', align: 'right', sort: c => projectCounts.value?.[c.id] ?? 0 },
+  { key: 'status', label: 'Status', sort: c => (c.is_active ? 0 : 1) },
+])
+const rows = computed(() => cols.sorted(
   (clients.value ?? []).filter(c => showInactive.value || c.is_active),
-)
+))
 
 function onSaved(_c: Tables<'clients'>) {
   creating.value = false
@@ -46,27 +51,20 @@ function onSaved(_c: Tables<'clients'>) {
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <table class="w-full text-sm">
-        <thead class="text-left text-muted">
-          <tr class="border-b border-default">
-            <th class="px-4 py-2 font-medium">Name</th>
-            <th class="px-4 py-2 font-medium">Active projects</th>
-            <th class="px-4 py-2 font-medium">Status</th>
-          </tr>
-        </thead>
+        <TableHead :cols="cols" />
         <tbody>
           <tr v-for="c in rows" :key="c.id" class="border-b border-default last:border-0">
-            <td class="px-4 py-2">
-              <NuxtLink :to="`/clients/${c.id}`" class="font-medium hover:underline">{{ c.name }}</NuxtLink>
-            </td>
-            <td class="px-4 py-2">{{ projectCounts?.[c.id] ?? 0 }}</td>
-            <td class="px-4 py-2">
-              <UBadge :color="c.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">
+            <td v-for="col in cols.visible" :key="col.key" class="px-4 py-2" :class="col.align === 'right' ? 'text-right tabular-nums' : ''">
+              <NuxtLink v-if="col.key === 'name'" :to="`/clients/${c.id}`" class="font-medium hover:underline">{{ c.name }}</NuxtLink>
+              <template v-else-if="col.key === 'projects'">{{ projectCounts?.[c.id] ?? 0 }}</template>
+              <UBadge v-else-if="col.key === 'status'" :color="c.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">
                 {{ c.is_active ? 'Active' : 'Inactive' }}
               </UBadge>
             </td>
+            <td />
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="3" class="px-4 py-8 text-center text-muted">No clients yet.</td>
+            <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">No clients yet.</td>
           </tr>
         </tbody>
       </table>

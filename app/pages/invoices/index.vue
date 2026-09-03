@@ -39,13 +39,23 @@ const today = todayString()
 const isOverdue = (i: Pick<Row, 'status' | 'due_date'>) => i.status === 'sent' && i.due_date < today
 // Drafts float to the top of "All" so work in progress is never hidden.
 const rank: Record<string, number> = { draft: 0, sent: 1, paid: 2, void: 3 }
-const rows = computed(() => (invoices.value ?? [])
+const cols = await useColumns<Row>('invoices', [
+  { key: 'number', label: 'Number', sort: i => i.number, always: true },
+  { key: 'client', label: 'Client', sort: i => i.clients?.name },
+  { key: 'subject', label: 'Subject', sort: i => i.subject },
+  { key: 'issued', label: 'Issued', sort: i => i.issue_date },
+  { key: 'due', label: 'Due', sort: i => i.due_date },
+  { key: 'total', label: 'Total', align: 'right', sort: i => i.total },
+  { key: 'outstanding', label: 'Outstanding', align: 'right', sort: i => (i.status === 'sent' ? i.due_amount : null) },
+  { key: 'status', label: 'Status', sort: i => rank[i.status] ?? 9 },
+])
+const rows = computed(() => cols.sorted((invoices.value ?? [])
   .filter(i =>
     filter.value === 'all' ? true
     : filter.value === 'open' ? i.status === 'sent'
     : filter.value === 'overdue' ? isOverdue(i)
     : i.status === filter.value)
-  .sort((a, b) => (filter.value === 'all' ? (rank[a.status] ?? 9) - (rank[b.status] ?? 9) : 0)))
+  .sort((a, b) => (filter.value === 'all' ? (rank[a.status] ?? 9) - (rank[b.status] ?? 9) : 0))))
 const outstanding = computed(() => (invoices.value ?? []).filter(i => i.status === 'sent').reduce((s, i) => s + i.due_amount, 0))
 const overdue = computed(() => (invoices.value ?? []).filter(isOverdue).reduce((s, i) => s + i.due_amount, 0))
 const drafts = computed(() => (invoices.value ?? []).filter(i => i.status === 'draft').length)
@@ -106,31 +116,23 @@ async function createBlank() {
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <table class="w-full text-sm">
-        <thead class="text-left text-muted">
-          <tr class="border-b border-default">
-            <th class="px-4 py-2 font-medium">Number</th>
-            <th class="px-2 py-2 font-medium">Client</th>
-            <th class="px-2 py-2 font-medium">Subject</th>
-            <th class="px-2 py-2 font-medium">Issued</th>
-            <th class="px-2 py-2 font-medium">Due</th>
-            <th class="px-2 py-2 text-right font-medium">Total</th>
-            <th class="px-2 py-2 text-right font-medium">Outstanding</th>
-            <th class="px-4 py-2 font-medium">Status</th>
-          </tr>
-        </thead>
+        <TableHead :cols="cols" />
         <tbody>
           <tr v-for="i in rows" :key="i.id" class="border-b border-default last:border-0">
-            <td class="px-4 py-2 font-medium tabular-nums"><NuxtLink :to="`/invoices/${i.id}`" class="hover:underline">{{ i.number }}</NuxtLink></td>
-            <td class="px-2 py-2"><NuxtLink :to="`/clients/${i.client_id}`" class="hover:underline">{{ i.clients?.name }}</NuxtLink></td>
-            <td class="max-w-xs truncate px-2 py-2 text-muted" :title="i.subject ?? ''">{{ i.subject }}</td>
-            <td class="px-2 py-2 tabular-nums">{{ shortDate(i.issue_date) }}</td>
-            <td class="px-2 py-2 tabular-nums" :class="isOverdue(i) ? 'text-error' : ''">{{ shortDate(i.due_date) }}</td>
-            <td class="px-2 py-2 text-right tabular-nums">{{ money(i.total) }}</td>
-            <td class="px-2 py-2 text-right tabular-nums">{{ i.status === 'sent' ? money(i.due_amount) : '' }}</td>
-            <td class="px-4 py-2"><UBadge :color="badge(i).color" variant="subtle" size="sm">{{ badge(i).label }}</UBadge></td>
+            <td v-for="c in cols.visible" :key="c.key" class="px-4 py-2" :class="[c.align === 'right' ? 'text-right tabular-nums' : '', c.key === 'subject' ? 'max-w-xs truncate text-muted' : '']" :title="c.key === 'subject' ? i.subject ?? '' : undefined">
+              <NuxtLink v-if="c.key === 'number'" :to="`/invoices/${i.id}`" class="font-medium tabular-nums hover:underline">{{ i.number }}</NuxtLink>
+              <NuxtLink v-else-if="c.key === 'client'" :to="`/clients/${i.client_id}`" class="hover:underline">{{ i.clients?.name }}</NuxtLink>
+              <template v-else-if="c.key === 'subject'">{{ i.subject }}</template>
+              <span v-else-if="c.key === 'issued'" class="tabular-nums">{{ shortDate(i.issue_date) }}</span>
+              <span v-else-if="c.key === 'due'" class="tabular-nums" :class="isOverdue(i) ? 'text-error' : ''">{{ shortDate(i.due_date) }}</span>
+              <template v-else-if="c.key === 'total'">{{ money(i.total) }}</template>
+              <template v-else-if="c.key === 'outstanding'">{{ i.status === 'sent' ? money(i.due_amount) : '' }}</template>
+              <UBadge v-else-if="c.key === 'status'" :color="badge(i).color" variant="subtle" size="sm">{{ badge(i).label }}</UBadge>
+            </td>
+            <td />
           </tr>
           <tr v-if="!rows.length">
-            <td colspan="8" class="px-4 py-8 text-center text-muted">Nothing here.</td>
+            <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">Nothing here.</td>
           </tr>
         </tbody>
       </table>
