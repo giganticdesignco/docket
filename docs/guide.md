@@ -65,6 +65,13 @@ sees hours.
   tasks as cards.
 - **Everyone** switches between your tasks and the whole team's.
   Completed tasks are hidden until you flip Completed.
+- **Unsorted tasks** (the button on the Tasks page, for people who can
+  manage tasks) lists every open task still sitting in a client's
+  General project, which is where the ClickUp import put a task when it
+  could not tell which project it belonged to. Tick the ones that go
+  together, pick the project, and they move; Undo has thirty seconds.
+  New project makes the project on the spot and moves the ticked tasks
+  into it.
 - **A task** has a status, priority, assignees, start and due dates, an
   estimate, a description, files, and an activity panel with comments.
   Drag the panel's edge to make it wider; double click to reset.
@@ -299,6 +306,12 @@ budgets for the current month (plus the previous one at the start of a
 month). The Imports settings page runs the same imports by hand and
 loads history: older months roll up into the archive, invoices copy in
 for the billing page.
+
+ClickUp has a list per client but nothing that says which project a
+task is for, so the import can only match a task to a project when the
+project's name appears in the task's title. The rest go to a General
+project for the client; the Unsorted tasks page (from Tasks) is where
+they get sorted.
 
 ## Settings and permissions
 

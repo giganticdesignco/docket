@@ -54,10 +54,22 @@ const __ad3 = useAsyncData('people-for-tasks', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3])
+// Open tasks still in a client's General project, from the ClickUp
+// import. A button points at /tasks/triage while there are any.
+const { can } = useCurrentUser()
+const __ad4 = useAsyncData('unsorted-count', async () => {
+  const done = ws.statuses.value.filter(s => s.is_done).map(s => s.key)
+  let q = supabase.from('work_items').select('id, projects!inner(name)', { count: 'exact', head: true }).eq('projects.name', 'General')
+  if (done.length) q = q.not('status', 'in', `(${done.join(',')})`)
+  const { count, error } = await q
+  if (error) throw error
+  return count ?? 0
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
 const { data: items, refresh } = __ad1
 const { data: projects } = __ad2
 const { data: people } = __ad3
+const { data: unsorted } = __ad4
 
 type Item = NonNullable<typeof items.value>[number]
 type Group = { key: string, label: string, sublabel?: string, color?: string, items: Item[], done?: boolean }
@@ -330,6 +342,7 @@ function created(id: string) {
         </div>
         <USwitch v-model="showCompleted" label="Completed" size="sm" />
         <UButton size="xs" variant="ghost" color="neutral" title="Back to the default list" @click="resetView">Reset view</UButton>
+        <UButton v-if="unsorted && can('manage_tasks')" to="/tasks/triage" size="sm" variant="outline" color="neutral" icon="i-lucide-folder-input" title="Tasks the ClickUp import could not tie to a project">{{ unsorted }} unsorted</UButton>
         <UButton icon="i-lucide-plus" data-tour="new-task" @click="creating = true;">New task</UButton>
       </div>
     </div>

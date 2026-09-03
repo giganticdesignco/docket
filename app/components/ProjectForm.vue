@@ -7,6 +7,7 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 const props = defineProps<{
   project?: Tables<'projects'>
   clients: Pick<Tables<'clients'>, 'id' | 'name'>[]
+  people: Pick<Tables<'profiles'>, 'id' | 'full_name'>[]
   defaultClientId?: string
 }>()
 const emit = defineEmits<{ saved: [project: Tables<'projects'>]; cancel: [] }>()
@@ -14,6 +15,7 @@ const emit = defineEmits<{ saved: [project: Tables<'projects'>]; cancel: [] }>()
 const supabase = useSupabaseClient()
 const toast = useToast()
 
+const LEAD_NONE = '__none__'
 const state = reactive({
   client_id: props.project?.client_id ?? props.defaultClientId ?? undefined as string | undefined,
   name: props.project?.name ?? '',
@@ -25,7 +27,9 @@ const state = reactive({
   server_path: props.project?.server_path ?? '',
   client_visible: props.project?.client_visible ?? false,
   is_active: props.project?.is_active ?? true,
+  lead_id: props.project?.lead_id ?? LEAD_NONE,
 })
+const leadOptions = computed(() => [{ label: 'Nobody yet', value: LEAD_NONE }, ...props.people.map(p => ({ label: p.full_name, value: p.id }))])
 const saving = ref(false)
 // Clients made from the picker join the list the parent handed us.
 const extraClients = ref<{ id: string, name: string }[]>([])
@@ -104,6 +108,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     server_path: state.server_path.trim() || null,
     client_visible: state.client_visible,
     is_active: state.is_active,
+    lead_id: state.lead_id === LEAD_NONE ? null : state.lead_id,
   }
   const query = props.project
     ? supabase.from('projects').update(values).eq('id', props.project.id)
@@ -135,6 +140,9 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <USelect v-model="state.billing_method" :items="BILLING_METHODS" class="w-full" />
       </UFormField>
     </div>
+    <UFormField label="Lead" name="lead_id" help="Who owns this project day to day.">
+      <USelectMenu v-model="state.lead_id" :items="leadOptions" value-key="value" class="w-full" />
+    </UFormField>
     <div class="grid grid-cols-3 gap-4">
       <UFormField label="Hourly rate" name="hourly_rate">
         <UInput v-model="state.hourly_rate" type="number" step="0.01" min="0" class="w-full" placeholder="Person's rate" />

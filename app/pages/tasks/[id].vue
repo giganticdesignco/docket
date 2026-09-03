@@ -52,7 +52,7 @@ const __ad6 = useAsyncData('people-for-tasks', async () => {
 }, fresh)
 
 const __ad7 = useAsyncData('projects-for-tasks', async () => {
-  const { data, error } = await supabase.from('projects').select('id, name, clients(name)').eq('is_active', true).order('name')
+  const { data, error } = await supabase.from('projects').select('id, name, billing_method, clients(name)').eq('is_active', true).order('name')
   if (error) throw error
   return data
 }, fresh)
@@ -61,11 +61,32 @@ const ws = await __ad1
 const { data: item, refresh } = __ad2
 const { data: comments, refresh: refreshComments } = __ad3
 const { data: attachments, refresh: refreshFiles } = __ad4
-const { data: timeLogged } = __ad5
+const { data: timeLogged, refresh: refreshTimeLogged } = __ad5
 const { data: people } = __ad6
 const { data: projects } = __ad7
 const projectOptions = computed(() => (projects.value ?? []).map(p => ({ label: `${p.clients?.name ?? ''} / ${p.name}`, value: p.id })))
-const setProject = (projectId: string) => { if (projectId && projectId !== item.value?.project_id) patch({ project_id: projectId }) }
+
+// Task types and rates for whichever project this task is on, so time can
+// be logged inline without leaving the page.
+const { data: itemProjectTasks, refresh: refreshItemProjectTasks } = await useAsyncData(`task-${id}-project-tasks`, async () => {
+  const projectId = item.value?.project_id
+  if (!projectId) return []
+  const { data, error } = await supabase.from('project_tasks').select('project_id, task_id, tasks(id, name, is_billable_default, is_active)').eq('project_id', projectId)
+  if (error) throw error
+  return data
+}, fresh)
+const setProject = (projectId: string) => {
+  if (!projectId || projectId === item.value?.project_id) return
+  patch({ project_id: projectId }).then(() => refreshItemProjectTasks())
+}
+
+// ---------- inline time entry ----------
+const loggingTime = ref(false)
+const timeFormProjects = computed(() => (projects.value ?? []).filter(p => p.id === item.value?.project_id))
+function timeSaved() {
+  loggingTime.value = false
+  refreshTimeLogged()
+}
 
 useHead({ title: () => item.value?.title ?? 'Task' })
 useAssistantScreen(() => ({ task: item.value?.title, project: item.value?.projects?.name, client: item.value?.projects?.clients?.name }))
@@ -497,7 +518,7 @@ function startResize(e: PointerEvent) {
       <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name === 'General' ? 'General tasks' : item.projects?.name }}</NuxtLink>
       <div class="ml-auto flex items-center gap-2">
         <UButton variant="outline" size="sm" icon="i-lucide-share-2" @click="openShare">Share for review</UButton>
-        <UButton :to="`/time?item=${item.id}`" variant="outline" size="sm" icon="i-lucide-timer">Log time</UButton>
+        <UButton variant="outline" size="sm" icon="i-lucide-timer" @click="loggingTime = true;">Log time</UButton>
         <UButton v-if="canDelete" variant="ghost" color="neutral" size="sm" icon="i-lucide-trash-2" aria-label="Delete task" @click="deleting = true;" />
       </div>
     </div>
@@ -714,6 +735,12 @@ function startResize(e: PointerEvent) {
         </div>
       </template>
     </UModal>
+
+    <AppDrawer v-model:open="loggingTime" title="Log time">
+      <template #body>
+        <TimeEntryForm v-if="item" :date="todayString()" :projects="timeFormProjects" :project-tasks="itemProjectTasks ?? []" :work-item="{ id: item.id, title: item.title, project_id: item.project_id }" @saved="timeSaved" @cancel="loggingTime = false" />
+      </template>
+    </AppDrawer>
 
     <UModal v-model:open="deleting" title="Delete this task?">
       <template #body>

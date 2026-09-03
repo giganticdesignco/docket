@@ -31,10 +31,16 @@ const __ad3 = useAsyncData('project-budgets', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3])
+const __ad4 = useAsyncData('people-for-tasks', async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
 const { data: clients } = __ad1
 const { data: projects, refresh } = __ad2
 const { data: burn } = __ad3
+const { data: people } = __ad4
 const burnById = computed(() => new Map((burn.value ?? []).map(b => [b.project_id, b])))
 
 // Percent of the budget used: by hours when the project has an hours
@@ -120,7 +126,7 @@ const budget = (p: { budget_hours: number | null, budget_amount: number | null }
 
     <AppDrawer v-model:open="creating" title="New project">
       <template #body>
-        <ProjectForm :clients="clients ?? []" @saved="creating = false; refresh()" @cancel="creating = false" />
+        <ProjectForm :clients="clients ?? []" :people="people ?? []" @saved="creating = false; refresh()" @cancel="creating = false" />
       </template>
     </AppDrawer>
   </div>

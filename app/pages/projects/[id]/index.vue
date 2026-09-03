@@ -11,13 +11,13 @@ const seeMoney = computed(() => can('see_money'))
 const editing = ref(false)
 
 const __ad1 = useAsyncData(`project-${id}`, async () => {
-  const { data, error } = await supabase.from('projects').select('*, clients(id, name)').eq('id', id).single()
+  const { data, error } = await supabase.from('projects').select('*, clients(id, name), profiles!projects_lead_id_fkey(full_name)').eq('id', id).single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   return data
 }, fresh)
 
 const __ad2 = useAsyncData(`project-${id}-tasks-named`, async () => {
-  const { data, error } = await supabase.from('project_tasks').select('hourly_rate, tasks(name)').eq('project_id', id)
+  const { data, error } = await supabase.from('project_tasks').select('project_id, task_id, hourly_rate, tasks(id, name, is_billable_default, is_active)').eq('project_id', id)
   if (error) throw error
   return data
 }, fresh)
@@ -32,7 +32,7 @@ const __ad3 = useAsyncData('clients-for-projects', async () => {
 const __ad4 = useAsyncData(`project-${id}-work-items`, async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, due_on, work_item_assignees(user_id, profiles(full_name))')
+    .select('id, title, status, due_on, estimate_hours, work_item_assignees(user_id, profiles(full_name))')
     .eq('project_id', id)
     .order('due_on', { ascending: true, nullsFirst: false })
   if (error) throw error
@@ -79,9 +79,48 @@ const __ad8 = useAsyncData(`project-${id}-recent`, async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad7, __ad8])
+// Hours logged per task, to show what's left against each estimate.
+// RLS scopes time_entries the same as the rest of the page: admins see
+// everyone's, staff their own.
+const __ad9 = useAsyncData(`project-${id}-item-hours`, async () => {
+  const { data, error } = await supabase.from('time_entries').select('work_item_id, hours').eq('project_id', id)
+  if (error) throw error
+  return data
+}, fresh)
+
+// Quotes and invoices tied to this project. RLS gives nothing back to
+// staff without manage_billing, so the card just renders empty for them;
+// the UI also hides it behind canBill.
+const __ad10 = useAsyncData(`project-${id}-quotes`, async () => {
+  const { data, error } = await supabase.from('quotes').select('id, number, title, status, subtotal, valid_until').eq('project_id', id).order('created_at', { ascending: false }).limit(20)
+  if (error) throw error
+  return data
+}, fresh)
+const __ad11 = useAsyncData(`project-${id}-invoices`, async () => {
+  const { data, error } = await supabase.from('invoice_lines').select('invoice_id, invoices(id, number, subject, status, issue_date, due_date, total, due_amount)').eq('project_id', id)
+  if (error) throw error
+  const seen = new Set<string>()
+  return data.map(l => l.invoices).filter((inv): inv is NonNullable<typeof inv> => !!inv && !seen.has(inv.id) && (seen.add(inv.id), true))
+}, fresh)
+await Promise.all([__ad7, __ad8, __ad9, __ad10, __ad11])
 const { data: budget, refresh: refreshBudget } = __ad7
 const { data: recent } = __ad8
+const { data: itemHours } = __ad9
+const { data: quotes } = __ad10
+const { data: invoices } = __ad11
+const canBill = computed(() => can('manage_billing'))
+const hoursByItem = computed(() => {
+  const m = new Map<string, number>()
+  for (const e of itemHours.value ?? []) {
+    if (!e.work_item_id) continue
+    m.set(e.work_item_id, (m.get(e.work_item_id) ?? 0) + e.hours)
+  }
+  return m
+})
+const remaining = (i: { id: string, estimate_hours: number | null }) => {
+  if (i.estimate_hours == null) return null
+  return i.estimate_hours - (hoursByItem.value.get(i.id) ?? 0)
+}
 
 useHead({ title: () => project.value?.name ?? 'Project' })
 useAssistantScreen(() => ({ project: project.value?.name, client: project.value?.clients?.name }))
@@ -110,6 +149,22 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
 const money = (n: number | null) => (n == null ? 'Not set' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 const pct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : 0)
 const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
+const invoiceColor = (inv: { status: string, due_date: string | null }) =>
+  inv.status === 'paid' ? 'success' : inv.status === 'sent' ? (inv.due_date && inv.due_date < todayString() ? 'error' : 'warning') : 'neutral'
+const invoiceLabel = (inv: { status: string, due_date: string | null }) =>
+  inv.status === 'sent' && inv.due_date && inv.due_date < todayString() ? 'overdue' : inv.status
+const quoteColor = (status: string) => (status === 'accepted' ? 'success' : status === 'sent' ? 'info' : 'neutral')
+
+// Inline time entry: the small clock button on a task, or the project
+// page's own row, opens this drawer with the task prefilled.
+const loggingTimeItem = ref<{ id: string, title: string } | null>(null)
+const projectOptions = computed(() => (project.value ? [{ id: project.value.id, name: project.value.name, billing_method: project.value.billing_method, clients: project.value.clients ? { name: project.value.clients.name } : null }] : []))
+const projectTasksForForm = computed(() => (projectTasks.value ?? []).map(pt => ({ project_id: pt.project_id, task_id: pt.task_id, tasks: pt.tasks })))
+function timeLogged() {
+  loggingTimeItem.value = null
+  refreshItems()
+  __ad9.refresh()
+}
 
 const toast = useToast()
 async function copyFolder() {
@@ -146,6 +201,7 @@ async function copyFolder() {
         <div v-if="seeMoney"><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) }}</dd></div>
         <div><dt class="text-muted">Budget hours</dt><dd>{{ project.budget_hours ?? 'No budget' }}</dd></div>
         <div v-if="seeMoney"><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
+        <div><dt class="text-muted">Lead</dt><dd>{{ project.profiles?.full_name ?? 'Unassigned' }}</dd></div>
       </dl>
     </UCard>
 
@@ -203,6 +259,33 @@ async function copyFolder() {
         </div>
       </div>
     </UCard>
+
+    <div v-if="canBill" class="grid gap-6 sm:grid-cols-2">
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <template #header><h2 class="font-semibold">Quotes</h2></template>
+        <ul v-if="quotes?.length" class="divide-y divide-default text-sm">
+          <li v-for="q in quotes" :key="q.id" class="flex items-center gap-3 px-4 py-2">
+            <NuxtLink :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
+            <span class="min-w-0 flex-1 truncate">{{ q.title }}</span>
+            <span v-if="seeMoney" class="tabular-nums">{{ money(q.subtotal) }}</span>
+            <UBadge :color="quoteColor(q.status)" variant="subtle" size="sm">{{ q.status }}</UBadge>
+          </li>
+        </ul>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No quotes for this project.</p>
+      </UCard>
+      <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <template #header><h2 class="font-semibold">Invoices</h2></template>
+        <ul v-if="invoices?.length" class="divide-y divide-default text-sm">
+          <li v-for="inv in invoices" :key="inv.id" class="flex items-center gap-3 px-4 py-2">
+            <NuxtLink :to="`/invoices/${inv.id}`" class="font-medium tabular-nums hover:underline">{{ inv.number }}</NuxtLink>
+            <span class="min-w-0 flex-1 truncate text-muted">{{ inv.subject }}</span>
+            <span v-if="seeMoney" class="tabular-nums">{{ money(inv.total) }}</span>
+            <UBadge :color="invoiceColor(inv)" variant="subtle" size="sm">{{ invoiceLabel(inv) }}</UBadge>
+          </li>
+        </ul>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No invoices for this project yet.</p>
+      </UCard>
+    </div>
 
     <ReportRollup :from="`${year}-01-01`" :to="`${year}-12-31`" :client="project.clients?.name ?? undefined" :project="project.name" />
 
@@ -266,8 +349,12 @@ async function copyFolder() {
             <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
             <div class="truncate text-muted">{{ i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Unassigned' }}</div>
           </div>
+          <span v-if="i.estimate_hours != null" class="w-20 shrink-0 text-right tabular-nums text-xs" :class="(remaining(i) ?? 0) < 0 ? 'text-error' : 'text-muted'">
+            {{ (remaining(i) ?? 0) < 0 ? `${formatHours(-remaining(i)!)} over` : `${formatHours(remaining(i)!)} left` }}
+          </span>
           <span class="w-16 text-right tabular-nums" :class="i.due_on && i.due_on < todayString() && !ws.isDone(i.status) ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
           <UBadge :color="ws.color(i.status)" variant="subtle" size="sm">{{ ws.label(i.status) }}</UBadge>
+          <UButton icon="i-lucide-timer" variant="ghost" color="neutral" size="xs" aria-label="Log time" title="Log time" @click="loggingTimeItem = { id: i.id, title: i.title };" />
         </li>
       </ul>
       <p v-else class="px-4 py-6 text-center text-sm text-muted">No tasks on this project yet.</p>
@@ -310,7 +397,13 @@ async function copyFolder() {
 
     <AppDrawer v-model:open="editing" title="Edit project">
       <template #body>
-        <ProjectForm :project="project" :clients="clients ?? []" @saved="editing = false; refresh(); refreshBudget()" @cancel="editing = false" />
+        <ProjectForm :project="project" :clients="clients ?? []" :people="people ?? []" @saved="editing = false; refresh(); refreshBudget()" @cancel="editing = false" />
+      </template>
+    </AppDrawer>
+
+    <AppDrawer :open="!!loggingTimeItem" title="Log time" @update:open="(v) => { if (!v) loggingTimeItem = null }">
+      <template #body>
+        <TimeEntryForm v-if="loggingTimeItem" :date="todayString()" :projects="projectOptions" :project-tasks="projectTasksForForm" :work-item="{ id: loggingTimeItem.id, title: loggingTimeItem.title, project_id: id }" @saved="timeLogged" @cancel="loggingTimeItem = null" />
       </template>
     </AppDrawer>
   </div>

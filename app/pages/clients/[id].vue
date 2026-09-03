@@ -67,13 +67,19 @@ const __ad6 = useAsyncData(`client-${id}-invoices`, async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
+const __ad7 = useAsyncData('people-for-tasks', async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
 const { data: client, refresh } = __ad1
 const { data: projects, refresh: refreshProjects } = __ad2
 const { data: retainers, refresh: refreshRetainers } = __ad3
 const { data: quotes } = __ad4
 const { data: docketInvoices } = __ad5
 const { data: invoices } = __ad6
+const { data: people } = __ad7
 
 useHead({ title: () => client.value?.name ?? 'Client' })
 useAssistantScreen(() => ({ client: client.value?.name }))
@@ -430,7 +436,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
 
     <AppDrawer v-model:open="creatingProject" title="New project">
       <template #body>
-        <ProjectForm :clients="[client]" :default-client-id="client.id" @saved="creatingProject = false; refreshProjects()" @cancel="creatingProject = false" />
+        <ProjectForm :clients="[client]" :people="people ?? []" :default-client-id="client.id" @saved="creatingProject = false; refreshProjects()" @cancel="creatingProject = false" />
       </template>
     </AppDrawer>
   </div>

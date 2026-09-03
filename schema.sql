@@ -3280,3 +3280,6 @@ create policy read_all on page_templates for select to authenticated using (not 
 create policy manage_settings on page_templates for all to authenticated
   using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
 grant select, insert, update, delete on page_templates to authenticated;
+
+-- Who owns a project day to day. One person, optional.
+alter table projects add column lead_id uuid references profiles(id) on delete set null;

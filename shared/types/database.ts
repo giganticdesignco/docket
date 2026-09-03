@@ -1424,6 +1424,7 @@ export type Database = {
           hourly_rate: number | null
           id: string
           is_active: boolean
+          lead_id: string | null
           name: string
           server_path: string | null
         }
@@ -1439,6 +1440,7 @@ export type Database = {
           hourly_rate?: number | null
           id?: string
           is_active?: boolean
+          lead_id?: string | null
           name: string
           server_path?: string | null
         }
@@ -1454,6 +1456,7 @@ export type Database = {
           hourly_rate?: number | null
           id?: string
           is_active?: boolean
+          lead_id?: string | null
           name?: string
           server_path?: string | null
         }
@@ -1485,6 +1488,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "projects_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
           },
         ]
       }

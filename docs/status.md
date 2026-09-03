@@ -1570,3 +1570,22 @@ the quote makes or updates one scope line per template
 (`quote_line_items.template_id`) and links the pages to it.
 `accept_quote()` now also creates a task per page on the new project
 with the page's hours as the estimate. Guide updated.
+
+## Project page upgrade, Phase 4 item 1 (2026-09-03)
+
+`projects.lead_id` (one person, optional; Lead on the project form and
+info card). The project page gained a Quotes and Invoices card (behind
+manage_billing; invoices found through `invoice_lines.project_id`),
+hours remaining per task next to the estimate, and a clock button per
+task row that opens `TimeEntryForm` in a drawer. The task page's Log
+time does the same instead of sending people to /time. Plan and specs
+for the rest of the phase are in `docs/phase-4.md`.
+
+## Unsorted tasks (2026-09-03)
+
+538 of the 693 ClickUp tasks landed in a per-client "General" project:
+ClickUp's list is the client and nothing below it names a project, so
+the import can only match on the project name appearing in the title.
+`/tasks/triage` (manage_tasks; a button on Tasks while any remain)
+lists them by client with checkboxes, a "Move selected to" picker of
+the client's active projects, Undo, and New project via `ProjectForm`.
