@@ -112,7 +112,7 @@ async function confirmDelete() {
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <div class="overflow-x-auto"><table class="w-full text-sm">
+      <div class="table-scroll"><table class="w-full text-sm">
         <TableHead :cols="cols" :only="visibleCols" />
         <tbody>
           <tr v-for="e in rows" :key="e.id" class="border-b border-default last:border-0">

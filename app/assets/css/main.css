@@ -28,3 +28,15 @@
 .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: var(--ui-bg); }
 .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: var(--ui-bg); }
 .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: var(--ui-bg); }
+
+/* Tables that scroll sideways: keep a slim scrollbar showing so the
+   overflow is obvious even with macOS overlay scrollbars (which stay
+   hidden until you happen to scroll). */
+.table-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-accented) transparent;
+}
+.table-scroll::-webkit-scrollbar { height: 8px; }
+.table-scroll::-webkit-scrollbar-track { background: transparent; }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--ui-border-accented); border-radius: 9999px; }

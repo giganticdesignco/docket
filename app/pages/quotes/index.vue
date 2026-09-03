@@ -131,7 +131,7 @@ async function create() {
       </div>
 
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <div class="overflow-x-auto"><table class="w-full text-sm">
+        <div class="table-scroll"><table class="w-full text-sm">
           <TableHead :cols="cols" />
           <tbody>
             <tr v-for="q in rows" :key="q.id" class="border-b border-default last:border-0">

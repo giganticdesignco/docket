@@ -103,7 +103,7 @@ function done() {
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <div class="overflow-x-auto"><table class="w-full text-sm">
+      <div class="table-scroll"><table class="w-full text-sm">
         <TableHead :cols="cols" />
         <tbody>
           <tr v-for="p in rows" :key="p.id" class="border-b border-default last:border-0">
