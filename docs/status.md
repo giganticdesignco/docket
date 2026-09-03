@@ -1701,3 +1701,16 @@ time in the last 30 days), and `HomeAgenda.vue` (day or week, persisted
 in user_views under `home`): calendar_busy blocks merged with tasks due,
 with a connect link when there is no Google connection. A titled
 calendar is out of scope: the sync only stores free/busy. Guide updated.
+
+## Timesheet approvals, Phase 4 item 11 (2026-09-03)
+
+`time_entries.status` (draft, submitted, approved, rejected) with
+submitted_at, reviewed_at/by, reject_reason. Owners submit a week from
+/time (plain update through RLS, which now freezes submitted and
+approved rows and lets rejected ones be edited; editing a rejected row
+makes it a draft again by trigger). `/approvals` (new `approve_time`
+key, seeded to manager) lists submitted entries by person and week;
+`approve_time_entries()` and `reject_time_entries()` decide in bulk,
+the latter notifying the owner (`time_rejected`). `time_detail` carries
+status; `unbilled_time` and `create_billing_batch()` accept approved
+time only, no admin bypass. Guide updated.

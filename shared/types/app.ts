@@ -39,6 +39,7 @@ export const PERMISSIONS = [
   { key: 'manage_quotes', label: 'Quotes', hint: 'Draft, send, and edit quotes.' },
   { key: 'manage_invoices', label: 'Invoices', hint: 'Batches, invoices, payments, Harvest history.' },
   { key: 'manage_retainers', label: 'Retainers', hint: 'Set up and edit retainers.' },
+  { key: 'approve_time', label: 'Approve time', hint: 'Review submitted timesheets; approve, or send back with a reason.' },
   { key: 'manage_people', label: 'Manage people', hint: 'Roles, rates, hours per week, everyone\'s time off.' },
   { key: 'manage_settings', label: 'Settings', hint: 'Statuses, categories, invoice settings, imports.' },
   { key: 'see_capacity', label: 'See capacity', hint: 'The capacity page and calendar busy time.' },

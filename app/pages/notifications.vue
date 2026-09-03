@@ -22,6 +22,7 @@ const KINDS = [
   { kind: 'invoice_paid', label: 'Invoice paid' },
   { kind: 'timer', label: 'Timer left running' },
   { kind: 'missing_time', label: 'No time logged yesterday' },
+  { kind: 'time_rejected', label: 'Timesheet entries sent back' },
 ]
 const EMAIL_DEFAULT = (kind: string) => (['comment', 'status', 'due'].includes(kind) ? 'off' : 'instant')
 const EMAIL_OPTIONS = [{ label: 'Never', value: 'off' }, { label: 'As it happens', value: 'instant' }, { label: 'Daily digest', value: 'daily' }]

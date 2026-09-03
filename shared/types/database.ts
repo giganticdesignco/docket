@@ -2188,7 +2188,12 @@ export type Database = {
           notes: string | null
           project_id: string
           rate_snapshot: number | null
+          reject_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           spent_on: string
+          status: Database["public"]["Enums"]["time_entry_status"]
+          submitted_at: string | null
           started_at: string | null
           task_id: string
           updated_at: string
@@ -2209,7 +2214,12 @@ export type Database = {
           notes?: string | null
           project_id: string
           rate_snapshot?: number | null
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           spent_on: string
+          status?: Database["public"]["Enums"]["time_entry_status"]
+          submitted_at?: string | null
           started_at?: string | null
           task_id: string
           updated_at?: string
@@ -2230,7 +2240,12 @@ export type Database = {
           notes?: string | null
           project_id?: string
           rate_snapshot?: number | null
+          reject_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           spent_on?: string
+          status?: Database["public"]["Enums"]["time_entry_status"]
+          submitted_at?: string | null
           started_at?: string | null
           task_id?: string
           updated_at?: string
@@ -2930,6 +2945,7 @@ export type Database = {
           project_id: string | null
           project_name: string | null
           spent_on: string | null
+          status: Database["public"]["Enums"]["time_entry_status"] | null
           task_name: string | null
           user_id: string | null
           user_name: string | null
@@ -3068,6 +3084,7 @@ export type Database = {
           project_id: string | null
           project_name: string | null
           spent_on: string | null
+          status: Database["public"]["Enums"]["time_entry_status"] | null
           task_name: string | null
           user_id: string | null
           user_name: string | null
@@ -3084,6 +3101,10 @@ export type Database = {
       }
     }
     Functions: {
+      approve_time_entries: {
+        Args: { p_ids: string[] }
+        Returns: number
+      }
       apply_project_template: {
         Args: { p_project_id: string; p_template_id: string }
         Returns: number
@@ -3099,6 +3120,10 @@ export type Database = {
           first_on: string | null
           last_on: string | null
         }[]
+      }
+      reject_time_entries: {
+        Args: { p_ids: string[]; p_reason: string }
+        Returns: number
       }
       restore_deleted: {
         Args: { p_table: string; p_id: string }
@@ -3348,6 +3373,7 @@ export type Database = {
       void_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
     }
     Enums: {
+      time_entry_status: "draft" | "submitted" | "approved" | "rejected"
       audit_action: "insert" | "update" | "delete"
       billing_batch_status:
         | "draft"

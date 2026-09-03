@@ -48,6 +48,12 @@ Time is the reason Docket exists, so it sits right under Home.
   Stop for whatever is running. One timer runs per person; starting another
   stops nothing, it refuses, so stop the first one. A timer left running
   ten hours gets you an email.
+- **Submit week** sends the week's entries for approval. Submitted and
+  approved entries are frozen; a reviewer (someone with the approve
+  time permission, managers by default) approves them on the Approvals
+  page or sends them back with a reason, which you get as a
+  notification. Editing a sent-back entry makes it a draft again; submit
+  it once it is fixed. Only approved time can go on a billing batch.
 - **Locked entries** (a lock icon) are on a billing batch or an invoice
   and cannot be changed. Ask whoever runs billing to void the batch if
   something is wrong.

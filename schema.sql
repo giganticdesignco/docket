@@ -396,6 +396,7 @@ create trigger profiles_protect_columns
 --   manage_quotes    quotes, their lines and sitemaps
 --   manage_invoices  batches, invoices, lines, payments, Harvest history
 --   manage_retainers retainers
+--   approve_time     review, approve, or send back submitted timesheets
 --   manage_people    profiles, availability, everyone's time off
 --   manage_settings  statuses, categories, invoice settings, imports, audit
 --   see_capacity     the capacity page
@@ -409,7 +410,7 @@ create table permissions (
 );
 insert into permissions (role, key) values
   ('manager', 'see_all_time'), ('manager', 'see_money'), ('manager', 'see_all_tasks'),
-  ('manager', 'manage_tasks'), ('manager', 'manage_reference'), ('manager', 'see_capacity'),
+  ('manager', 'manage_tasks'), ('manager', 'manage_reference'), ('manager', 'see_capacity'), ('manager', 'approve_time'),
   ('staff', 'see_money'), ('staff', 'see_all_tasks');
 
 -- ---------- Work structure ----------
@@ -1255,7 +1256,8 @@ select
        when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end as amount,
   te.notes,
   te.is_locked,
-  te.batch_id
+  te.batch_id,
+  te.status
 from time_entries te
 join projects p  on p.id = te.project_id
 join clients  c  on c.id = p.client_id
@@ -1410,12 +1412,14 @@ where pr.is_active;
 
 -- Everything billable and not yet claimed by a batch.
 -- Locked with no batch means billed before the cutover (Harvest import).
+-- Only approved time can be billed (Phase 4, item 11).
 create view unbilled_time with (security_invoker = true) as
 select *
 from time_detail
 where is_billable
   and batch_id is null
-  and not is_locked;
+  and not is_locked
+  and status = 'approved';
 
 create view unbilled_expenses with (security_invoker = true) as
 select e.*, p.name as project_name, c.name as client_name, c.id as client_id
@@ -2130,10 +2134,11 @@ begin
   from public.projects p
   where te.id = any(p_time_entry_ids) and p.id = te.project_id and p.client_id = p_client_id
     and te.is_billable and te.batch_id is null and not te.is_locked and te.deleted_at is null
+    and te.status = 'approved'
     and (te.ended_at is not null or te.started_at is null);
   get diagnostics v_got = row_count;
   if v_got <> v_want_time then
-    raise exception 'Some time entries were already claimed, locked, or still running. Reload and try again.';
+    raise exception 'Some time entries were already claimed, locked, still running, or not yet approved. Reload and try again.';
   end if;
 
   update public.expenses e set batch_id = v_id, is_locked = true
@@ -2591,17 +2596,19 @@ create policy own_profile on profiles for update to authenticated
 -- ---------- Time: own unlocked rows, admins everything ----------
 
 create policy own_time_select on time_entries for select to authenticated
-  using (deleted_at is null and (user_id = (select auth.uid()) or (select has_permission('see_all_time'))));
+  using (deleted_at is null and (user_id = (select auth.uid()) or (select has_permission('see_all_time')) or (select has_permission('approve_time'))));
 
 create policy own_time_insert on time_entries for insert to authenticated
   with check ((user_id = auth.uid() and not is_client()) or is_admin());
 
+-- Submitted and approved entries are frozen for their owner; submitting
+-- is the owner moving a draft or rejected row to 'submitted'.
 create policy own_time_update on time_entries for update to authenticated
-  using ((user_id = auth.uid() and not is_locked) or is_admin())
-  with check ((user_id = auth.uid() and not is_locked) or is_admin());
+  using ((user_id = auth.uid() and not is_locked and status in ('draft', 'rejected')) or (select is_admin()))
+  with check ((user_id = auth.uid() and not is_locked and status in ('draft', 'rejected', 'submitted')) or (select is_admin()));
 
 create policy own_time_delete on time_entries for delete to authenticated
-  using ((user_id = auth.uid() and not is_locked) or is_admin());
+  using ((user_id = auth.uid() and not is_locked and status in ('draft', 'rejected')) or (select is_admin()));
 
 -- ---------- Expenses: same shape ----------
 
@@ -3430,3 +3437,59 @@ as $$
   order by te.spent_on desc, pr.full_name;
 $$;
 revoke execute on function public.retainer_period_detail(uuid) from public, anon;
+
+-- Phase 4, item 11: timesheet approval. An entry is a draft until its
+-- owner submits it; someone with approve_time approves it or sends it
+-- back with a reason. Only approved time can go on a billing batch.
+create type time_entry_status as enum ('draft', 'submitted', 'approved', 'rejected');
+alter table time_entries
+  add column status        time_entry_status not null default 'draft',
+  add column submitted_at  timestamptz,
+  add column reviewed_at   timestamptz,
+  add column reviewed_by   uuid references profiles(id) on delete set null,
+  add column reject_reason text,
+  add constraint time_entries_reject_reason check (status <> 'rejected' or reject_reason is not null);
+create index time_entries_status_submitted on time_entries (status) where status = 'submitted';
+
+-- Editing a rejected entry makes it a draft again, so it is not labeled
+-- rejected while the person is fixing it. Resubmitting is explicit.
+create or replace function public.time_entries_unreject() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if old.status = 'rejected' and new.status = 'rejected' then new.status := 'draft'; end if;
+  return new;
+end $$;
+create trigger time_entries_unreject before update on time_entries
+  for each row when (old.status = 'rejected') execute function public.time_entries_unreject();
+
+create or replace function public.approve_time_entries(p_ids uuid[]) returns int
+language plpgsql security definer set search_path = '' as $$
+declare v_want int := (select count(distinct x) from unnest(p_ids) x); v_got int;
+begin
+  if not public.has_permission('approve_time') then raise exception 'Approve time permission needed'; end if;
+  update public.time_entries set status = 'approved', reviewed_by = auth.uid(), reviewed_at = now()
+  where id = any(p_ids) and status = 'submitted' and deleted_at is null;
+  get diagnostics v_got = row_count;
+  if v_got <> v_want then raise exception 'Some entries were no longer waiting for approval. Reload and try again.'; end if;
+  return v_got;
+end $$;
+
+create or replace function public.reject_time_entries(p_ids uuid[], p_reason text) returns int
+language plpgsql security definer set search_path = '' as $$
+declare v_want int := (select count(distinct x) from unnest(p_ids) x); v_got int; r record;
+begin
+  if not public.has_permission('approve_time') then raise exception 'Approve time permission needed'; end if;
+  if coalesce(trim(p_reason), '') = '' then raise exception 'Say what needs to change'; end if;
+  update public.time_entries set status = 'rejected', reject_reason = trim(p_reason), reviewed_by = auth.uid(), reviewed_at = now()
+  where id = any(p_ids) and status = 'submitted' and deleted_at is null;
+  get diagnostics v_got = row_count;
+  if v_got <> v_want then raise exception 'Some entries were no longer waiting for approval. Reload and try again.'; end if;
+  for r in select user_id, min(spent_on) as first_on, count(*) as n from public.time_entries where id = any(p_ids) group by user_id loop
+    perform public.notify(r.user_id, 'time_rejected',
+      public.actor_name() || ' sent back ' || r.n || case when r.n = 1 then ' time entry' else ' time entries' end,
+      trim(p_reason), '/time?date=' || r.first_on, auth.uid());
+  end loop;
+  return v_got;
+end $$;
+revoke execute on function public.approve_time_entries(uuid[]) from public, anon;
+revoke execute on function public.reject_time_entries(uuid[], text) from public, anon;

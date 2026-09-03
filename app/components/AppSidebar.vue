@@ -32,6 +32,7 @@ const sections = computed<Section[]>(() => {
       { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
       ...(can('manage_quotes') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
       ...(can('see_capacity') ? [{ label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' }, { label: 'Planner', to: '/planner', icon: 'i-lucide-move' }] : []),
+      ...(can('approve_time') ? [{ label: 'Approvals', to: '/approvals', icon: 'i-lucide-badge-check' }] : []),
       ...(can('manage_invoices')
         ? [
             { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },

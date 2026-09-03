@@ -148,6 +148,36 @@ async function act(id: string, fn: () => Promise<unknown>, failTitle: string) {
 }
 
 const startRow = (e: Row) => act(e.id, () => timer.resume(e.id), 'Could not start timer')
+
+// ---------- approval ----------
+// A stopped draft or sent-back entry can be submitted; submitted and
+// approved ones are frozen until a reviewer decides.
+const editable = (e: Pick<Row, 'status' | 'is_locked'>) => !e.is_locked && (e.status === 'draft' || e.status === 'rejected')
+const submittable = computed(() => (entries.value ?? []).filter(e => editable(e) && !isRunning(e)))
+const weekCounts = computed(() => {
+  const c = { submitted: 0, approved: 0, rejected: 0 }
+  for (const e of entries.value ?? []) if (e.status !== 'draft') c[e.status]++
+  return c
+})
+const submitting = ref(false)
+async function submitWeek() {
+  const ids = submittable.value.map(e => e.id)
+  if (!ids.length) return
+  submitting.value = true
+  try {
+    const { error } = await supabase.from('time_entries').update({ status: 'submitted', submitted_at: new Date().toISOString() }).in('id', ids)
+    if (error) throw error
+    toast.add({ title: `${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} submitted for approval`, color: 'success' })
+    await refresh()
+  } catch (e) {
+    toast.add({ title: 'Could not submit', description: (e as Error).message, color: 'error' })
+  } finally {
+    submitting.value = false
+  }
+}
+const statusBadge = (e: Row) => (e.status === 'submitted' ? { label: 'Submitted', color: 'info' as const, title: 'Waiting for approval' }
+  : e.status === 'approved' ? { label: 'Approved', color: 'success' as const, title: 'Approved and ready to bill' }
+  : { label: 'Sent back', color: 'error' as const, title: e.reject_reason ?? '' })
 const stopRow = (e: Pick<Row, 'id'> & Parameters<typeof timer.stop>[0]) => act(e.id, () => timer.stop(e), 'Could not stop timer')
 
 const undo = useUndo()
@@ -177,10 +207,18 @@ const history = ref<Row | null>(null)
 
     <div data-tour="week"><WeekStrip :days="days" :selected="selected" :totals="totals" @select="goTo" /></div>
 
+    <div class="flex flex-wrap items-center gap-3">
     <p v-if="pace" data-tour="pace" class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
       <span>This week <strong class="text-default tabular-nums">{{ formatHours(pace.week.hours) }}</strong> of {{ formatHours(pace.target) }}<template v-if="Number(pace.week.hours) > 0">, {{ billableShare(pace.week) }}% billable</template></span>
       <span>This month <strong class="text-default tabular-nums">{{ formatHours(pace.month.hours) }}</strong><template v-if="Number(pace.month.hours) > 0">, {{ billableShare(pace.month) }}% billable</template></span>
     </p>
+      <span v-if="weekCounts.submitted || weekCounts.approved || weekCounts.rejected" class="text-xs text-muted">
+        <template v-if="weekCounts.submitted">{{ weekCounts.submitted }} submitted</template>
+        <template v-if="weekCounts.approved">{{ weekCounts.submitted ? ', ' : '' }}{{ weekCounts.approved }} approved</template>
+        <template v-if="weekCounts.rejected">{{ weekCounts.submitted || weekCounts.approved ? ', ' : '' }}<span class="text-error">{{ weekCounts.rejected }} sent back</span></template>
+      </span>
+      <UButton v-if="submittable.length" size="xs" variant="outline" icon="i-lucide-send" class="ml-auto" :loading="submitting" title="Send this week's entries for approval. They lock until a reviewer decides." @click="submitWeek">Submit week ({{ submittable.length }})</UButton>
+    </div>
 
     <div v-if="runningElsewhere" class="flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-4 py-3 text-sm">
       <UIcon name="i-lucide-timer" class="text-primary" />
@@ -218,6 +256,7 @@ const history = ref<Row | null>(null)
           </div>
           <UBadge v-if="!e.is_billable" color="neutral" variant="subtle" size="sm">Non-billable</UBadge>
           <UIcon v-if="e.is_locked" name="i-lucide-lock" class="text-muted" title="Locked by a billing batch" />
+          <UBadge v-else-if="e.status !== 'draft'" :color="statusBadge(e).color" variant="subtle" size="sm" :title="statusBadge(e).title">{{ statusBadge(e).label }}</UBadge>
           <span class="w-16 text-right tabular-nums" :class="isRunning(e) ? 'font-semibold text-primary' : ''">
             {{ formatHours(liveHours(e)) }}
           </span>
@@ -231,12 +270,12 @@ const history = ref<Row | null>(null)
             <UButton
               v-else
               icon="i-lucide-play" variant="ghost" color="neutral" size="sm" aria-label="Start timer" data-tour="timer"
-              :disabled="e.is_locked || (!!busy && busy !== e.id)" :loading="busy === e.id"
+              :disabled="!editable(e) || (!!busy && busy !== e.id)" :loading="busy === e.id"
               @click="startRow(e)"
             />
             <UButton icon="i-lucide-history" variant="ghost" color="neutral" size="sm" aria-label="History" title="History" @click="history = e;" />
-            <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" size="sm" aria-label="Edit" :disabled="e.is_locked" @click="editing = e;" />
-            <UButton icon="i-lucide-trash-2" variant="ghost" color="neutral" size="sm" aria-label="Delete" :disabled="e.is_locked || isRunning(e)" @click="deleting = e;" />
+            <UButton icon="i-lucide-pencil" variant="ghost" color="neutral" size="sm" aria-label="Edit" :disabled="!editable(e)" @click="editing = e;" />
+            <UButton icon="i-lucide-trash-2" variant="ghost" color="neutral" size="sm" aria-label="Delete" :disabled="!editable(e) || isRunning(e)" @click="deleting = e;" />
           </div>
         </li>
         <li v-if="dayEntries.length === 0" class="px-4 py-8 text-center text-muted">
