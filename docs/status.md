@@ -1878,3 +1878,18 @@ entirely: 4,678 of the 4,933 subtasks were Hills Bank. Dry run after
 excluding it: 256 created, 388 updated, 230 subtasks, 25 orphans,
 4,984 skipped. The 305 Hills Bank tasks already imported are left in
 place, untouched from now on. Guide updated.
+
+## Hills Bank tasks removed (2026-09-03)
+
+Luke: do not import Hills Bank, and delete what is there. The 305
+ClickUp tasks (all in Hills Bank's "General" catch-all, no time or
+comments against any of them) were soft deleted, so restore_deleted()
+can bring them back until 2026-10-03. The projects were NOT deleted:
+18 of the 19 hold 212 time entries (302.75 hours, Jan to Aug 2026) and
+24 expenses, and time_entries.project_id / expenses.project_id are ON
+DELETE RESTRICT, so the database blocks it and deleting them would
+destroy billable history. The 19th ("General") is empty on screen but
+still referenced by the soft-deleted tasks, so removing it now would
+forfeit the undo window. Note `is_active` on a project is overwritten
+each morning from Harvest (harvestImport.ts:378), so marking these
+inactive in Docket does not stick.
