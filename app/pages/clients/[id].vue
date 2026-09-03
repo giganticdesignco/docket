@@ -81,6 +81,44 @@ const { data: docketInvoices } = __ad5
 const { data: invoices } = __ad6
 const { data: people } = __ad7
 
+// Open tasks across this client's projects, and who has worked on the
+// account lately, for the Team and Tasks sections.
+const ws = await useWorkStatuses()
+const projectIds = computed(() => (projects.value ?? []).map(p => p.id))
+const __ad8 = useAsyncData(`client-${id}-tasks`, async () => {
+  if (!projectIds.value.length) return []
+  const { data, error } = await supabase
+    .from('work_items')
+    .select('id, title, status, priority, due_on, project_id, projects(name), work_item_assignees(user_id)')
+    .in('project_id', projectIds.value)
+    .order('due_on', { ascending: true, nullsFirst: false })
+    .limit(500)
+  if (error) throw error
+  return data.filter(w => !ws.isDone(w.status))
+}, { ...fresh, watch: [projectIds] })
+const __ad9 = useAsyncData(`client-${id}-recent-time`, async () => {
+  if (!projectIds.value.length) return []
+  const { data, error } = await supabase.from('time_entries').select('user_id, hours').in('project_id', projectIds.value).gte('spent_on', addDays(todayString(), -90))
+  if (error) throw error
+  return data
+}, { ...fresh, watch: [projectIds] })
+await Promise.all([__ad8, __ad9])
+const { data: openTasks } = __ad8
+const { data: recentTime } = __ad9
+const nameOf = (uid: string) => people.value?.find(p => p.id === uid)?.full_name ?? ''
+const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+// The team on the account: project leads, people on open tasks, and
+// anyone who logged time here in the last 90 days.
+const team = computed(() => {
+  const m = new Map<string, { id: string, name: string, leads: string[], tasks: number, hours: number }>()
+  const get = (uid: string) => { const x = m.get(uid) ?? { id: uid, name: nameOf(uid), leads: [], tasks: 0, hours: 0 }; m.set(uid, x); return x }
+  for (const p of projects.value ?? []) if (p.lead_id && p.is_active) get(p.lead_id).leads.push(p.name)
+  for (const t of openTasks.value ?? []) for (const a of t.work_item_assignees) get(a.user_id).tasks++
+  for (const e of recentTime.value ?? []) get(e.user_id).hours += e.hours
+  return [...m.values()].filter(x => x.name).sort((a, b) => b.leads.length - a.leads.length || b.tasks - a.tasks || b.hours - a.hours)
+})
+const TASKS_SHOWN = 25
+
 useHead({ title: () => client.value?.name ?? 'Client' })
 useAssistantScreen(() => ({ client: client.value?.name }))
 
@@ -253,6 +291,29 @@ const invoiceLabel = (inv: InvoiceLike) =>
     </template>
 
     <div class="flex items-center gap-4">
+      <h2 class="text-lg font-semibold">Team</h2>
+      <span class="text-sm text-muted">Who works with this client: project leads, people on open tasks, and anyone with time here in the last 90 days.</span>
+    </div>
+    <UCard :ui="{ body: 'p-3 sm:p-4' }">
+      <ul v-if="team.length" class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+        <li v-for="m in team" :key="m.id" class="flex items-center gap-2">
+          <span class="grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
+          <div>
+            <div class="font-medium">{{ m.name }}</div>
+            <div class="text-xs text-muted">
+              <span v-if="m.leads.length" :title="m.leads.join(', ')">Lead on {{ m.leads.length }} {{ m.leads.length === 1 ? 'project' : 'projects' }}</span>
+              <span v-if="m.leads.length && (m.tasks || m.hours)"> &middot; </span>
+              <span v-if="m.tasks">{{ m.tasks }} open {{ m.tasks === 1 ? 'task' : 'tasks' }}</span>
+              <span v-if="m.tasks && m.hours"> &middot; </span>
+              <span v-if="m.hours" class="tabular-nums">{{ formatHours(m.hours) }} in 90 days</span>
+            </div>
+          </div>
+        </li>
+      </ul>
+      <p v-else class="text-sm text-muted">Nobody yet. People show up here once they lead a project, take a task, or log time for this client.</p>
+    </UCard>
+
+    <div class="flex items-center gap-4">
       <h2 class="text-lg font-semibold">Projects</h2>
       <UButton v-if="isAdmin" class="ml-auto" size="sm" icon="i-lucide-plus" @click="creatingProject = true;">New project</UButton>
     </div>
@@ -292,6 +353,44 @@ const invoiceLabel = (inv: InvoiceLike) =>
           </tr>
           <tr v-if="!projects?.length">
             <td colspan="6" class="px-4 py-8 text-center text-muted">No projects for this client.</td>
+          </tr>
+        </tbody>
+      </table>
+    </UCard>
+
+    <div class="flex items-center gap-4">
+      <h2 class="text-lg font-semibold">Tasks <span class="text-base font-normal text-muted">{{ openTasks?.length ?? 0 }} open</span></h2>
+      <NuxtLink to="/tasks" class="ml-auto text-sm text-muted hover:underline">All tasks</NuxtLink>
+    </div>
+    <UCard :ui="{ body: 'p-0 sm:p-0' }">
+      <table class="w-full text-sm">
+        <thead class="text-left text-muted">
+          <tr class="border-b border-default">
+            <th class="px-4 py-2 font-medium">Task</th>
+            <th class="px-4 py-2 font-medium">Project</th>
+            <th class="px-4 py-2 font-medium">Status</th>
+            <th class="px-4 py-2 font-medium">Assigned</th>
+            <th class="px-4 py-2 text-right font-medium">Due</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in (openTasks ?? []).slice(0, TASKS_SHOWN)" :key="t.id" class="border-b border-default last:border-0">
+            <td class="max-w-md truncate px-4 py-2"><NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink></td>
+            <td class="px-4 py-2 text-muted">{{ t.projects?.name }}</td>
+            <td class="px-4 py-2"><span class="inline-flex items-center gap-1.5"><span class="size-2 rounded-full" :class="ws.dot(t.status)" />{{ ws.label(t.status) }}</span></td>
+            <td class="px-4 py-2">
+              <span class="flex -space-x-1.5" :title="t.work_item_assignees.map(a => nameOf(a.user_id)).join(', ')">
+                <span v-for="a in t.work_item_assignees.slice(0, 5)" :key="a.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(nameOf(a.user_id)) }}</span>
+                <span v-if="!t.work_item_assignees.length" class="text-xs text-dimmed">Nobody</span>
+              </span>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums" :class="t.due_on && t.due_on < todayString() ? 'text-error' : 'text-muted'">{{ t.due_on ? shortDate(t.due_on) : '' }}</td>
+          </tr>
+          <tr v-if="!openTasks?.length">
+            <td colspan="5" class="px-4 py-8 text-center text-muted">No open tasks for this client.</td>
+          </tr>
+          <tr v-else-if="openTasks.length > TASKS_SHOWN">
+            <td colspan="5" class="px-4 py-2 text-xs text-muted">{{ openTasks.length - TASKS_SHOWN }} more. Open a project for the rest.</td>
           </tr>
         </tbody>
       </table>

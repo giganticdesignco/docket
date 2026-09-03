@@ -147,6 +147,11 @@ sees hours.
 
 ## Clients and projects
 
+- **A client's page** shows the year's numbers, billing, contacts, the
+  team on the account (project leads, people on open tasks, and anyone
+  with time there in the last 90 days), its projects, its open tasks
+  across those projects, retainers, quotes, and invoices.
+
 - **Tables you can arrange.** On the Projects, Clients, Quotes,
   Invoices, Expenses, and People lists, click a column
   header to sort (again to flip, a third time to clear), drag a header

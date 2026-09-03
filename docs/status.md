@@ -1806,3 +1806,11 @@ wrap their rows in `cols.sorted()`. Applied to Projects (with new
 Tasks and Assigned columns), Clients, Invoices, Quotes (list layout),
 Expenses (Person column only with Everyone, via TableHead's `only`),
 and People. Tasks and Time keep their own layouts.
+
+## Client page: team and tasks (2026-09-03)
+
+Two sections on `/clients/[id]`: Team (project leads, people on open
+tasks, anyone with time on the client's projects in the last 90 days,
+from `work_items` and `time_entries` scoped by RLS) and Tasks (open
+tasks across the client's projects, first 25, with status dot,
+assignees, due). No schema change. Guide updated.
