@@ -147,6 +147,13 @@ sees hours.
 
 ## Clients and projects
 
+- **Tables you can arrange.** On the Projects list, click a column
+  header to sort (again to flip, a third time to clear), drag a header
+  onto another to move it, and use the gear at the end of the header
+  row to show or hide columns or reset. Docket remembers your
+  arrangement. The list also shows each project's open task count and
+  who is on those tasks.
+
 - **Project templates** (Settings, Project templates) are a starting set
   of tasks for a kind of job: title, task type, hours, and a suggested
   role. Pick one under "Start from" on the New project form and the

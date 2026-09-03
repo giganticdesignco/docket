@@ -1790,3 +1790,17 @@ middleware lets leads onto pages marked `leadOk`; Approvals hides a
 lead's own weeks unless they hold approve_time and labels each person
 with department and reviewer; Departments shows lead and members;
 People form sets the department. Guide updated.
+
+## Task page tidy and arrangeable tables (2026-09-03)
+
+Task page: detail pickers size to their content (no more w-full),
+the scroll pane has 1px left padding so a card's ring is not clipped,
+and status pickers everywhere carry the status dot (`chip` on
+`useWorkStatuses().items`, `ws.dot(key)` for the selected value).
+
+`useColumns(key, defs)` + `TableHead.vue`: sort (click, asc/desc/clear),
+reorder (native drag on th), show/hide (gear menu), reset; saved per
+person in user_views as `columns:<key>` {order, hidden, sort}. Pages
+render `<td v-for="c in cols.visible">` and branch on `c.key`, and
+wrap their rows in `cols.sorted()`. Applied to Projects first, with
+new Tasks (open count) and Assigned (people on open tasks) columns.
