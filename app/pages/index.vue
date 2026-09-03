@@ -53,9 +53,28 @@ const __ad4 = useAsyncData('home-brief', async () => {
   const { data } = await supabase.from('morning_briefs').select('day, text, created_at').eq('user_id', user.value.sub).order('day', { ascending: false }).limit(1).maybeSingle()
   return data
 }, { ...fresh, server: false })
-await Promise.all([__ad1, __ad2, __ad3, __ad4, timer.load()])
+// For the Start timer drawer: the same lists the timesheet's form uses.
+const __ad5 = useAsyncData('projects-for-time', async () => {
+  const { data, error } = await supabase.from('projects').select('id, name, billing_method, clients(name)').eq('is_active', true).order('name')
+  if (error) throw error
+  return data
+}, { ...fresh, server: false })
+const __ad6 = useAsyncData('project-tasks-for-time', async () => {
+  const { data, error } = await supabase.from('project_tasks').select('project_id, task_id, tasks(id, name, is_billable_default, is_active)')
+  if (error) throw error
+  return data
+}, { ...fresh, server: false })
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, timer.load()])
 const { data: brief } = __ad4
-const { data: pace } = __ad1
+const { data: formProjects } = __ad5
+const { data: formProjectTasks } = __ad6
+// Click the Timer card to start one from here.
+const startingTimer = ref(false)
+async function timerSaved() {
+  startingTimer.value = false
+  await Promise.all([timer.load(), refreshPace()])
+}
+const { data: pace, refresh: refreshPace } = __ad1
 const { data: tasks } = __ad2
 const { data: recentIds } = __ad3
 
@@ -118,7 +137,7 @@ const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running
         </div>
         <p class="mt-2 whitespace-pre-line text-sm leading-relaxed">{{ brief.text }}</p>
       </UCard>
-      <UCard :ui="{ body: 'p-3 sm:p-4' }">
+      <UCard :ui="{ body: 'p-3 sm:p-4' }" :class="timer.running.value ? '' : 'cursor-pointer transition-colors hover:bg-elevated/40'" role="button" tabindex="0" :title="timer.running.value ? '' : 'Start a timer'" @click="!timer.running.value && (startingTimer = true)" @keydown.enter="!timer.running.value && (startingTimer = true)">
         <div class="text-xs text-muted">Timer</div>
         <template v-if="timer.running.value">
           <div class="flex items-center gap-2">
@@ -132,7 +151,7 @@ const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running
         </template>
         <template v-else>
           <div class="text-2xl font-semibold text-muted">Off</div>
-          <div class="text-xs text-muted">Start one from a task, or on the timesheet.</div>
+          <div class="text-xs text-muted">Click to start one.</div>
         </template>
       </UCard>
       <UCard :ui="{ body: 'p-3 sm:p-4' }">
@@ -201,5 +220,11 @@ const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running
 
       <HomeAgenda :range="agendaRange" @update:range="agendaRange = $event" />
     </div>
+
+    <AppDrawer v-model:open="startingTimer" title="Start a timer">
+      <template #body>
+        <TimeEntryForm :date="today" :projects="formProjects ?? []" :project-tasks="formProjectTasks ?? []" @saved="timerSaved" @cancel="startingTimer = false" />
+      </template>
+    </AppDrawer>
   </div>
 </template>

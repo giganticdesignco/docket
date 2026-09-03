@@ -30,7 +30,7 @@ keyboard shortcuts alone.
 
 ## Home and the morning brief
 
-- **Home** is your day: the timer, hours today and this week against
+- **Home** is your day: the timer (click the card to start one), hours today and this week against
   your target, your open tasks by when they are due, the projects you
   are working in, and today's or this week's agenda from your Google
   Calendar.
