@@ -65,7 +65,7 @@ export function useTour() {
   const running = useState<string | null>('tour-running', () => null)
 
   const seen = computed<Record<string, string>>(() => (profile.value?.tours_seen as Record<string, string> | null) ?? {})
-  const forPage = computed(() => TOURS.filter(t => t.match(route.path) && (!t.admin || can('manage_billing'))))
+  const forPage = computed(() => TOURS.filter(t => t.match(route.path) && (!t.admin || can('manage_invoices'))))
   const pageTour = computed(() => forPage.value.find(t => t.id !== 'around') ?? null)
 
   async function mark(id: string, how: 'done' | 'skipped') {

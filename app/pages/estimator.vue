@@ -22,7 +22,7 @@ const __ad2 = useAsyncData('estimator-settings', async () => {
   return data ?? { id: true, ...DEFAULT_SETTINGS }
 }, fresh)
 const __ad3 = useAsyncData('estimator-quotes', async () => {
-  if (!can('manage_billing')) return []
+  if (!can('manage_quotes')) return []
   const { data } = await supabase.from('quotes').select('id, number, title, status, clients(name)').eq('status', 'draft').order('created_at', { ascending: false }).limit(50)
   return data ?? []
 }, fresh)
@@ -177,7 +177,7 @@ const printPage = () => window.print()
           <span class="text-lg font-semibold tabular-nums">{{ money(projectTotal) }}</span>
           <div class="ml-auto flex items-center gap-2 print:hidden">
             <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-printer" :disabled="!jobs.length" @click="printPage">Print</UButton>
-            <template v-if="can('manage_billing')">
+            <template v-if="can('manage_quotes')">
               <USelectMenu v-model="quoteId" :items="quoteOptions" value-key="value" size="sm" class="w-64" placeholder="Pick a draft quote" />
               <UButton size="sm" icon="i-lucide-file-signature" :loading="adding" :disabled="!quoteId || !jobs.length" @click="addToQuote">Add to quote</UButton>
             </template>

@@ -78,7 +78,8 @@ const actions = computed<CommandPaletteItem[]>(() => {
     nav('Go to Estimator', '/estimator', 'i-lucide-calculator'),
     ...(can('see_all_time') ? [nav('Go to Reports', '/reports', 'i-lucide-chart-column')] : []),
     ...(can('see_capacity') ? [nav('Go to Capacity', '/capacity', 'i-lucide-gauge')] : []),
-    ...(can('manage_billing') ? [nav('Go to Quotes', '/quotes', 'i-lucide-file-signature'), nav('Go to Invoices', '/invoices', 'i-lucide-file-text')] : []),
+    ...(can('manage_quotes') ? [nav('Go to Quotes', '/quotes', 'i-lucide-file-signature')] : []),
+    ...(can('manage_invoices') ? [nav('Go to Invoices', '/invoices', 'i-lucide-file-text')] : []),
     ...(can('manage_settings') ? [nav('Go to Settings', '/admin', 'i-lucide-settings')] : []),
   ]
 })

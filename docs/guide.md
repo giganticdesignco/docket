@@ -362,8 +362,11 @@ across the top.
 
 Roles are Admin, Manager, Staff, and Client, plus any you add. Each role
 has a set of permissions: see all time, see money, see all tasks, manage
-tasks, manage reference data (clients, projects, task types), manage
-billing, manage people, manage settings, see capacity. Admins have all
+tasks, manage reference data (clients, projects, task types), quotes,
+invoices (batches, invoices, payments, Harvest history), retainers,
+manage people, manage settings, see capacity. Quotes, invoices, and
+retainers used to be one "billing" permission; any of the three opens
+the client page's billing card and the portal preview. Admins have all
 of them. Staff by default see their own time and expenses, all tasks,
 and money. Change the matrix on the Permissions page.
 

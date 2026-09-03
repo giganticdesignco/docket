@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Build a batch: pick a client and period, untick anything to hold back,
 // create. create_billing_batch() locks the rows in one transaction.
-definePageMeta({ middleware: 'can', permission: 'manage_billing' })
+definePageMeta({ middleware: 'can', permission: 'manage_invoices' })
 useHead({ title: 'New batch' })
 
 const supabase = useSupabaseClient()

@@ -29,9 +29,9 @@ const sections = computed<Section[]>(() => {
       { label: 'Estimator', to: '/estimator', icon: 'i-lucide-calculator' },
       { label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' },
       { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
-      ...(can('manage_billing') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
+      ...(can('manage_quotes') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
       ...(can('see_capacity') ? [{ label: 'Capacity', to: '/capacity', icon: 'i-lucide-gauge' }] : []),
-      ...(can('manage_billing')
+      ...(can('manage_invoices')
         ? [
             { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },
             { label: 'Invoices', to: '/invoices', icon: 'i-lucide-file-text' },

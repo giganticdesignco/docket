@@ -2,7 +2,7 @@
 // Every Docket invoice, with what is outstanding and what is late. New
 // invoices usually start from a batch (Billing); this page can also start
 // a blank one for a client.
-definePageMeta({ middleware: 'can', permission: 'manage_billing' })
+definePageMeta({ middleware: 'can', permission: 'manage_invoices' })
 useHead({ title: 'Invoices' })
 
 const supabase = useSupabaseClient()

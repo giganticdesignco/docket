@@ -13,7 +13,7 @@ const { profile, can, signOut } = useCurrentUser()
 
 const isPreview = computed(() => profile.value?.role !== 'client')
 const clientId = computed(() => (isPreview.value ? (typeof route.query.as === 'string' ? route.query.as : null) : profile.value?.client_id ?? null))
-if (isPreview.value && !can('manage_billing')) throw createError({ statusCode: 403, statusMessage: 'Billing permission needed to preview the portal' })
+if (isPreview.value && !(can('manage_invoices') || can('manage_quotes') || can('manage_retainers'))) throw createError({ statusCode: 403, statusMessage: 'Quotes, invoices, or retainers permission needed to preview the portal' })
 
 const { data } = await useAsyncData(`portal-${clientId.value}`, async () => {
   if (!clientId.value) return null

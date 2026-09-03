@@ -10,7 +10,7 @@ const supabase = useSupabaseClient()
 const { can } = useCurrentUser()
 const isAdmin = computed(() => can('manage_reference'))
 const seeMoney = computed(() => can('see_money'))
-const canBill = computed(() => can('manage_billing'))
+const canBill = computed(() => can('manage_invoices') || can('manage_quotes') || can('manage_retainers'))
 
 const editing = ref(false)
 const creatingProject = ref(false)

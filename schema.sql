@@ -393,7 +393,9 @@ create trigger profiles_protect_columns
 --   see_all_tasks    every task, not just assigned ones
 --   manage_tasks     delete any task or comment
 --   manage_reference clients, projects, task types, project rates
---   manage_billing   batches, invoices, quotes, retainers, Harvest history
+--   manage_quotes    quotes, their lines and sitemaps
+--   manage_invoices  batches, invoices, lines, payments, Harvest history
+--   manage_retainers retainers
 --   manage_people    profiles, availability, everyone's time off
 --   manage_settings  statuses, categories, invoice settings, imports, audit
 --   see_capacity     the capacity page
@@ -1929,11 +1931,11 @@ create or replace function public.actor_name() returns text
 language sql stable set search_path = '' as $$
   select coalesce((select full_name from public.profiles where id = auth.uid()), 'Someone');
 $$;
--- Everyone who may run billing: admins and roles holding manage_billing.
+-- Everyone who may run billing: admins and roles holding manage_invoices.
 create or replace function public.billing_people() returns setof uuid
 language sql stable set search_path = '' as $$
   select id from public.profiles
-  where is_active and (role = 'admin' or role in (select role from public.permissions where key = 'manage_billing'));
+  where is_active and (role = 'admin' or role in (select role from public.permissions where key = 'manage_invoices'));
 $$;
 
 create or replace function public.notify_on_assignee() returns trigger
@@ -2117,7 +2119,7 @@ declare
   v_time_amt  numeric;
   v_exp_amt   numeric;
 begin
-  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
+  if not public.has_permission('manage_invoices') then raise exception 'Invoices permission needed'; end if;
   if v_want_time + v_want_exp = 0 then raise exception 'Pick at least one entry'; end if;
 
   insert into public.billing_batches (client_id, project_id, period_start, period_end, created_by)
@@ -2157,7 +2159,7 @@ create or replace function public.void_billing_batch(p_batch_id uuid) returns vo
 language plpgsql security definer set search_path = '' as $$
 declare v_status public.billing_batch_status;
 begin
-  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
+  if not public.has_permission('manage_invoices') then raise exception 'Invoices permission needed'; end if;
   select status into v_status from public.billing_batches where id = p_batch_id for update;
   if v_status is null then raise exception 'Batch not found'; end if;
   if v_status not in ('draft', 'failed') then raise exception 'Only draft or failed batches can be voided'; end if;
@@ -2291,7 +2293,7 @@ declare
   v_hours  numeric;
   v_amount numeric;
 begin
-  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
+  if not public.has_permission('manage_invoices') then raise exception 'Invoices permission needed'; end if;
   if p_detail not in ('task', 'project', 'summary') then raise exception 'Unknown detail level %', p_detail; end if;
   select * into s from public.invoice_settings where id;
   if p_batch_id is not null then
@@ -2402,7 +2404,7 @@ create or replace function public.void_invoice(p_invoice_id uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_status public.invoice_status; v_batch uuid; v_paid numeric;
 begin
-  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
+  if not public.has_permission('manage_invoices') then raise exception 'Invoices permission needed'; end if;
   select status, batch_id, paid_amount into v_status, v_batch, v_paid
     from public.invoices where id = p_invoice_id for update;
   if v_status is null then raise exception 'Invoice not found'; end if;
@@ -2430,7 +2432,7 @@ create or replace function public.create_quote(p_client_id uuid, p_title text) r
 language plpgsql security definer set search_path = '' as $$
 declare v_id uuid; s record;
 begin
-  if not public.has_permission('manage_billing') then raise exception 'Billing permission needed'; end if;
+  if not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
   if coalesce(trim(p_title), '') = '' then raise exception 'Give the quote a title'; end if;
   select * into s from public.invoice_settings where id;
   insert into public.quotes (client_id, number, title, terms, valid_until, created_by)
@@ -2578,7 +2580,7 @@ create policy manage_reference on projects      for all to authenticated using (
 create policy manage_reference on tasks         for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
 create policy manage_reference on project_tasks for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
 create policy manage_settings on expense_categories for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
-create policy manage_billing on retainers       for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_retainers on retainers       for all to authenticated using ((select has_permission('manage_retainers'))) with check ((select has_permission('manage_retainers')));
 
 -- Profiles: you edit yourself (full_name only, see trigger), admins edit anyone.
 -- No insert policy: rows come from the auth trigger.
@@ -2619,19 +2621,19 @@ create policy own_exp_delete on expenses for delete to authenticated
 -- ---------- Billing batches ----------
 
 create policy read_all    on billing_batches for select to authenticated using (not (select is_client()));
-create policy manage_billing on billing_batches for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_invoices on billing_batches for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 
 -- ---------- Invoicing: admins only ----------
 
 create policy manage_settings on invoice_settings for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
 create policy client_select    on invoice_settings for select to authenticated using (is_client());  -- portal header
-create policy manage_billing on invoices         for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_invoices on invoices         for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 -- Clients read their own sent and paid invoices (and Harvest history).
 create policy client_select on invoices         for select to authenticated using (is_client() and client_id = my_client_id() and status in ('sent', 'paid'));
 create policy client_select on invoice_lines    for select to authenticated using (is_client() and exists (select 1 from invoices i where i.id = invoice_id));
 create policy client_select on invoice_payments for select to authenticated using (is_client() and exists (select 1 from invoices i where i.id = invoice_id));
-create policy manage_billing on invoice_lines    for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
-create policy manage_billing on invoice_payments for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_invoices on invoice_lines    for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
+create policy manage_invoices on invoice_payments for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 
 -- ---------- Quoting ----------
 
@@ -2639,15 +2641,15 @@ create policy read_all on quotes              for select to authenticated using 
 create policy read_all on quote_line_items    for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
 create policy read_all on quote_sitemap_nodes for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
 
-create policy manage_billing on quotes              for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
-create policy manage_billing on quote_line_items    for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
-create policy manage_billing on quote_sitemap_nodes for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_quotes on quotes              for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
+create policy manage_quotes on quote_line_items    for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
+create policy manage_quotes on quote_sitemap_nodes for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
 
 -- ---------- Harvest archive ----------
 
 create policy read_all    on harvest_archive_monthly for select to authenticated using (not (select is_client()));
-create policy manage_billing on harvest_archive_monthly for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
-create policy manage_billing on harvest_invoices for all to authenticated using (has_permission('manage_billing')) with check (has_permission('manage_billing'));
+create policy manage_invoices on harvest_archive_monthly for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
+create policy manage_invoices on harvest_invoices for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 create policy client_select  on harvest_invoices for select to authenticated using (is_client() and client_id = my_client_id());
 
 -- ---------- Tasks: the whole team reads and writes ----------

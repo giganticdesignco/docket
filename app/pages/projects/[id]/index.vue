@@ -89,7 +89,8 @@ const __ad9 = useAsyncData(`project-${id}-item-hours`, async () => {
 }, fresh)
 
 // Quotes and invoices tied to this project. RLS gives nothing back to
-// staff without manage_billing, so the card just renders empty for them;
+// staff without manage_invoices or manage_quotes, so the card renders
+// what RLS allows;
 // the UI also hides it behind canBill.
 const __ad10 = useAsyncData(`project-${id}-quotes`, async () => {
   const { data, error } = await supabase.from('quotes').select('id, number, title, status, subtotal, valid_until').eq('project_id', id).order('created_at', { ascending: false }).limit(20)
@@ -108,7 +109,7 @@ const { data: recent } = __ad8
 const { data: itemHours } = __ad9
 const { data: quotes } = __ad10
 const { data: invoices } = __ad11
-const canBill = computed(() => can('manage_billing'))
+const canBill = computed(() => can('manage_invoices') || can('manage_quotes'))
 const hoursByItem = computed(() => {
   const m = new Map<string, number>()
   for (const e of itemHours.value ?? []) {

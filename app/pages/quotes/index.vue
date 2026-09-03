@@ -2,7 +2,7 @@
 // Quotes: what is out, what was won, what was lost. As a list, or as a
 // board with a column per stage. New ones start from a client and a
 // title; the rest is built on the quote page.
-definePageMeta({ middleware: 'can', permission: 'manage_billing' })
+definePageMeta({ middleware: 'can', permission: 'manage_quotes' })
 useHead({ title: 'Quotes' })
 
 const supabase = useSupabaseClient()

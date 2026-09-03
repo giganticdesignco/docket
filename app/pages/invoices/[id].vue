@@ -4,7 +4,7 @@ import type { InvoiceDoc } from '~~/shared/types/invoice'
 // One invoice. While it is a draft: edit the header and lines, preview,
 // send. Once sent: the document as the client sees it, payments, reminders,
 // void. Money columns come from recalc_invoice(), never computed here.
-definePageMeta({ middleware: 'can', permission: 'manage_billing' })
+definePageMeta({ middleware: 'can', permission: 'manage_invoices' })
 
 const route = useRoute()
 const id = route.params.id as string

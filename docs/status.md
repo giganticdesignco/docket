@@ -1660,3 +1660,14 @@ Team, Work, Money, Data groups, and `app.vue` pads the shell by the
 extra 14rem on settings routes. Reports' tabs are content tabs on one
 page, not a subnav, so they stay as they are. Also this commit: all UI
 copy and docs moved to American spelling (rule added to CLAUDE.md).
+
+## manage_billing split, Phase 4 item 7 (2026-09-03)
+
+`manage_billing` is now `manage_quotes` (quotes, lines, sitemaps),
+`manage_invoices` (batches, invoices, lines, payments, Harvest archive
+and invoices), and `manage_retainers`. The ten RLS policies were
+renamed and wrapped as `(select has_permission(...))`; the five
+function checks moved to their key; the billing-recipient query uses
+manage_invoices. The client page's billing card, the portal preview,
+and the client invite accept any of the three. No role held the old
+key, so nothing was fanned out. Guide updated.
