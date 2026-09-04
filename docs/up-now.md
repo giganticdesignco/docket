@@ -22,9 +22,17 @@ Shipped:
   checkboxes on `/admin/task-statuses`, with both flags in the Means
   column. Verified by flipping Sent to print on and back off.
 
-Not started: section 3 items 4 through 18, then section 9 (Following)
-after item 5. The next one is item 4, the task page. Still nothing in
-the UI reads `assignee_id`; item 3 only edits the mapping.
+- **Section 3 item 4**, the task page: Up now and Also on it rows,
+  Take it, Hand off modal with the note, Nobody yet, the Up now select,
+  subtask owner drawn solid. Verified: Take it, Hand off to the other
+  person with a note (the note landed as a comment, the receiver became
+  up, "Since Sep 4" showed), the select, and Hand off to Nobody.
+
+Not started: section 3 items 5 through 18, then section 9 (Following)
+after item 5. The next one is item 5, the task list. The `turn` bell
+for the receiver was not checked from the browser: notifications RLS
+is own-rows only, so verify step 3's bell half waits for a second
+signed-in person.
 
 The backfill has run. 96 tasks have somebody up (every task with exactly
 one person on it, which behaves the same as it did before); 298 have

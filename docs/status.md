@@ -2168,3 +2168,20 @@ Same day, Luke asked for **Following** alongside Up now. Spec is
 section 9 of `docs/up-now.md`: a third layer under Also on it that
 gets comment and status bells only, grants no visibility, is explicit
 Follow only, and runs as its own migration after section 3 item 5.
+
+## Up now: item 4, the task page (2026-09-04)
+
+The Assignees row on a task is now two rows. **Up now** is a single
+select showing who is up, with "Since Sep 4" under the name, and one
+button beside it: Take it when you are not up, Hand off when you are.
+Hand off is a short modal: To (the task's other people first, then
+everyone, then Nobody yet, preselected when there is exactly one other
+person), an optional note, Cancel and Hand off. Every path calls
+`hand_off()`, so the note lands as a comment and the receiver gets the
+turn bell. **Also on it** is the old multi select, unchanged, with help
+text under it. Subtask rows draw the owner's avatar solid and the rest
+dimmed. Verified on a two-person task by taking it, handing it to the
+other person with a note, picking myself from the select, and handing
+it to Nobody; the task was left as it was found and the test comment
+deleted. Not verified from this seat: the receiver's `turn` bell
+(notifications are own-rows under RLS).

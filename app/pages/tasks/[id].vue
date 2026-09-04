@@ -20,7 +20,7 @@ const __ad1 = useWorkStatuses()
 const __ad2 = useAsyncData(`task-${id}`, async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('*, projects(id, name, server_path, clients(id, name)), profiles!work_items_created_by_fkey(full_name), work_item_assignees(user_id, profiles(full_name))')
+    .select('*, projects(id, name, server_path, clients(id, name)), profiles!work_items_created_by_fkey(full_name), up:profiles!work_items_assignee_id_fkey(id, full_name), work_item_assignees(user_id, profiles(full_name))')
     .eq('id', id)
     .single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
@@ -59,7 +59,7 @@ const __ad7 = useAsyncData('projects-for-tasks', async () => {
 }, fresh)
 // Subtasks: the children of this task, and the parent if this is one.
 const __ad8 = useAsyncData(`task-${id}-children`, async () => {
-  const { data, error } = await supabase.from('work_items').select('id, title, status, due_on, estimate_hours, work_item_assignees(user_id, profiles(full_name))').eq('parent_id', id).order('position').order('created_at')
+  const { data, error } = await supabase.from('work_items').select('id, title, status, due_on, estimate_hours, assignee_id, work_item_assignees(user_id, profiles(full_name))').eq('parent_id', id).order('position').order('created_at')
   if (error) throw error
   return data
 }, fresh)
@@ -202,6 +202,52 @@ async function saveAssignees(ids: string[]) {
 }
 const peopleOptions = computed(() => (people.value ?? []).map(p => ({ label: p.full_name, value: p.id })))
 const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
+// ---------- up now ----------
+// Everyone on the task stays on it; assignee_id is whoever is up right now.
+// Take it, Hand off and the Up now select all go through hand_off(), which
+// keeps the owner on the task and bells the receiver.
+const me = computed(() => user.value?.sub ?? null)
+const imUp = computed(() => !!item.value?.assignee_id && item.value.assignee_id === me.value)
+const sinceText = computed(() => item.value?.assigned_at ? `Since ${new Date(item.value.assigned_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : '')
+const handingOff = ref(false)
+const NOBODY = '__nobody__'
+const handOffTo = ref<string>(NOBODY)
+const handOffNote = ref('')
+// The task's other people first, then everyone else, then Nobody yet.
+const handOffOptions = computed(() => {
+  const onIt = new Set((item.value?.work_item_assignees ?? []).map(a => a.user_id))
+  const others = peopleOptions.value.filter(o => onIt.has(o.value) && o.value !== me.value)
+  const rest = peopleOptions.value.filter(o => !onIt.has(o.value) || o.value === me.value)
+  return [...others, ...rest, { label: 'Nobody yet', value: NOBODY }]
+})
+function openHandOff() {
+  const others = (item.value?.work_item_assignees ?? []).map(a => a.user_id).filter(u => u !== me.value)
+  handOffTo.value = others.length === 1 ? others[0]! : NOBODY
+  handOffNote.value = ''
+  handingOff.value = true
+}
+const handingOffBusy = ref(false)
+async function handOff(to: string | null, note?: string) {
+  const target = to === NOBODY ? null : to
+  handingOffBusy.value = true
+  try {
+    const { error } = await supabase.rpc('hand_off', { p_item: id, p_to: target ?? undefined, p_note: note?.trim() || undefined })
+    if (error) throw error
+    handingOff.value = false
+    await Promise.all([refresh(), refreshComments()])
+    const name = target ? peopleOptions.value.find(o => o.value === target)?.label?.split(' ')[0] : null
+    toast.add({ title: !target ? 'Nobody is up on this now' : target === me.value ? 'Yours now' : `Handed to ${name}` })
+  } catch (e) {
+    toast.add({ title: 'Not handed off', description: (e as Error).message, color: 'error' })
+  } finally {
+    handingOffBusy.value = false
+  }
+}
+const takeIt = () => handOff(me.value)
+// Subtask avatars: the child's owner first and solid, the rest behind it.
+const childPeople = (c: { assignee_id: string | null, work_item_assignees: { user_id: string, profiles: { full_name: string } | null }[] }) =>
+  [...c.work_item_assignees].sort((a, b) => Number(b.user_id === c.assignee_id) - Number(a.user_id === c.assignee_id))
 
 // ---------- waits on (dependencies) ----------
 // Other tasks this one waits on; the schedule draws them as arrows.
@@ -591,7 +637,26 @@ function startResize(e: PointerEvent) {
 
         <dl class="grid gap-y-2 text-sm">
           <div class="flex items-center gap-3">
-            <dt class="w-24 shrink-0 text-muted">Assignees</dt>
+            <dt class="w-24 shrink-0 text-muted">Up now</dt>
+            <dd class="flex min-w-0 flex-1 items-center gap-2">
+              <USelectMenu :model-value="item.assignee_id ?? undefined" :items="peopleOptions" value-key="value" variant="ghost" size="sm" class="max-w-full" placeholder="Nobody yet" :disabled="handingOffBusy" @update:model-value="handOff($event as string)">
+                <template #default>
+                  <span v-if="item.up" class="flex min-w-0 items-center gap-2">
+                    <span class="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-medium text-inverted">{{ initials(item.up.full_name) }}</span>
+                    <span class="min-w-0">
+                      <span class="block truncate">{{ item.up.full_name }}</span>
+                      <span v-if="sinceText" class="block text-xs text-muted">{{ sinceText }}</span>
+                    </span>
+                  </span>
+                  <span v-else class="text-muted">Nobody yet</span>
+                </template>
+              </USelectMenu>
+              <UButton v-if="imUp" size="xs" variant="outline" color="neutral" icon="i-lucide-arrow-right-left" :disabled="handingOffBusy" @click="openHandOff">Hand off</UButton>
+              <UButton v-else size="xs" variant="outline" icon="i-lucide-hand" :loading="handingOffBusy" @click="takeIt">Take it</UButton>
+            </dd>
+          </div>
+          <div class="flex items-start gap-3">
+            <dt class="w-24 shrink-0 pt-1 text-muted">Also on it</dt>
             <dd class="min-w-0 flex-1">
               <USelectMenu v-model="draft.assignees" :items="peopleOptions" value-key="value" multiple variant="ghost" size="sm" class="max-w-full" placeholder="Nobody yet" @update:model-value="saveAssignees(draft.assignees)">
                 <template #default>
@@ -605,6 +670,7 @@ function startResize(e: PointerEvent) {
                   <span v-else class="text-muted">Nobody yet</span>
                 </template>
               </USelectMenu>
+              <p class="mt-0.5 text-xs text-muted">Everyone here gets comments, status changes, and mentions. Only the person up now sees it on their own list.</p>
             </dd>
           </div>
           <div class="flex items-start gap-3">
@@ -670,8 +736,8 @@ function startResize(e: PointerEvent) {
               <li v-for="c in children" :key="c.id" class="flex items-center gap-3 px-4 py-2">
                 <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(c.status)" :title="ws.label(c.status)" />
                 <NuxtLink :to="`/tasks/${c.id}`" class="min-w-0 flex-1 truncate font-medium hover:underline" :class="ws.isDone(c.status) ? 'text-muted line-through' : ''">{{ c.title }}</NuxtLink>
-                <span v-if="c.work_item_assignees.length" class="flex -space-x-1.5" :title="c.work_item_assignees.map(a => a.profiles?.full_name).join(', ')">
-                  <span v-for="a in c.work_item_assignees.slice(0, 3)" :key="a.user_id" class="grid size-5 place-items-center rounded-full bg-elevated text-[9px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                <span v-if="c.work_item_assignees.length" class="flex -space-x-1.5" :title="childPeople(c).map(a => a.profiles?.full_name + (a.user_id === c.assignee_id ? ' (up now)' : '')).join(', ')">
+                  <span v-for="a in childPeople(c).slice(0, 3)" :key="a.user_id" class="grid size-5 place-items-center rounded-full text-[9px] font-medium ring-2 ring-default" :class="a.user_id === c.assignee_id ? 'bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                 </span>
                 <span v-if="c.estimate_hours" class="text-xs tabular-nums text-muted">{{ formatHours(c.estimate_hours) }}</span>
                 <span class="w-14 text-right text-xs tabular-nums" :class="c.due_on && c.due_on < todayString() && !ws.isDone(c.status) ? 'text-error' : 'text-muted'">{{ c.due_on ? shortDate(c.due_on) : '' }}</span>
@@ -818,6 +884,25 @@ function startResize(e: PointerEvent) {
         <TimeEntryForm v-if="item" :date="todayString()" :projects="timeFormProjects" :project-tasks="itemProjectTasks ?? []" :work-item="{ id: item.id, title: item.title, project_id: item.project_id }" @saved="timeSaved" @cancel="loggingTime = false" />
       </template>
     </AppDrawer>
+
+    <UModal v-model:open="handingOff" title="Hand off">
+      <template #body>
+        <div class="space-y-4">
+          <UFormField label="To">
+            <USelectMenu v-model="handOffTo" :items="handOffOptions" value-key="value" class="w-full" />
+          </UFormField>
+          <UFormField label="Note (optional)">
+            <UInput v-model="handOffNote" class="w-full" placeholder="Anything they need to know?" @keydown.enter.prevent="handOff(handOffTo, handOffNote)" />
+          </UFormField>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton variant="ghost" color="neutral" @click="handingOff = false;">Cancel</UButton>
+          <UButton :loading="handingOffBusy" @click="handOff(handOffTo, handOffNote)">Hand off</UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal v-model:open="deleting" title="Delete this task?">
       <template #body>
