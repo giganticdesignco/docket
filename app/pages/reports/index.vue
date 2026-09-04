@@ -8,7 +8,6 @@ import type { CsvColumn } from '~/composables/useCsv'
 // lives in the URL so a view can be bookmarked or sent around.
 definePageMeta({ middleware: 'can', permission: 'see_all_time' })
 useHead({ title: 'Reports' })
-useAssistantScreen(() => ({ period: `${state.from} to ${state.to}`, client: state.client || undefined, project: state.project || undefined }))
 
 const supabase = useSupabaseClient()
 const route = useRoute()
@@ -42,6 +41,7 @@ const state = reactive({
   billable: (q('billable') || v('billable') || 'all') as Billable,
 })
 if (!fromUrl) [state.from, state.to] = state.range === 'custom' && view.from ? [view.from, view.to] : bounds(state.range, todayString())
+useAssistantScreen(() => ({ period: `${state.from} to ${state.to}`, client: state.client || undefined, project: state.project || undefined }))
 watch(state, () => {
   const query: Record<string, string> = {}
   for (const [k, v] of Object.entries(state)) if (v && v !== 'all') query[k] = v
@@ -239,35 +239,9 @@ const rows = computed(() => report.value?.rows ?? [])
 
 // ---------- rollup strip ----------
 
-// h:mm like the rest of the app, with a thousands separator since a
-// year of everyone's time runs to five figures.
-const hoursText = (h: number) => formatHours(h).replace(/^(\d+)/, m => Number(m).toLocaleString())
-type Stat = { label: string, value: string, then: number, now: number }
-const stats = computed<Stat[]>(() => {
-  const now = report.value?.now
-  const then = report.value?.then
-  if (!now || !then) return []
-  const s = (label: string, k: keyof typeof now, fmt: (n: number) => string) => ({ label, value: fmt(Number(now[k])), now: Number(now[k]), then: Number(then[k]) })
-  return state.kind === 'time'
-    ? [
-        s('Total hours', 'hours', hoursText),
-        s('Billable hours', 'billable_hours', hoursText),
-        s('Billable amount', 'billable_amount', money0),
-        s('Uninvoiced amount', 'uninvoiced_amount', money0),
-        s('Expenses', 'expenses', money0),
-      ]
-    : [
-        s('Expenses', 'expenses', money0),
-        s('Billable expenses', 'billable_amount', money0),
-        s('Uninvoiced expenses', 'uninvoiced_amount', money0),
-      ]
-})
-function delta(st: Stat): { text: string, color: string } {
-  if (!st.then) return { text: 'nothing last year', color: 'text-muted' }
-  const pct = Math.round((st.now - st.then) / st.then * 100)
-  const toDate = state.to > todayString() ? ' to date' : ''
-  return { text: `${pct >= 0 ? '+' : ''}${pct}% vs last year${toDate}`, color: pct >= 0 ? 'text-success' : 'text-error' }
-}
+// Same stats and "vs last year" reading as ReportRollup (utils/rollup.ts).
+const stats = computed(() => rollupStats(report.value?.now, report.value?.then, { kind: state.kind }))
+const delta = (st: RollupStat) => rollupDelta(st, state.to)
 
 // ---------- chart ----------
 
@@ -342,10 +316,7 @@ function exportCsv() {
   <div class="space-y-4">
     <div class="flex flex-wrap items-center gap-3">
       <h1 class="text-2xl font-semibold">Reports</h1>
-      <div class="flex gap-1 rounded-md bg-elevated p-0.5">
-        <UButton size="xs" :variant="state.kind === 'time' ? 'solid' : 'ghost'" :color="state.kind === 'time' ? 'primary' : 'neutral'" @click="setKind('time')">Time</UButton>
-        <UButton size="xs" :variant="state.kind === 'expenses' ? 'solid' : 'ghost'" :color="state.kind === 'expenses' ? 'primary' : 'neutral'" @click="setKind('expenses')">Expenses</UButton>
-      </div>
+      <SegmentedControl :model-value="state.kind" :items="[{ value: 'time', label: 'Time' }, { value: 'expenses', label: 'Expenses' }]" @update:model-value="setKind" />
       <div class="ml-auto flex items-center gap-2">
         <UButton to="/reports/detailed" variant="outline" color="neutral" icon="i-lucide-table-2">Detailed report</UButton>
         <UButton variant="outline" icon="i-lucide-download" :disabled="!rows.length" @click="exportCsv">Export CSV</UButton>
@@ -383,7 +354,7 @@ function exportCsv() {
       <UCard v-for="st in stats" :key="st.label" :ui="{ body: 'p-3 sm:p-4' }">
         <div class="text-xs text-muted">{{ st.label }}</div>
         <div class="text-xl font-semibold tabular-nums">{{ st.value }}</div>
-        <div class="text-xs" :class="delta(st).color">{{ delta(st).text }}</div>
+        <div v-if="delta(st)" class="text-xs" :class="delta(st)!.color">{{ delta(st)!.text }}</div>
       </UCard>
     </div>
 

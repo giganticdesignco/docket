@@ -33,7 +33,7 @@ const has = (role: string, key: string) => role === 'admin' || !!rows.value?.som
 
 type Tab = 'screens' | 'actions' | 'fields' | 'people'
 const tab = ref<Tab>('screens')
-const tabs: { key: Tab, label: string }[] = [{ key: 'screens', label: 'Screens' }, { key: 'actions', label: 'Actions' }, { key: 'fields', label: 'Money fields' }, { key: 'people', label: 'People' }]
+const tabs: { value: Tab, label: string }[] = [{ value: 'screens', label: 'Screens' }, { value: 'actions', label: 'Actions' }, { value: 'fields', label: 'Money fields' }, { value: 'people', label: 'People' }]
 const matrix = computed(() => (tab.value === 'screens' ? SCREENS : tab.value === 'fields' ? FIELDS : PERMISSIONS) as readonly { key: PermissionKey, label: string, hint: string }[])
 
 // ---------- view as ----------
@@ -161,11 +161,8 @@ async function deleteRole() {
         <h1 class="text-2xl font-semibold">Roles and permissions</h1>
         <p class="text-sm text-muted">Which screens each role opens, what it may do, and which money fields it sees. Changes apply the next time that person loads a page. Admins can do everything. View as shows you the app the way a role or a person sees it.</p>
       </div>
-      <UButton icon="i-lucide-plus" class="ml-auto" @click="openAdd">New role</UButton>
-    </div>
-
-    <div class="flex gap-0.5 self-start rounded-md bg-elevated p-0.5">
-      <UButton v-for="t in tabs" :key="t.key" size="xs" :variant="tab === t.key ? 'solid' : 'ghost'" :color="tab === t.key ? 'primary' : 'neutral'" @click="tab = t.key;">{{ t.label }}</UButton>
+      <SegmentedControl v-model="tab" :items="tabs" class="ml-auto" />
+      <UButton icon="i-lucide-plus" @click="openAdd">New role</UButton>
     </div>
 
     <UCard v-if="tab !== 'people'" :ui="{ body: 'p-0 sm:p-0' }">

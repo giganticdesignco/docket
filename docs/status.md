@@ -2660,3 +2660,33 @@ everywhere.
 Verified in Chrome: Invoices, Clients, a client page, a Retainer page,
 Quotes, Tasks, Notifications, Account, Feedback and Projects all render
 with the shared formats; typecheck clean.
+
+## 2026-09-04: code review, screens tranche 4 (shared components and lists)
+
+Seven findings, plus Luke's note that the Permissions tab strip felt
+like a new pattern. `SegmentedControl` is now the one pill strip; the
+ten hand-built copies (Tasks, Quotes, Planner, Schedule twice, Reports,
+Permissions, Feedback, the Home agenda, the Feedback picker) use it,
+so they space the same. The Permissions strip moved onto the heading
+row beside New role, the way Feedback's sits. `NOTIFICATION_KINDS` in
+`shared/types/app.ts` carries each kind's label, icon and email
+default; the bell and the Notifications page read it, and share
+`useNotifications()` for the list, unread count, open and mark-all-read.
+`SETTINGS_PAGES` is the one list behind the settings sidebar and the
+/admin cards, gated the same way (Feedback now has a card; People only
+shows with manage_people). `utils/rollup.ts` holds the stats and
+"vs last year" reading for both the Reports page and ReportRollup; the
+Reports labels now match the component ("Hours", "Uninvoiced"). The task
+page uses AppCrumbs. `invoiceRow` and `harvestInvoiceRow` in
+`utils/invoice.ts` give the Invoices page and the client page one row
+shape; the client page shows one Invoices table with a Harvest badge
+instead of two, and its billing tiles sum one list.
+
+Also fixed: the Reports page had thrown "Cannot access 'state' before
+initialization" since the tranche 1 commit, because useAssistantScreen
+runs its getter at once and the call sat above `state`. Moved below.
+
+Verified in Chrome: every strip switches, Feedback counts show, Reports
+renders both kinds, /admin cards match the sidebar, the bell lists
+twelve with icons, the task page crumbs read Tasks > client > project >
+parent, the client page's one table and tiles, the picker strip.

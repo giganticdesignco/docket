@@ -630,6 +630,11 @@ function created(id: string) {
   creating.value = false
   navigateTo(`/tasks/${id}`)
 }
+// List, cards, or the focus list, as one choice for the view strip.
+const viewChoice = computed<'list' | 'cards' | 'focus'>({
+  get: () => (focusMode.value ? 'focus' : viewMode.value),
+  set: (v) => { if (v === 'focus') { focusMode.value = true } else { focusMode.value = false; viewMode.value = v } },
+})
 </script>
 
 <template>
@@ -643,11 +648,7 @@ function created(id: string) {
     </div>
     <!-- Controls, left to right: how you look at it, what is in it, then the odd jobs. -->
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
-        <UButton size="xs" icon="i-lucide-list" :variant="!focusMode && viewMode === 'list' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="focusMode = false; viewMode = 'list';" />
-        <UButton size="xs" icon="i-lucide-layout-grid" :variant="!focusMode && viewMode === 'cards' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="focusMode = false; viewMode = 'cards';" />
-        <UButton size="xs" icon="i-lucide-star" :variant="focusMode ? 'solid' : 'ghost'" :color="focusMode ? 'primary' : 'neutral'" aria-label="Focus" title="Just your focus list" @click="focusMode = true;" />
-      </div>
+      <SegmentedControl v-model="viewChoice" :items="[{ value: 'list', icon: 'i-lucide-list', title: 'List' }, { value: 'cards', icon: 'i-lucide-layout-grid', title: 'Cards by client' }, { value: 'focus', icon: 'i-lucide-star', title: 'Just your focus list' }]" />
       <USelect v-if="!focusMode && viewMode === 'list'" v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
       <div v-if="!focusMode" class="flex items-center gap-4">
         <USwitch v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />

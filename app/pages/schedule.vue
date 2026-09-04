@@ -289,13 +289,8 @@ const tipStyle = computed(() => tip.value ? { left: `${Math.min(tip.value.x + 12
         <p class="text-sm text-muted">Drag a bar to move it, an edge to stretch it. Hold Shift while dragging to bring what waits on it along.</p>
       </div>
       <div class="ml-auto flex flex-wrap items-center gap-2">
-        <div class="flex gap-1 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" :variant="view === 'project' ? 'solid' : 'ghost'" :color="view === 'project' ? 'primary' : 'neutral'" @click="view = 'project';">By project</UButton>
-          <UButton size="xs" :variant="view === 'person' ? 'solid' : 'ghost'" :color="view === 'person' ? 'primary' : 'neutral'" @click="view = 'person';">By person</UButton>
-        </div>
-        <div class="flex gap-1 rounded-md bg-elevated p-0.5">
-          <UButton v-for="z in (['day', 'week', 'month'] as Zoom[])" :key="z" size="xs" :variant="zoom === z ? 'solid' : 'ghost'" :color="zoom === z ? 'primary' : 'neutral'" @click="zoom = z;">{{ z[0]!.toUpperCase() + z.slice(1) }}</UButton>
-        </div>
+        <SegmentedControl v-model="view" :items="[{ value: 'project', label: 'By project' }, { value: 'person', label: 'By person' }]" />
+        <SegmentedControl v-model="zoom" :items="[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }]" />
         <USwitch v-model="everyone" label="Everyone" size="sm" />
         <UButton icon="i-lucide-chevron-left" variant="ghost" color="neutral" size="sm" aria-label="Earlier" @click="step(-1)" />
         <UButton variant="ghost" color="neutral" size="sm" @click="from = weekDays(todayString())[0]!;">Today</UButton>

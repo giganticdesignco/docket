@@ -127,6 +127,11 @@ async function send() {
     sending.value = false
   }
 }
+const KIND_ITEMS: { value: 'bug' | 'change' | 'idea', label: string, icon: string, title: string, color: 'error' | 'warning' | 'primary' }[] = [
+  { value: 'bug', label: 'Bug', icon: 'i-lucide-bug', title: 'It does something it should not', color: 'error' },
+  { value: 'change', label: 'Change', icon: 'i-lucide-pencil-ruler', title: 'It works, make it different', color: 'warning' },
+  { value: 'idea', label: 'Idea', icon: 'i-lucide-lightbulb', title: 'Something new', color: 'primary' },
+]
 </script>
 
 <template>
@@ -151,11 +156,7 @@ async function send() {
         <div v-if="hover && !chosen" class="pointer-events-none fixed rounded border-2 border-primary bg-primary/10" :style="{ left: `${hover.x}px`, top: `${hover.y}px`, width: `${hover.w}px`, height: `${hover.h}px` }" />
         <div v-if="chosen" class="pointer-events-none fixed rounded border-2 border-primary bg-primary/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" :style="{ left: `${chosen.x}px`, top: `${chosen.y}px`, width: `${chosen.w}px`, height: `${chosen.h}px` }" />
         <div v-if="chosen" class="fixed z-10 w-90 rounded-lg border border-default bg-default p-3 shadow-xl" :style="formStyle" @pointerdown.stop @pointerup.stop @pointermove.stop>
-          <div class="mb-2 flex gap-1 rounded-md bg-elevated p-0.5">
-            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'bug' ? 'solid' : 'ghost'" :color="form.kind === 'bug' ? 'error' : 'neutral'" icon="i-lucide-bug" title="It does something it should not" @click="form.kind = 'bug';">Bug</UButton>
-            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'change' ? 'solid' : 'ghost'" :color="form.kind === 'change' ? 'warning' : 'neutral'" icon="i-lucide-pencil-ruler" title="It works, make it different" @click="form.kind = 'change';">Change</UButton>
-            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'idea' ? 'solid' : 'ghost'" :color="form.kind === 'idea' ? 'primary' : 'neutral'" icon="i-lucide-lightbulb" title="Something new" @click="form.kind = 'idea';">Idea</UButton>
-          </div>
+          <SegmentedControl v-model="form.kind" :items="KIND_ITEMS" fill class="mb-2" />
           <UTextarea v-model="form.body" :rows="3" autofocus class="w-full" :placeholder="form.kind === 'bug' ? 'What went wrong, and what you expected' : form.kind === 'change' ? 'What should be different here' : 'What would help here'" @keydown.meta.enter.prevent="send" @keydown.ctrl.enter.prevent="send" />
           <div class="mt-2 flex items-center gap-2">
             <span v-if="target" class="min-w-0 flex-1 truncate text-xs text-muted" :title="target.innerText?.trim()">{{ target.tagName.toLowerCase() }}<template v-if="target.innerText?.trim()">: {{ target.innerText.trim().slice(0, 40) }}</template></span>

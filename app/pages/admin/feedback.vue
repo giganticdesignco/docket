@@ -21,7 +21,7 @@ type Row = NonNullable<typeof rows.value>[number]
 const shown = computed(() => (rows.value ?? []).filter(r => r.status === tab.value))
 const count = (s: Tab) => (rows.value ?? []).filter(r => r.status === s).length
 const openCount = computed(() => count('open'))
-const tabs: { key: Tab, label: string }[] = [{ key: 'open', label: 'Open' }, { key: 'approved', label: 'Approved' }, { key: 'hold', label: 'On hold' }, { key: 'done', label: 'Done' }]
+const tabs = computed(() => ([{ value: 'open', label: 'Open' }, { value: 'approved', label: 'Approved' }, { value: 'hold', label: 'On hold' }, { value: 'done', label: 'Done' }] as { value: Tab, label: string }[]).map(t => ({ ...t, count: count(t.value) })))
 
 const busy = ref<string | null>(null)
 async function setStatus(r: Row, status: Tab) {
@@ -50,9 +50,7 @@ async function remove(r: Tables<'feedback'>) {
         <h1 class="text-2xl font-semibold">Feedback <span class="text-base font-normal text-muted">{{ openCount }} open</span></h1>
         <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the Feedback pill, the rail icon, or Cmd+Shift+F. Each one says which screen and what was picked. Approve the ones to do; Claude works from the Approved list through the connector.</p>
       </div>
-      <div class="ml-auto flex gap-0.5 rounded-md bg-elevated p-0.5">
-        <UButton v-for="t in tabs" :key="t.key" size="xs" :variant="tab === t.key ? 'solid' : 'ghost'" :color="tab === t.key ? 'primary' : 'neutral'" @click="tab = t.key;">{{ t.label }} <span class="opacity-70">{{ count(t.key) }}</span></UButton>
-      </div>
+      <SegmentedControl v-model="tab" :items="tabs" class="ml-auto" />
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">

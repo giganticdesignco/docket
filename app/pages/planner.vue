@@ -412,10 +412,7 @@ const assignMenu = (t: Task) => assignMenus.value.get(t.id) ?? []
       <UButton icon="i-lucide-chevron-right" variant="ghost" color="neutral" size="sm" aria-label="Later" @click="move(1)" />
       <span class="text-sm font-medium">{{ rangeLabel }}</span>
       <div class="ml-auto flex flex-wrap items-center gap-2">
-        <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" :variant="zoom === 'week' ? 'solid' : 'ghost'" :color="zoom === 'week' ? 'primary' : 'neutral'" @click="zoom = 'week';">Week</UButton>
-          <UButton size="xs" :variant="zoom === 'weeks' ? 'solid' : 'ghost'" :color="zoom === 'weeks' ? 'primary' : 'neutral'" @click="zoom = 'weeks';">3 weeks</UButton>
-        </div>
+        <SegmentedControl v-model="zoom" :items="[{ value: 'week', label: 'Week' }, { value: 'weeks', label: '3 weeks' }]" />
         <USelectMenu v-model="peopleFilter" :items="peopleItems" value-key="value" multiple size="sm" placeholder="Everyone" class="w-48" />
         <UButton size="sm" :variant="onlyMe ? 'solid' : 'outline'" :color="onlyMe ? 'primary' : 'neutral'" @click="peopleFilter = onlyMe ? [] : [me];">Me</UButton>
         <UButton v-if="myTeam.length > 1" size="sm" :variant="onlyTeam ? 'solid' : 'outline'" :color="onlyTeam ? 'primary' : 'neutral'" icon="i-lucide-users" :title="leads.length ? 'The people in the departments you lead' : 'The people in your department'" @click="peopleFilter = onlyTeam ? [] : [...myTeam];">{{ teamLabel }}</UButton>

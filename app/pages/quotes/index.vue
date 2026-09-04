@@ -98,10 +98,7 @@ async function create() {
         <p class="text-sm text-muted">Accepted quotes become projects with the quoted hours as their budget.</p>
       </div>
       <div class="ml-auto flex items-center gap-3">
-        <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" icon="i-lucide-list" :variant="layout === 'list' ? 'solid' : 'ghost'" :color="layout === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="layout = 'list';" />
-          <UButton size="xs" icon="i-lucide-layout-grid" :variant="layout === 'board' ? 'solid' : 'ghost'" :color="layout === 'board' ? 'primary' : 'neutral'" aria-label="Board" title="Board, a column per stage" @click="layout = 'board';" />
-        </div>
+        <SegmentedControl v-model="layout" :items="[{ value: 'list', icon: 'i-lucide-list', title: 'List' }, { value: 'board', icon: 'i-lucide-layout-grid', title: 'Board, a column per stage' }]" />
         <UButton icon="i-lucide-plus" @click="creating = true;">New quote</UButton>
       </div>
     </div>

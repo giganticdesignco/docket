@@ -36,3 +36,11 @@ export function quoteBadge(q: QuoteLike, today = todayString(), voice: 'staff' |
     : q.status === 'accepted' ? { label: 'accepted', color: 'success' }
     : { label: q.status, color: 'neutral' }
 }
+
+// One row shape for a Docket invoice and a Harvest one, so a list can
+// hold both. Harvest's due date can be missing; the issue date stands in.
+export type InvoiceRow = { id: string, source: 'docket' | 'harvest', number: string, status: string, subject: string | null, issue_date: string, due_date: string, total: number, due_amount: number, client_id: string | null, client_name: string }
+export const invoiceRow = (i: { id: string, number: string, status: string, subject: string | null, issue_date: string, due_date: string, total: number, due_amount: number, client_id?: string | null, clients?: { name: string } | null }): InvoiceRow =>
+  ({ id: i.id, source: 'docket', number: i.number, status: i.status, subject: i.subject, issue_date: i.issue_date, due_date: i.due_date, total: i.total, due_amount: i.due_amount, client_id: i.client_id ?? null, client_name: i.clients?.name ?? '' })
+export const harvestInvoiceRow = (i: { id: string, number: string, state: string, subject: string | null, issue_date: string, due_date: string | null, amount: number, due_amount: number, client_id?: string | null, client_name?: string | null }): InvoiceRow =>
+  ({ id: i.id, source: 'harvest', number: i.number, status: invoiceStatus({ state: i.state }), subject: i.subject, issue_date: i.issue_date, due_date: i.due_date ?? i.issue_date, total: i.amount, due_amount: i.due_amount, client_id: i.client_id ?? null, client_name: i.client_name ?? '' })

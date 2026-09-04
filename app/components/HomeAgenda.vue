@@ -49,10 +49,7 @@ const busyHours = (d: { busy: { hours: number }[] }) => d.busy.reduce((s, b) => 
       <div class="flex items-center gap-3">
         <h2 class="font-semibold">Agenda</h2>
         <span class="text-xs text-muted">{{ range === 'day' ? longDate(today) : `${shortDate(from)} to ${shortDate(to)}` }}</span>
-        <div class="ml-auto flex gap-0.5 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" :variant="range === 'day' ? 'solid' : 'ghost'" :color="range === 'day' ? 'primary' : 'neutral'" @click="emit('update:range', 'day')">Day</UButton>
-          <UButton size="xs" :variant="range === 'week' ? 'solid' : 'ghost'" :color="range === 'week' ? 'primary' : 'neutral'" @click="emit('update:range', 'week')">Week</UButton>
-        </div>
+        <SegmentedControl :model-value="range" :items="[{ value: 'day', label: 'Day' }, { value: 'week', label: 'Week' }]" class="ml-auto" @update:model-value="emit('update:range', $event)" />
       </div>
     </template>
     <div v-if="status === 'pending' && !data" class="px-4 py-6 text-sm text-muted">Loading</div>

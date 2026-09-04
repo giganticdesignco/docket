@@ -79,7 +79,9 @@ const { data: projects, refresh: refreshProjects } = __ad2
 const { data: retainers, refresh: refreshRetainers } = __ad3
 const { data: quotes } = __ad4
 const { data: docketInvoices } = __ad5
-const { data: invoices } = __ad6
+const { data: harvestInvoices } = __ad6
+// Both sources as one list, newest first, the shape the Invoices page uses.
+const invoices = computed<InvoiceRow[]>(() => [...(docketInvoices.value ?? []).map(invoiceRow), ...(harvestInvoices.value ?? []).map(harvestInvoiceRow)].sort((a, b) => b.issue_date.localeCompare(a.issue_date)))
 const { data: people } = __ad7
 
 // Open tasks across this client's projects, and who has worked on the
@@ -193,22 +195,16 @@ const usedPct = (used: number, total: number | null) => (total && total > 0 ? Ma
 // it counts as invoiced but never as outstanding.
 const year = todayString().slice(0, 4)
 const billing = computed(() => {
-  const docket = (docketInvoices.value ?? []).filter(i => i.status !== 'draft' && i.status !== 'void')
-  const harvest = (invoices.value ?? []).filter(i => i.state !== 'draft')
-  const thisYear = <T extends { issue_date: string }>(rows: T[]) => rows.filter(r => r.issue_date >= `${year}-01-01`)
-  const sums = (d: typeof docket, h: typeof harvest) => ({
-    invoiced: d.reduce((t, i) => t + i.total, 0) + h.reduce((t, i) => t + i.amount, 0),
-    paid: d.reduce((t, i) => t + i.total - i.due_amount, 0) + h.reduce((t, i) => t + i.amount - i.due_amount, 0),
-    outstanding: d.filter(i => i.status === 'sent').reduce((t, i) => t + i.due_amount, 0)
-      + h.filter(i => i.state === 'open').reduce((t, i) => t + i.due_amount, 0),
+  const issued = invoices.value.filter(i => i.status !== 'draft' && i.status !== 'void')
+  const sums = (rows: InvoiceRow[]) => ({
+    invoiced: rows.reduce((t, i) => t + i.total, 0),
+    paid: rows.reduce((t, i) => t + i.total - i.due_amount, 0),
+    outstanding: rows.filter(i => i.status === 'sent').reduce((t, i) => t + i.due_amount, 0),
   })
-  return { year: sums(thisYear(docket), thisYear(harvest)), all: sums(docket, harvest) }
+  return { year: sums(issued.filter(i => i.issue_date >= `${year}-01-01`)), all: sums(issued) }
 })
 // The oldest invoice on file, so "all time" says what it covers.
-const firstInvoiceYear = computed(() => {
-  const dates = [...(docketInvoices.value ?? []).map(i => i.issue_date), ...(invoices.value ?? []).map(i => i.issue_date)].filter(Boolean).sort()
-  return dates[0]?.slice(0, 4) ?? null
-})
+const firstInvoiceYear = computed(() => invoices.value.map(i => i.issue_date).sort()[0]?.slice(0, 4) ?? null)
 
 // The billing numbers as tiles, so they sit in the same dashboard grid
 // as the hours across the top of the page.
@@ -293,9 +289,6 @@ async function confirmDeleteRetainer() {
 }
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
-type InvoiceLike = { state?: string, status?: string, due_date: string | null }
-const invoiceColor = (inv: InvoiceLike) => invoiceBadge(inv).color
-const invoiceLabel = (inv: InvoiceLike) => invoiceBadge(inv).label
 </script>
 
 <template>
@@ -519,7 +512,7 @@ const invoiceLabel = (inv: InvoiceLike) => invoiceBadge(inv).label
         <UButton :to="`/billing/new?client=${id}`" class="ml-auto" size="sm" variant="outline" icon="i-lucide-plus">New batch</UButton>
       </div>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <table v-if="docketInvoices?.length" class="w-full text-sm">
+        <table v-if="invoices.length" class="w-full text-sm">
           <thead class="text-left text-muted">
             <tr class="border-b border-default">
               <th class="px-4 py-2 font-medium">Number</th>
@@ -532,47 +525,21 @@ const invoiceLabel = (inv: InvoiceLike) => invoiceBadge(inv).label
             </tr>
           </thead>
           <tbody>
-            <tr v-for="inv in docketInvoices" :key="inv.id" class="border-b border-default last:border-0">
-              <td class="px-4 py-2 font-medium tabular-nums"><NuxtLink :to="`/invoices/${inv.id}`" class="hover:underline">{{ inv.number }}</NuxtLink></td>
+            <tr v-for="inv in invoices" :key="inv.id" class="border-b border-default last:border-0">
+              <td class="px-4 py-2 font-medium tabular-nums">
+                <NuxtLink v-if="inv.source === 'docket'" :to="`/invoices/${inv.id}`" class="hover:underline">{{ inv.number }}</NuxtLink>
+                <span v-else title="Imported from Harvest; open it there for the lines">{{ inv.number }} <UBadge color="neutral" variant="subtle" size="sm" class="ml-1 align-middle">Harvest</UBadge></span>
+              </td>
               <td class="max-w-sm truncate px-2 py-2 text-muted" :title="inv.subject ?? ''">{{ inv.subject }}</td>
               <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.issue_date) }}</td>
               <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.due_date) }}</td>
               <td class="px-2 py-2 text-right tabular-nums">{{ money(inv.total) }}</td>
               <td class="px-2 py-2 text-right tabular-nums">{{ inv.status === 'sent' ? money(inv.due_amount) : '' }}</td>
-              <td class="px-4 py-2"><UBadge :color="invoiceColor(inv)" variant="subtle" size="sm">{{ invoiceLabel(inv) }}</UBadge></td>
+              <td class="px-4 py-2"><UBadge :color="invoiceBadge(inv).color" variant="subtle" size="sm">{{ invoiceBadge(inv).label }}</UBadge></td>
             </tr>
           </tbody>
         </table>
-        <p v-else class="px-4 py-6 text-center text-sm text-muted">No Docket invoices yet. Make a batch, then create the invoice from it.</p>
-      </UCard>
-
-      <h2 class="text-lg font-semibold">Harvest invoices</h2>
-      <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <table v-if="invoices?.length" class="w-full text-sm">
-          <thead class="text-left text-muted">
-            <tr class="border-b border-default">
-              <th class="px-4 py-2 font-medium">Number</th>
-              <th class="px-2 py-2 font-medium">Subject</th>
-              <th class="px-2 py-2 font-medium">Issued</th>
-              <th class="px-2 py-2 font-medium">Due</th>
-              <th class="px-2 py-2 text-right font-medium">Amount</th>
-              <th class="px-2 py-2 text-right font-medium">Outstanding</th>
-              <th class="px-4 py-2 font-medium">State</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="inv in invoices" :key="inv.id" class="border-b border-default last:border-0">
-              <td class="px-4 py-2 font-medium tabular-nums">{{ inv.number }}</td>
-              <td class="max-w-sm truncate px-2 py-2 text-muted" :title="inv.subject ?? ''">{{ inv.subject }}</td>
-              <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.issue_date) }}</td>
-              <td class="px-2 py-2 tabular-nums">{{ inv.due_date ? shortDate(inv.due_date) : '' }}</td>
-              <td class="px-2 py-2 text-right tabular-nums">{{ money(inv.amount) }}</td>
-              <td class="px-2 py-2 text-right tabular-nums">{{ inv.due_amount ? money(inv.due_amount) : '' }}</td>
-              <td class="px-4 py-2"><UBadge :color="invoiceColor(inv)" variant="subtle" size="sm">{{ invoiceLabel(inv) }}</UBadge></td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-else class="px-4 py-6 text-center text-sm text-muted">No Harvest invoices on file for this client. Import them from Admin, Harvest import.</p>
+        <p v-else class="px-4 py-6 text-center text-sm text-muted">No invoices yet. Make a batch, then create the invoice from it. The Harvest years show here too once imported.</p>
       </UCard>
     </template>
 

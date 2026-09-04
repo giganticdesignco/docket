@@ -79,3 +79,43 @@ export const FIELDS = [
 export type FieldKey = typeof FIELDS[number]['key']
 
 export type PermissionKey = typeof PERMISSIONS[number]['key'] | ScreenKey | FieldKey
+
+// The settings pages: the sidebar under the gear and the cards on
+// /admin come from this one list, gated the same way. `needs` is the
+// permission the page's own middleware asks for; 'admin' means admins.
+export const SETTINGS_PAGES = [
+  { section: 'Team', label: 'People', to: '/admin/users', icon: 'i-lucide-users', text: 'Who can sign in, their role, default rate, and hours per week.', needs: 'manage_people' },
+  { section: 'Team', label: 'Permissions', to: '/admin/permissions', icon: 'i-lucide-shield-check', text: 'What each role can see and do. Admins only.', needs: 'admin' },
+  { section: 'Work', label: 'Projects', to: '/admin/project-settings', icon: 'i-lucide-folder-kanban', text: 'Where project folders live on the office server.', needs: 'manage_settings' },
+  { section: 'Work', label: 'Departments', to: '/admin/departments', icon: 'i-lucide-network', text: 'The labels a project can carry (Web, Creative, Photo/Video) so the list filters to one.', needs: 'manage_settings' },
+  { section: 'Work', label: 'Project templates', to: '/admin/project-templates', icon: 'i-lucide-layout-template', text: 'A starting set of tasks for a new project, picked on the New project form.', needs: 'manage_settings' },
+  { section: 'Work', label: 'Task statuses', to: '/admin/task-statuses', icon: 'i-lucide-circle-dot', text: 'The status list tasks move through, and which ones mean done, paused, or with the client.', needs: 'manage_settings' },
+  { section: 'Work', label: 'Task types', to: '/admin/tasks', icon: 'i-lucide-tags', text: 'The billing task types (Design, Development, and so on) and whether they bill by default.', needs: 'manage_reference' },
+  { section: 'Money', label: 'Invoices and quotes', to: '/admin/invoice-settings', icon: 'i-lucide-file-text', text: 'Company block, payment instructions, numbering, terms, and overdue reminders.', needs: 'manage_settings' },
+  { section: 'Money', label: 'Page templates', to: '/admin/page-templates', icon: 'i-lucide-panels-top-left', text: 'The kinds of page a website quote is built from, with the hours each usually takes.', needs: 'manage_settings' },
+  { section: 'Money', label: 'Estimator', to: '/admin/estimator', icon: 'i-lucide-calculator', text: 'Materials, roll sizes, costs, and the markup rules behind signage estimates.', needs: 'manage_settings' },
+  { section: 'Money', label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-receipt', text: 'Categories for expenses and receipts.', needs: 'manage_settings' },
+  { section: 'Data', label: 'Imports', to: '/admin/imports', icon: 'i-lucide-download', text: 'Bring history in from Harvest and ClickUp.', needs: 'manage_settings', also: ['/admin/harvest', '/admin/clickup'] },
+  { section: 'Docket', label: 'Feedback', to: '/admin/feedback', icon: 'i-lucide-message-square-warning', text: 'Bugs, changes and ideas sent from inside Docket, and which are approved.', needs: 'manage_settings' },
+] as const satisfies readonly { section: string, label: string, to: string, icon: string, text: string, needs: 'admin' | PermissionKey, also?: readonly string[] }[]
+
+// Every notification kind: its label on the Notifications page, its
+// icon in the bell, and whether it emails by default.
+export const NOTIFICATION_KINDS = [
+  { kind: 'assigned', label: 'Assigned to a task', icon: 'i-lucide-user-plus', emailDefault: 'instant' },
+  { kind: 'turn', label: 'A task handed to you', icon: 'i-lucide-hand', emailDefault: 'instant' },
+  { kind: 'mentioned', label: 'Mentioned in a comment', icon: 'i-lucide-at-sign', emailDefault: 'instant' },
+  { kind: 'comment', label: 'Comment on a task you are on, made, or follow', icon: 'i-lucide-message-square', emailDefault: 'off' },
+  { kind: 'status', label: 'Status change on a task you are on or follow', icon: 'i-lucide-circle-dot', emailDefault: 'off' },
+  { kind: 'due', label: 'Task due tomorrow, today, or overdue', icon: 'i-lucide-calendar-clock', emailDefault: 'off' },
+  { kind: 'unowned', label: 'Nobody is up on a task you are on', icon: 'i-lucide-circle-dashed', emailDefault: 'off' },
+  { kind: 'client_comment', label: 'Client commented', icon: 'i-lucide-message-square-text', emailDefault: 'instant' },
+  { kind: 'client_decision', label: 'Client approved or requested changes', icon: 'i-lucide-badge-check', emailDefault: 'instant' },
+  { kind: 'quote_decision', label: 'Quote accepted or declined', icon: 'i-lucide-file-signature', emailDefault: 'instant' },
+  { kind: 'invoice_paid', label: 'Invoice paid', icon: 'i-lucide-banknote', emailDefault: 'instant' },
+  { kind: 'timer', label: 'Timer left running', icon: 'i-lucide-timer', emailDefault: 'instant' },
+  { kind: 'missing_time', label: 'No time logged yesterday', icon: 'i-lucide-clock-alert', emailDefault: 'instant' },
+  { kind: 'time_rejected', label: 'Timesheet entries sent back', icon: 'i-lucide-undo-2', emailDefault: 'instant' },
+  { kind: 'time_submitted', label: 'Someone you review submitted a week', icon: 'i-lucide-badge-check', emailDefault: 'instant' },
+] as const
+export const notificationKind = (kind: string) => NOTIFICATION_KINDS.find(k => k.kind === kind)

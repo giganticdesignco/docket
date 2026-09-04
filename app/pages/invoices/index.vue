@@ -60,10 +60,10 @@ async function loadHistory() {
 
 // One shape for both sources. Harvest: open is sent, paid is paid, closed
 // is written off (invoiced, never outstanding), draft is draft.
-type Row = { id: string, source: 'docket' | 'harvest', number: string, status: string, subject: string | null, issue_date: string, due_date: string, total: number, due_amount: number, client_id: string | null, client_name: string }
+type Row = InvoiceRow
 const invoices = computed<Row[]>(() => [
-  ...(docketInvoices.value ?? []).map(i => ({ id: i.id, source: 'docket' as const, number: i.number, status: i.status, subject: i.subject, issue_date: i.issue_date, due_date: i.due_date, total: i.total, due_amount: i.due_amount, client_id: i.client_id, client_name: i.clients?.name ?? '' })),
-  ...(harvest.value ?? []).map(i => ({ id: i.id, source: 'harvest' as const, number: i.number, status: i.state === 'open' ? 'sent' : i.state === 'closed' ? 'written_off' : i.state, subject: i.subject, issue_date: i.issue_date, due_date: i.due_date ?? i.issue_date, total: i.amount, due_amount: i.due_amount, client_id: i.client_id, client_name: i.client_name })),
+  ...(docketInvoices.value ?? []).map(invoiceRow),
+  ...(harvest.value ?? []).map(harvestInvoiceRow),
 ])
 type Filter = 'open' | 'overdue' | 'draft' | 'paid' | 'void' | 'all'
 const view = await useViewState('invoices', { filter: 'all' as Filter })

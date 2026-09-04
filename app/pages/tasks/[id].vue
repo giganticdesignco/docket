@@ -613,21 +613,20 @@ function startResize(e: PointerEvent) {
   document.body.style.cursor = 'col-resize'
   document.body.style.userSelect = 'none'
 }
+// The way back: Tasks, the client, the project, and the parent for a subtask.
+const crumbs = computed(() => [
+  { label: 'Tasks', to: '/tasks' },
+  { label: item.value?.projects?.clients?.name ?? '', to: `/clients/${item.value?.projects?.clients?.id}` },
+  { label: item.value?.projects?.name === 'General' ? 'General tasks' : item.value?.projects?.name ?? '', to: `/projects/${item.value?.projects?.id}` },
+  ...(parent.value ? [{ label: parent.value.title, to: `/tasks/${parent.value.id}` }] : []),
+])
 </script>
 
 <template>
   <div v-if="item" class="-my-6 flex flex-col lg:h-screen">
     <!-- Top bar: breadcrumb, actions -->
     <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-default py-3 text-sm">
-      <NuxtLink to="/tasks" class="text-muted hover:text-highlighted">Tasks</NuxtLink>
-      <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
-      <NuxtLink :to="`/clients/${item.projects?.clients?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.clients?.name }}</NuxtLink>
-      <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
-      <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name === 'General' ? 'General tasks' : item.projects?.name }}</NuxtLink>
-      <template v-if="parent">
-        <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
-        <NuxtLink :to="`/tasks/${parent.id}`" class="text-muted hover:text-highlighted" title="This is a subtask">{{ parent.title }}</NuxtLink>
-      </template>
+      <AppCrumbs :items="crumbs" />
       <div class="ml-auto flex items-center gap-2">
         <UButton
           size="sm" icon="i-lucide-star" :variant="onFocusList ? 'solid' : 'outline'" :color="onFocusList ? 'primary' : 'neutral'"

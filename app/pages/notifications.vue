@@ -7,41 +7,19 @@ useHead({ title: 'Notifications' })
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
-const router = useRouter()
 const toast = useToast()
 
-const KINDS = [
-  { kind: 'assigned', label: 'Assigned to a task' },
-  { kind: 'turn', label: 'A task handed to you' },
-  { kind: 'mentioned', label: 'Mentioned in a comment' },
-  { kind: 'comment', label: 'Comment on a task you are on, made, or follow' },
-  { kind: 'status', label: 'Status change on a task you are on or follow' },
-  { kind: 'due', label: 'Task due tomorrow, today, or overdue' },
-  { kind: 'unowned', label: 'Nobody is up on a task you are on' },
-  { kind: 'client_comment', label: 'Client commented' },
-  { kind: 'client_decision', label: 'Client approved or requested changes' },
-  { kind: 'quote_decision', label: 'Quote accepted or declined' },
-  { kind: 'invoice_paid', label: 'Invoice paid' },
-  { kind: 'timer', label: 'Timer left running' },
-  { kind: 'missing_time', label: 'No time logged yesterday' },
-  { kind: 'time_rejected', label: 'Timesheet entries sent back' },
-  { kind: 'time_submitted', label: 'Someone you review submitted a week' },
-]
-const EMAIL_DEFAULT = (kind: string) => (['comment', 'status', 'due', 'unowned'].includes(kind) ? 'off' : 'instant')
+const KINDS = NOTIFICATION_KINDS
+const EMAIL_DEFAULT = (kind: string) => notificationKind(kind)?.emailDefault ?? 'instant'
 const EMAIL_OPTIONS = [{ label: 'Never', value: 'off' }, { label: 'As it happens', value: 'instant' }, { label: 'Daily digest', value: 'daily' }]
 
-const __ad1 = useAsyncData('notifications-all', async () => {
-  const { data, error } = await supabase.from('notifications').select('id, kind, title, body, link, read_at, created_at').order('created_at', { ascending: false }).limit(200)
-  if (error) throw error
-  return data
-}, fresh)
+const __ad1 = useNotifications('notifications-all', 200)
 const __ad2 = useAsyncData('notification-prefs', async () => {
   const { data, error } = await supabase.from('notification_prefs').select('kind, in_app, email')
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2])
-const { data: items, refresh } = __ad1
+const [{ items, refresh, unread, openItem, markAllRead }] = await Promise.all([__ad1, __ad2])
 const { data: prefs, refresh: refreshPrefs } = __ad2
 
 const pref = (kind: string) => prefs.value?.find(p => p.kind === kind)
@@ -54,16 +32,6 @@ async function setPref(kind: string, patch: { in_app?: boolean, email?: string }
   else await refreshPrefs()
 }
 
-const unread = computed(() => (items.value ?? []).filter(n => !n.read_at).length)
-async function openItem(n: NonNullable<typeof items.value>[number]) {
-  if (!n.read_at) await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id)
-  refresh()
-  if (n.link) router.push(n.link)
-}
-async function markAllRead() {
-  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)
-  refresh()
-}
 async function clearRead() {
   await supabase.from('notifications').delete().not('read_at', 'is', null)
   refresh()

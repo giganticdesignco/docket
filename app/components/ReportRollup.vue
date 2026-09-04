@@ -51,30 +51,19 @@ const { data } = await useAsyncData(`rollup-${key.value}`, async () => {
   return { now, then }
 }, { ...fresh, watch: [key] })
 
-const hoursText = (h: number) => formatHours(h).replace(/^(\d+)/, m => Number(m).toLocaleString())
-type Stat = { label: string, value: string, now: number, then: number | null }
-const stats = computed<Stat[]>(() => {
+// Same stats and "vs last year" reading as the Reports page (utils/rollup.ts).
+const stats = computed<RollupStat[]>(() => {
   const now = data.value?.now
-  if (!now) return []
   const then = data.value?.then ?? null
-  const s = (label: string, k: keyof typeof now, fmt: (n: number) => string): Stat => ({ label, value: fmt(Number(now[k])), now: Number(now[k]), then: then ? Number(then[k]) : null })
-  const base = [s('Hours', 'hours', hoursText), s('Billable hours', 'billable_hours', hoursText)]
-  if (!seeMoney.value) return base
-  const out = [...base, s('Billable amount', 'billable_amount', money0), s('Uninvoiced', 'uninvoiced_amount', money0), s('Expenses', 'expenses', money0)]
-  if (props.rate) {
+  const out = rollupStats(now, then, { money: seeMoney.value })
+  if (now && props.rate && seeMoney.value) {
     // Fixed fee and non-billable work skew this, so it is an average, not a rate card.
-    const per = (r: typeof now | null) => (r && Number(r.billable_hours) > 0 ? Number(r.billable_amount) / Number(r.billable_hours) : 0)
+    const per = (r: RollupRow | null) => (r && Number(r.billable_hours) > 0 ? Number(r.billable_amount) / Number(r.billable_hours) : 0)
     out.push({ label: 'Effective rate', value: per(now) ? `${money0(per(now))} / hour` : '', now: per(now), then: then ? per(then) : null })
   }
   return out
 })
-function delta(st: Stat): { text: string, color: string } | null {
-  if (st.then == null) return null
-  if (!st.then) return { text: 'nothing last year', color: 'text-muted' }
-  const pct = Math.round((st.now - st.then) / st.then * 100)
-  const toDate = props.to > todayString() ? ' to date' : ''
-  return { text: `${pct >= 0 ? '+' : ''}${pct}% vs last year${toDate}`, color: pct >= 0 ? 'text-success' : 'text-error' }
-}
+const delta = (st: RollupStat) => rollupDelta(st, props.to)
 
 // One list the tile layout renders: this component's own stats, then
 // whatever the page handed in.

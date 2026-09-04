@@ -4,16 +4,9 @@
 // row shows up without a reload.
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
-const router = useRouter()
 const open = ref(false)
 
-const { data: items, refresh } = await useAsyncData('notifications-recent', async () => {
-  if (!user.value) return []
-  const { data, error } = await supabase.from('notifications').select('id, kind, title, body, link, read_at, created_at').order('created_at', { ascending: false }).limit(12)
-  if (error) throw error
-  return data
-}, { ...fresh, server: false })
-const unread = computed(() => (items.value ?? []).filter(n => !n.read_at).length)
+const { items, refresh, unread, openItem: openNotification, markAllRead } = await useNotifications('notifications-recent', 12, { server: false })
 
 let channel: ReturnType<typeof supabase.channel> | null = null
 onMounted(() => {
@@ -26,19 +19,13 @@ onBeforeUnmount(() => { channel?.unsubscribe() })
 
 async function openItem(n: NonNullable<typeof items.value>[number]) {
   open.value = false
-  if (!n.read_at) await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('id', n.id)
-  refresh()
-  if (n.link) router.push(n.link)
-}
-async function markAllRead() {
-  await supabase.from('notifications').update({ read_at: new Date().toISOString() }).is('read_at', null)
-  refresh()
+  await openNotification(n)
 }
 const ago = (iso: string) => {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`
 }
-const ICON: Record<string, string> = { assigned: 'i-lucide-user-plus', turn: 'i-lucide-hand', unowned: 'i-lucide-circle-dashed', mentioned: 'i-lucide-at-sign', comment: 'i-lucide-message-square', client_comment: 'i-lucide-message-square-text', status: 'i-lucide-circle-dot', due: 'i-lucide-calendar-clock', client_decision: 'i-lucide-badge-check', quote_decision: 'i-lucide-file-signature', invoice_paid: 'i-lucide-banknote', timer: 'i-lucide-timer', missing_time: 'i-lucide-clock-alert', time_rejected: 'i-lucide-undo-2', time_submitted: 'i-lucide-badge-check' }
+const ICON: Record<string, string> = Object.fromEntries(NOTIFICATION_KINDS.map(k => [k.kind, k.icon]))
 </script>
 
 <template>
