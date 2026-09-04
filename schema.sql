@@ -4097,7 +4097,7 @@ create table feedback (
   rect         jsonb,
   viewport     text,
   plain        text,
-  status       text not null default 'open' check (status in ('open', 'hold', 'done')),
+  status       text not null default 'open' check (status in ('open', 'approved', 'hold', 'done')),
   done_by      uuid references profiles(id) on delete set null,
   done_at      timestamptz,
   created_at   timestamptz not null default now()

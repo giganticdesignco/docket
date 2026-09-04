@@ -246,11 +246,11 @@ export function writeTools(c: Caller, origin: string): Tool[] {
     },
     {
       name: 'list_feedback',
-      description: 'Bugs, changes and ideas the team reported from inside Docket (kind bug: it does something wrong; change: it works, make it different; idea: something new), each with the page it came from, the element picked (a CSS path and its text) or the area drawn, and who sent it. Open ones by default; status "hold" (parked, not now), "done" or "all" for the rest.',
-      input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'hold', 'done', 'all'] }, limit: { type: 'number' } } },
+      description: 'Bugs, changes and ideas the team reported from inside Docket (kind bug: it does something wrong; change: it works, make it different; idea: something new), each with the page it came from, the element picked (a CSS path and its text) or the area drawn, and who sent it. Status "approved" by default: the ones Luke said to do, which is the work list. "open" is waiting for his triage, "hold" is parked, "done" is done, "all" is everything.',
+      input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'approved', 'hold', 'done', 'all'] }, limit: { type: 'number' } } },
       run: async (i) => {
         let q = sb.from('feedback').select('id, kind, body, plain, path, page_title, selector, element_text, rect, viewport, status, created_at, done_at, by:profiles!feedback_created_by_fkey(full_name)').order('created_at', { ascending: false }).limit(Math.min(num(i.limit) ?? 100, 500))
-        const status = str(i.status) ?? 'open'
+        const status = str(i.status) ?? 'approved'
         if (status !== 'all') q = q.eq('status', status)
         const { data, error } = await q
         if (error) throw new Error(error.message)
@@ -259,8 +259,8 @@ export function writeTools(c: Caller, origin: string): Tool[] {
     },
     {
       name: 'resolve_feedback',
-      description: 'Set a feedback item\'s status: done once it is fixed or built, hold to park it (not now), open to bring it back. done: true/false still works. Only people who manage settings can.',
-      input_schema: { type: 'object', properties: { id: { type: 'string' }, status: { type: 'string', enum: ['open', 'hold', 'done'] }, done: { type: 'boolean' } }, required: ['id'] },
+      description: 'Set a feedback item\'s status: done once it is fixed or built, approved when Luke says do it, hold to park it (not now), open to bring it back. done: true/false still works. Only people who manage settings can.',
+      input_schema: { type: 'object', properties: { id: { type: 'string' }, status: { type: 'string', enum: ['open', 'approved', 'hold', 'done'] }, done: { type: 'boolean' } }, required: ['id'] },
       run: async (i) => {
         const status = str(i.status) ?? (i.done === false ? 'open' : 'done')
         const { data, error } = await sb.from('feedback').update({ status }).eq('id', String(i.id)).select('id, status').maybeSingle()

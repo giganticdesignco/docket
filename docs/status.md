@@ -2523,3 +2523,12 @@ account of what a technical finding means for the studio, shown first
 with "The technical version" folded beneath; the 37 review findings
 each got one. Reports people file themselves have no plain line and
 read as before.
+
+## Feedback: Approved (2026-09-04)
+
+Luke asked for an Approved state so Claude only deals with what he
+has approved. `feedback.status` is now open, approved, hold or done
+(migration `feedback_status_approved`); the page has four tabs and
+Approve on open and held rows; `list_feedback` over MCP defaults to
+approved, which is the work list, and a session never starts on an
+open item unless told to in chat.

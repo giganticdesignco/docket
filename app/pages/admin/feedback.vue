@@ -8,8 +8,9 @@ useHead({ title: 'Feedback' })
 const supabase = useSupabaseClient()
 const toast = useToast()
 
-// Open by default; Held and Done are a tab each.
-type Tab = 'open' | 'hold' | 'done'
+// Open is what came in; Approved is what Luke said to do, which is what
+// Claude works from; On hold is not now; Done is done.
+type Tab = 'open' | 'approved' | 'hold' | 'done'
 const tab = ref<Tab>('open')
 const { data: rows, refresh } = await useAsyncData('feedback', async () => {
   const { data, error } = await supabase.from('feedback').select('*, by:profiles!feedback_created_by_fkey(full_name), closer:profiles!feedback_done_by_fkey(full_name)').order('created_at', { ascending: false }).limit(500)
@@ -20,7 +21,7 @@ type Row = NonNullable<typeof rows.value>[number]
 const shown = computed(() => (rows.value ?? []).filter(r => r.status === tab.value))
 const count = (s: Tab) => (rows.value ?? []).filter(r => r.status === s).length
 const openCount = computed(() => count('open'))
-const tabs: { key: Tab, label: string }[] = [{ key: 'open', label: 'Open' }, { key: 'hold', label: 'On hold' }, { key: 'done', label: 'Done' }]
+const tabs: { key: Tab, label: string }[] = [{ key: 'open', label: 'Open' }, { key: 'approved', label: 'Approved' }, { key: 'hold', label: 'On hold' }, { key: 'done', label: 'Done' }]
 
 const busy = ref<string | null>(null)
 async function setStatus(r: Row, status: Tab) {
@@ -48,7 +49,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Feedback <span class="text-base font-normal text-muted">{{ openCount }} open</span></h1>
-        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the Feedback pill, the rail icon, or Cmd+Shift+F. Each one says which screen and what was picked. Claude reads the open list through the connector.</p>
+        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the Feedback pill, the rail icon, or Cmd+Shift+F. Each one says which screen and what was picked. Approve the ones to do; Claude works from the Approved list through the connector.</p>
       </div>
       <div class="ml-auto flex gap-0.5 rounded-md bg-elevated p-0.5">
         <UButton v-for="t in tabs" :key="t.key" size="xs" :variant="tab === t.key ? 'solid' : 'ghost'" :color="tab === t.key ? 'primary' : 'neutral'" @click="tab = t.key;">{{ t.label }} <span class="opacity-70">{{ count(t.key) }}</span></UButton>
@@ -76,18 +77,21 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
               <span v-if="r.status === 'done' && r.done_at">done by {{ r.closer?.full_name }}, {{ stamp(r.done_at) }}</span>
             </div>
           </div>
-          <template v-if="r.status === 'open'">
-            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-pause" :loading="busy === r.id" title="Not now. It leaves the open list without counting as done." @click="setStatus(r, 'hold')">Hold</UButton>
+          <template v-if="r.status === 'open' || r.status === 'hold'">
+            <UButton v-if="r.status === 'hold'" size="xs" variant="ghost" color="neutral" :loading="busy === r.id" @click="setStatus(r, 'open')">Reopen</UButton>
+            <UButton v-else size="xs" variant="ghost" color="neutral" icon="i-lucide-pause" :loading="busy === r.id" title="Not now. It leaves the open list without counting as done." @click="setStatus(r, 'hold')">Hold</UButton>
+            <UButton size="xs" variant="outline" icon="i-lucide-thumbs-up" :loading="busy === r.id" title="Do it. Claude works from the Approved list." @click="setStatus(r, 'approved')">Approve</UButton>
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-check" :loading="busy === r.id" @click="setStatus(r, 'done')">Done</UButton>
+          </template>
+          <template v-else-if="r.status === 'approved'">
+            <UButton size="xs" variant="ghost" color="neutral" :loading="busy === r.id" @click="setStatus(r, 'open')">Reopen</UButton>
             <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-check" :loading="busy === r.id" @click="setStatus(r, 'done')">Done</UButton>
           </template>
-          <template v-else>
-            <UButton size="xs" variant="ghost" color="neutral" :loading="busy === r.id" @click="setStatus(r, 'open')">Reopen</UButton>
-            <UButton v-if="r.status === 'hold'" size="xs" variant="outline" color="neutral" icon="i-lucide-check" :loading="busy === r.id" @click="setStatus(r, 'done')">Done</UButton>
-          </template>
+          <UButton v-else size="xs" variant="ghost" color="neutral" :loading="busy === r.id" @click="setStatus(r, 'open')">Reopen</UButton>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-trash-2" aria-label="Delete" @click="remove(r)" />
         </li>
       </ul>
-      <p v-else class="px-4 py-10 text-center text-sm text-muted">{{ tab === 'open' ? 'Nothing open. Cmd+Shift+F on any screen sends the next one.' : tab === 'hold' ? 'Nothing on hold.' : 'Nothing done yet.' }}</p>
+      <p v-else class="px-4 py-10 text-center text-sm text-muted">{{ tab === 'open' ? 'Nothing open. Cmd+Shift+F on any screen sends the next one.' : tab === 'approved' ? 'Nothing approved. Approve open items and Claude works from this list.' : tab === 'hold' ? 'Nothing on hold.' : 'Nothing done yet.' }}</p>
     </UCard>
   </div>
 </template>
