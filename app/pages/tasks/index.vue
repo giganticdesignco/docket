@@ -279,7 +279,6 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
 const priorityIcon = (p: string) => (p === 'urgent' ? 'i-lucide-flame' : p === 'high' ? 'i-lucide-flag' : p === 'low' ? 'i-lucide-arrow-down' : 'i-lucide-minus')
 const priorityClass = (p: string) => (p === 'urgent' ? 'text-error' : p === 'high' ? 'text-warning' : 'text-dimmed')
 const dotClass = (color?: string) => ({ primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }[color ?? ''] ?? 'bg-accented')
-const textClass = (color?: string) => ({ primary: 'text-primary', info: 'text-info', success: 'text-success', warning: 'text-warning', error: 'text-error' }[color ?? ''] ?? 'text-muted')
 
 // ---------- in-place edits ----------
 
@@ -754,7 +753,7 @@ function created(id: string) {
               <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="peopleTitle(i) || 'Assign'" @click="openMenu(i, 'assignees', $event)">
                 <template v-if="i.work_item_assignees.length">
                   <span v-if="!i.assignee_id" class="grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" title="Nobody is up" />
-                  <span v-for="a in cluster(i).slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full text-[10px] font-medium ring-2 ring-default" :class="a.user_id === i.assignee_id ? 'bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                  <span v-for="a in cluster(i).slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full text-[10px] font-medium ring-2 ring-default" :class="a.user_id === i.assignee_id ? 'relative z-10 bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                   <span v-if="i.work_item_assignees.length > 4" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ i.work_item_assignees.length - 4 }}</span>
                 </template>
                 <span v-else class="grid size-6 place-items-center rounded-full border border-dashed border-accented text-dimmed"><UIcon name="i-lucide-plus" class="size-3" /></span>
@@ -769,7 +768,7 @@ function created(id: string) {
             </td>
             <td class="hidden w-16 px-2 py-1.5 text-right text-xs text-muted tabular-nums md:table-cell">{{ i.estimate_hours ? formatHours(i.estimate_hours) : '' }}</td>
             <td class="hidden w-36 px-3 py-1.5 lg:table-cell">
-              <button type="button" class="w-full truncate rounded px-2 py-0.5 text-left text-xs hover:bg-elevated" :class="textClass(ws.color(i.status))" @click="openMenu(i, 'status', $event)">{{ ws.label(i.status) }}</button>
+              <button type="button" class="max-w-full rounded hover:ring-2 hover:ring-accented" title="Change status" @click="openMenu(i, 'status', $event)"><UBadge :color="ws.color(i.status)" variant="subtle" size="sm" class="max-w-full truncate">{{ ws.label(i.status) }}</UBadge></button>
             </td>
           </tr>
         </tbody>

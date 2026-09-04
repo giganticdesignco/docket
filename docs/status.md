@@ -2375,3 +2375,11 @@ parent needed one. Found on the way:
 `UIcon` with `inline` renders zero width, so `size-*` does nothing;
 it needs `inline-block`. Fixed on the triage page's New project icon
 as well.
+
+## Task list: status badge, owner on top of the stack (2026-09-04)
+
+From Luke's feedback. The status cell on `/tasks` is the same subtle
+badge every other screen uses, still a click to change it. In the
+faces stack the person who is up now sits on top of the others (it was
+first but underneath, since later avatars overlap earlier ones); same
+on the task page's subtask rows.

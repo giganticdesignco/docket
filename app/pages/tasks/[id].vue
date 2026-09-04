@@ -780,7 +780,7 @@ function startResize(e: PointerEvent) {
                 <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(c.status)" :title="ws.label(c.status)" />
                 <NuxtLink :to="`/tasks/${c.id}`" class="min-w-0 flex-1 truncate font-medium hover:underline" :class="ws.isDone(c.status) ? 'text-muted line-through' : ''">{{ c.title }}</NuxtLink>
                 <span v-if="c.work_item_assignees.length" class="flex -space-x-1.5" :title="childPeople(c).map(a => a.profiles?.full_name + (a.user_id === c.assignee_id ? ' (up now)' : '')).join(', ')">
-                  <span v-for="a in childPeople(c).slice(0, 3)" :key="a.user_id" class="grid size-5 place-items-center rounded-full text-[9px] font-medium ring-2 ring-default" :class="a.user_id === c.assignee_id ? 'bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                  <span v-for="a in childPeople(c).slice(0, 3)" :key="a.user_id" class="grid size-5 place-items-center rounded-full text-[9px] font-medium ring-2 ring-default" :class="a.user_id === c.assignee_id ? 'relative z-10 bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                 </span>
                 <span v-if="c.estimate_hours" class="text-xs tabular-nums text-muted">{{ formatHours(c.estimate_hours) }}</span>
                 <span class="w-14 text-right text-xs tabular-nums" :class="c.due_on && c.due_on < todayString() && !ws.isDone(c.status) ? 'text-error' : 'text-muted'">{{ c.due_on ? shortDate(c.due_on) : '' }}</span>
