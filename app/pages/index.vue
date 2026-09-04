@@ -64,7 +64,7 @@ const __ad6 = useAsyncData('project-tasks-for-time', async () => {
   const { data, error } = await supabase.from('project_tasks').select('project_id, task_id, tasks(id, name, is_billable_default, is_active)')
   if (error) throw error
   return data
-}, { ...fresh, server: false })
+}, { ...fresh, server: false, immediate: false })
 // The focus list, by id, so it shows a task even when someone else is
 // the assignee. Home only reads it; the star lives on Tasks.
 const __ad7 = useAsyncData('home-focus', async () => {
@@ -81,9 +81,11 @@ const __ad7 = useAsyncData('home-focus', async () => {
 await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, timer.load()])
 const { data: brief } = __ad4
 const { data: formProjects } = __ad5
-const { data: formProjectTasks } = __ad6
-// Click the Timer card to start one from here.
+const { data: formProjectTasks, refresh: loadFormProjectTasks } = __ad6
+// Click the Timer card to start one from here. The task list is fetched
+// the first time the drawer opens, not with the dashboard.
 const startingTimer = ref(false)
+watch(startingTimer, (v) => { if (v && !formProjectTasks.value) loadFormProjectTasks() })
 async function timerSaved() {
   startingTimer.value = false
   await Promise.all([timer.load(), refreshPace()])

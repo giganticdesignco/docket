@@ -2612,3 +2612,26 @@ shows. The task list removes its window listeners on leaving. Screens
 carry the permission their page checks (`requires` in SCREENS), so
 the rail and the route guard agree with the page. The retainer page's
 Assistant context is a real field now.
+
+## 2026-09-04: code review, screens tranche 2 (speed and docs)
+
+Twelve approved findings from the screens review, all about how fast a
+page opens. The clock popover in the rail loads its task list when it
+opens, not on every page. The Time page starts its pace and ?item
+lookups with the first wave, and both Time and Home fetch the
+project-task list the first time an entry form opens. The project page
+runs one wave of eleven queries instead of two. The Schedule capacity
+strip looks each cell up in a map. The Planner builds each task's
+assign menu once. The detailed report loads its four filter lists
+together and shows 500 rows at a time (totals and the CSV still cover
+every row). The Invoices page opens with every open Harvest invoice
+plus the latest thousand and a button loads the older 6,452. Bulk
+hand-off runs its RPCs in parallel. Guide: "Reset view" is only on
+Tasks, and the Invoices page's Harvest history is described.
+
+Verified in Chrome: Time and Home forms fill the task select after a
+project is picked, the popover lists 23 tasks on open, the Invoices
+history button loads the rest in about a second, the person view of
+the Schedule shows capacity titles, the Planner menu lists 16 people,
+a project page renders every card. Not exercised: the report's
+show-more row (no run returned more than 500 rows) and a bulk hand-off.

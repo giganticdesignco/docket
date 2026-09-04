@@ -391,7 +391,8 @@ async function assignOnly(t: Task, uid: string) {
     busy.value = null
   }
 }
-const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSelect: () => { assignOnly(t, p.id) } }))]
+const assignMenus = computed(() => new Map(unassigned.value.map(t => [t.id, [allPeople.value.map(p => ({ label: p.name, onSelect: () => { assignOnly(t, p.id) } }))]])))
+const assignMenu = (t: Task) => assignMenus.value.get(t.id) ?? []
 </script>
 
 <template>

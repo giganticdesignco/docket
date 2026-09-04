@@ -53,18 +53,14 @@ const __ad3 = useAsyncData('project-tasks-for-time', async () => {
     .select('project_id, task_id, tasks(id, name, is_billable_default, is_active)')
   if (error) throw error
   return data
-}, fresh)
+}, { ...fresh, immediate: false })
 
 const __ad4 = timer.load()
-await Promise.all([__ad1, __ad2, __ad3, __ad4])
-const { data: entries, refresh } = __ad1
-const { data: projects } = __ad2
-const { data: projectTasks } = __ad3
 
 // The signed-in person's pace: this week and this month against their
 // weekly target, and how much of it is billable.
 const { profile } = useCurrentUser()
-const { data: pace } = await useAsyncData('time-pace', async () => {
+const __ad5 = useAsyncData('time-pace', async () => {
   const name = profile.value?.full_name
   if (!name) return null
   const today = todayString()
@@ -94,13 +90,21 @@ const creating = ref(false)
 const editing = ref<Row | null>(null)
 
 // /time?item=<task id> from a task page: open the new-entry form on it.
-const { data: workItem } = await useAsyncData('time-work-item', async () => {
+const __ad6 = useAsyncData('time-work-item', async () => {
   const itemId = typeof route.query.item === 'string' ? route.query.item : null
   if (!itemId) return null
   const { data, error } = await supabase.from('work_items').select('id, title, project_id').eq('id', itemId).maybeSingle()
   if (error) throw error
   return data
 }, { ...fresh, watch: [() => route.query.item] })
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
+const { data: entries, refresh } = __ad1
+const { data: projects } = __ad2
+const { data: projectTasks, refresh: loadProjectTasks } = __ad3
+const { data: pace } = __ad5
+const { data: workItem } = __ad6
+// The task list is every project's tasks; fetch it the first time a form opens.
+watch([creating, editing], ([c, e]) => { if ((c || e) && !projectTasks.value) loadProjectTasks() })
 watch(workItem, (w) => { if (w) creating.value = true }, { immediate: true })
 watch(() => route.query.new, (v) => { if (v) creating.value = true }, { immediate: true })
 const deleting = ref<Row | null>(null)

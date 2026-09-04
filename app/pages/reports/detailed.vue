@@ -41,26 +41,31 @@ const config = reactive({
 
 // Filter options come from live tables. Archive-only names still show up
 // in results, they just cannot be picked as a filter.
-const { data: clients } = await useAsyncData('report-clients', async () => {
+const __ad1 = useAsyncData('report-clients', async () => {
   const { data, error } = await supabase.from('clients').select('name').order('name')
   if (error) throw error
   return data
 }, fresh)
-const { data: projects } = await useAsyncData('report-projects', async () => {
+const __ad2 = useAsyncData('report-projects', async () => {
   const { data, error } = await supabase.from('projects').select('name, clients(name)').order('name')
   if (error) throw error
   return data
 }, fresh)
-const { data: people } = await useAsyncData('report-people', async () => {
+const __ad3 = useAsyncData('report-people', async () => {
   const { data, error } = await supabase.from('profiles').select('full_name').order('full_name')
   if (error) throw error
   return data
 }, fresh)
-const { data: saved, refresh: refreshSaved } = await useAsyncData('saved-reports', async () => {
+const __ad4 = useAsyncData('saved-reports', async () => {
   const { data, error } = await supabase.from('saved_reports').select('*').order('name')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
+const { data: clients } = __ad1
+const { data: projects } = __ad2
+const { data: people } = __ad3
+const { data: saved, refresh: refreshSaved } = __ad4
 
 // Reka UI menu items refuse an empty-string value (and then render no
 // options at all), so the menus use ALL while config keeps '' for "any",
@@ -86,6 +91,11 @@ watch(() => config.client, () => { config.project = '' })
 // ---------- running ----------
 
 const rows = ref<Record<string, unknown>[]>([])
+// Totals and the CSV cover every row; the table shows a page at a time.
+const SHOW = 500
+const shown = ref(SHOW)
+watch(rows, () => { shown.value = SHOW })
+const visibleRows = computed(() => rows.value.slice(0, shown.value))
 const columns = ref<CsvColumn[]>([])
 const running = ref(false)
 const ran = ref(false)
@@ -344,13 +354,18 @@ async function remove(r: Saved) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(r, i) in rows" :key="(r.id as string) ?? i" class="border-b border-default last:border-0">
+            <tr v-for="(r, i) in visibleRows" :key="(r.id as string) ?? i" class="border-b border-default last:border-0">
               <td v-for="c in columns" :key="c.key" class="px-4 py-1.5" :class="c.kind === 'hours' || c.kind === 'money' ? 'text-right tabular-nums' : c.key === 'notes' ? 'max-w-xs truncate text-muted' : ''">
                 {{ show(c, r[c.key]) }}
               </td>
             </tr>
             <tr v-if="!rows.length">
               <td :colspan="columns.length" class="px-4 py-8 text-center text-muted">Nothing matches.</td>
+            </tr>
+            <tr v-else-if="rows.length > visibleRows.length">
+              <td :colspan="columns.length" class="px-4 py-2 text-center">
+                <UButton size="xs" variant="ghost" color="neutral" @click="shown += SHOW;">Show {{ Math.min(SHOW, rows.length - visibleRows.length) }} more of {{ (rows.length - visibleRows.length).toLocaleString() }}</UButton>
+              </td>
             </tr>
           </tbody>
           <tfoot v-if="rows.length">

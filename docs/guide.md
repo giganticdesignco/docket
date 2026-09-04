@@ -24,7 +24,7 @@ keyboard shortcuts alone.
 - **Every screen remembers how you left it**: list or cards, grouping,
   filters, the width of the activity panel on a task. That memory is
   per person and follows you between the browser and the Mac app.
-  "Reset view" on a screen puts the defaults back.
+  "Reset view" on the Tasks page puts its defaults back.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
 - **Found a bug, or want something?** Click the speech-bubble icon in
@@ -415,6 +415,10 @@ time entry freezes its rate when it is saved.
   false margin.
 
 Docket bills directly; QuickBooks and Harvest are not in the path.
+The Invoices page still lists the Harvest years, read only and marked
+Harvest, so the history is searchable in one place. It opens with every
+open Harvest invoice plus the latest thousand; a button at the foot of
+the list loads the rest.
 
 - **Unbilled** (under Invoices) lists each client's unbilled billable
   time and expenses. Pick a client and a period, choose entries, and

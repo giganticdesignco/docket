@@ -46,13 +46,6 @@ const __ad5 = useAsyncData('people-for-tasks', async () => {
   return data
 }, fresh)
 const __ad6 = useWorkStatuses()
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
-const { data: project, refresh } = __ad1
-const { data: projectTasks } = __ad2
-const { data: clients } = __ad3
-const { data: workItems, refresh: refreshItems } = __ad4
-const { data: people } = __ad5
-const ws = await __ad6
 const showDone = ref(false)
 const openItems = computed(() => (workItems.value ?? []).filter(i => !ws.isDone(i.status)))
 const visibleItems = computed(() => (showDone.value ? workItems.value ?? [] : openItems.value))
@@ -105,7 +98,13 @@ const __ad11 = useAsyncData(`project-${id}-invoices`, async () => {
   const seen = new Set<string>()
   return data.map(l => l.invoices).filter((inv): inv is NonNullable<typeof inv> => !!inv && !seen.has(inv.id) && (seen.add(inv.id), true))
 }, fresh)
-await Promise.all([__ad7, __ad8, __ad9, __ad10, __ad11])
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8, __ad9, __ad10, __ad11])
+const { data: project, refresh } = __ad1
+const { data: projectTasks } = __ad2
+const { data: clients } = __ad3
+const { data: workItems, refresh: refreshItems } = __ad4
+const { data: people } = __ad5
+const ws = await __ad6
 const { data: budget, refresh: refreshBudget } = __ad7
 const { data: recent } = __ad8
 const { data: itemHours } = __ad9

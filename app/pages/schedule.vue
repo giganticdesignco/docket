@@ -172,7 +172,8 @@ const arrows = computed(() => {
 })
 
 // ---------- capacity strip (person view) ----------
-const cap = (userId: string, week: string) => capacity.value?.find(c => c.user_id === userId && c.week_start === week)
+const capByKey = computed(() => new Map((capacity.value ?? []).map(c => [`${c.user_id}|${c.week_start}`, c])))
+const cap = (userId: string, week: string) => capByKey.value.get(`${userId}|${week}`)
 const capClass = (userId: string, week: string) => {
   const c = cap(userId, week)
   if (!c) return 'bg-elevated'

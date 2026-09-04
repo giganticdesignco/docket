@@ -193,10 +193,9 @@ async function handOff(rows: Item[], to: string | null) {
   if (!rows.length) return
   handingOff.value = true
   try {
-    for (const r of rows) {
-      const { error } = await supabase.rpc('hand_off', { p_item: r.id, p_to: to ?? undefined })
-      if (error) throw error
-    }
+    const results = await Promise.all(rows.map(r => supabase.rpc('hand_off', { p_item: r.id, p_to: to ?? undefined })))
+    const failed = results.find(r => r.error)
+    if (failed?.error) throw failed.error
     await refreshAll()
     const name = to && to !== me.value ? (people.value ?? []).find(p => p.id === to)?.full_name.split(' ')[0] : null
     toast.add({ title: !to ? 'Nobody is up on this now' : to === me.value ? 'Yours now' : `Handed to ${name}` })

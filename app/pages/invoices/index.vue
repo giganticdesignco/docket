@@ -25,22 +25,45 @@ const __ad2 = useAsyncData('clients-for-invoices', async () => {
   if (error) throw error
   return data
 }, fresh)
-// The Harvest years, 2015 on. Thousands of rows, so the list below shows
-// a page at a time.
-const __ad3 = useAsyncData('harvest-invoices-all', async () => {
-  const out: { id: string, number: string, subject: string | null, state: string, issue_date: string, due_date: string | null, amount: number, due_amount: number, client_id: string | null, client_name: string }[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('harvest_invoices').select('id, number, subject, state, issue_date, due_date, amount, due_amount, client_id, client_name').order('issue_date', { ascending: false }).range(from, from + 999)
-    if (error) throw error
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) break
-  }
-  return out
+// The Harvest years, 2015 on: thousands of rows. The page opens with every
+// open one plus the latest thousand; a button loads the rest.
+type HarvestRow = { id: string, number: string, subject: string | null, state: string, issue_date: string, due_date: string | null, amount: number, due_amount: number, client_id: string | null, client_name: string }
+const HARVEST_COLS = 'id, number, subject, state, issue_date, due_date, amount, due_amount, client_id, client_name'
+const __ad3 = useAsyncData('harvest-invoices-recent', async () => {
+  const [recent, open, count] = await Promise.all([
+    supabase.from('harvest_invoices').select(HARVEST_COLS).order('issue_date', { ascending: false }).range(0, 999),
+    supabase.from('harvest_invoices').select(HARVEST_COLS).eq('state', 'open'),
+    supabase.from('harvest_invoices').select('id', { count: 'exact', head: true }),
+  ])
+  for (const r of [recent, open, count]) if (r.error) throw r.error
+  const seen = new Set((recent.data ?? []).map(r => r.id))
+  return { rows: [...(recent.data ?? []), ...(open.data ?? []).filter(r => !seen.has(r.id))] as HarvestRow[], total: count.count ?? 0 }
 }, fresh)
 await Promise.all([__ad1, __ad2, __ad3])
 const { data: docketInvoices } = __ad1
 const { data: clients } = __ad2
-const { data: harvest } = __ad3
+const { data: harvestRecent } = __ad3
+const harvestAll = ref<HarvestRow[] | null>(null)
+const loadingHistory = ref(false)
+const harvest = computed(() => harvestAll.value ?? harvestRecent.value?.rows ?? [])
+const harvestHidden = computed(() => harvestAll.value ? 0 : Math.max(0, (harvestRecent.value?.total ?? 0) - harvest.value.length))
+async function loadHistory() {
+  loadingHistory.value = true
+  try {
+    const out: HarvestRow[] = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('harvest_invoices').select(HARVEST_COLS).order('issue_date', { ascending: false }).range(from, from + 999)
+      if (error) throw error
+      out.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    harvestAll.value = out
+  } catch (e) {
+    toast.add({ title: 'Could not load the Harvest history', description: (e as Error).message, color: 'error' })
+  } finally {
+    loadingHistory.value = false
+  }
+}
 
 // One shape for both sources. Harvest: open is sent, paid is paid, closed
 // is written off (invoiced, never outstanding), draft is draft.
@@ -176,9 +199,10 @@ async function createBlank() {
           <tr v-if="!rows.length">
             <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">Nothing here.</td>
           </tr>
-          <tr v-else-if="allRows.length > rows.length">
+          <tr v-else-if="allRows.length > rows.length || harvestHidden">
             <td :colspan="cols.visible.length + 1" class="px-4 py-2 text-center">
-              <UButton size="xs" variant="ghost" color="neutral" @click="shown += PAGE;">Show {{ Math.min(PAGE, allRows.length - rows.length) }} more of {{ (allRows.length - rows.length).toLocaleString() }}</UButton>
+              <UButton v-if="allRows.length > rows.length" size="xs" variant="ghost" color="neutral" @click="shown += PAGE;">Show {{ Math.min(PAGE, allRows.length - rows.length) }} more of {{ (allRows.length - rows.length).toLocaleString() }}</UButton>
+              <UButton v-if="harvestHidden" size="xs" variant="ghost" color="neutral" icon="i-lucide-history" :loading="loadingHistory" @click="loadHistory">Load the older Harvest history ({{ harvestHidden.toLocaleString() }} more)</UButton>
             </td>
           </tr>
         </tbody>

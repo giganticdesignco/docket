@@ -11,6 +11,7 @@ const ws = await useWorkStatuses()
 const open = ref(false)
 const toast = useToast()
 
+// Loaded when the popover opens, not on every page load.
 const { data: tasks, refresh } = await useAsyncData('clock-my-tasks', async () => {
   if (!user.value) return []
   const { data, error } = await supabase
@@ -28,7 +29,7 @@ const { data: tasks, refresh } = await useAsyncData('clock-my-tasks', async () =
   const logged = new Map<string, number>()
   for (const e of hours ?? []) if (e.work_item_id) logged.set(e.work_item_id, (logged.get(e.work_item_id) ?? 0) + e.hours)
   return open.map(w => ({ ...w, logged: logged.get(w.id) ?? 0 }))
-}, { ...fresh, server: false })
+}, { ...fresh, server: false, immediate: false })
 
 // The rail is always mounted, so this is where the running timer is
 // loaded for the whole app. The list is fetched again on each open.
