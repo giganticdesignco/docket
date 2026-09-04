@@ -135,6 +135,8 @@ now; null means nobody is, which is a shown state, not a hidden one.
 The schema is applied and mirrored; none of the UI reads it yet, so
 every screen still behaves as it did. Section 3 of that file is the
 ordered list of commits and its header block says which are done.
+Section 9, Following, added 2026-09-04, is a third layer under Also on
+it (bells only, no visibility, explicit Follow) that runs after item 5.
 
 Open on Luke's side: set department leads and put people in
 departments (approvals fall to approve_time holders until then), an

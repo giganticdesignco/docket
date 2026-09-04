@@ -31,6 +31,15 @@ are open tasks with nobody assigned at all. Nothing in the UI reads
 `assignee_id` yet, so every screen still behaves exactly as it did
 before the migration. That is deliberate and is verify step 1.
 
+**Added 2026-09-04: Following** (section 9). Luke asked for it the same
+day the UI work resumed. It is a third membership layer under "Also on
+it": a follower gets the task's comments and status changes and nothing
+else, never sees the task on their own lists, and can only follow a task
+they can already see. It runs as its own migration after section 3 item
+5, so the task page and task list are touched while they are fresh, then
+items 6 through 18 continue. Section 9 has its own header block saying
+which of its four commits are done.
+
 Two corrections to what the spec says, found while applying it:
 
 - `accept_quote` takes `(p_quote_id uuid, p_name text, p_email text)`,
@@ -600,3 +609,200 @@ Guide section title: `Up now and who else is on it`.
 - **Departments, department leads, and `projects.lead_id`.** All empty, and nothing here reads them.
 
 Effort: half a day for Stage 1, four days for Stage 2.
+
+---
+
+# STAGE 3 — Following
+
+## 9. Following
+
+### Where this stands (2026-09-04)
+
+Not started. Runs after section 3 item 5 and before item 6. Four
+commits, F1 to F4, listed under "The commits" below.
+
+### What it is
+
+Following is for the person who is not doing the work but wants to
+know how it is going: the PM watching a build, the account person
+watching a task after they handed it on, an admin watching a task on a
+project they are not staffed on. A follower gets comments, client
+comments, status changes and client decisions on the task, the same
+bells the people on it get, and nothing else. It never puts the task on
+their own lists, Home, the timer picker, Planner, Schedule, capacity,
+the brief or the assistant's "what am I working on". It never changes
+who is up.
+
+Three decisions, made with Luke:
+
+- **It is a third layer, under Also on it.** Up now is who is doing it
+  right now. Also on it is everyone the task belongs to. Following is
+  everyone else who wants the bells.
+- **You can only follow what you can already see.** Following grants no
+  read access; `task_visible()` is untouched. In practice that makes
+  Follow a tool for people with `see_all_tasks` (admins, managers, and
+  any custom role given it), because a staff member without it can only
+  see tasks they are on or created, and those already bell them.
+- **Explicit only.** The Follow button is the only way in. Commenting,
+  being mentioned, moving a status, or logging time never makes you a
+  follower. Unfollow is the only way out, apart from losing sight of the
+  task.
+
+Dropped: a follow button on the task list rows and in the shared row
+menu (the task page is enough for a first cut), following a project or
+a person, an MCP `follow_task` tool, and a `following` view on `/tasks`.
+
+### Schema
+
+One migration, `following`, mirrored into `schema.sql` after the Up now
+block.
+
+```sql
+-- ============================================================
+-- FOLLOWING
+-- A third layer under work_item_assignees. A follower gets the task's
+-- comment, status and client-decision bells and nothing else. It is not
+-- membership: task_visible() does not read it, so you can only follow a
+-- task you can already see, and a follower who can no longer see the
+-- task (taken off it, without see_all_tasks) stops getting bells
+-- without anyone having to tidy the row.
+-- ============================================================
+
+create table work_item_followers (
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  user_id      uuid not null references profiles(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  primary key (work_item_id, user_id)
+);
+create index work_item_followers_user on work_item_followers (user_id);
+
+alter table work_item_followers enable row level security;
+
+-- Everyone who can see the task can see who follows it.
+create policy visible_select on work_item_followers for select to authenticated
+  using (case when (select public.has_permission('see_all_tasks')) then true else public.task_visible(work_item_id) end);
+-- You follow and unfollow only as yourself, only on a task you can see.
+create policy own_write on work_item_followers for all to authenticated
+  using (user_id = (select auth.uid()) and not (select public.is_client()))
+  with check (user_id = (select auth.uid()) and not (select public.is_client())
+              and case when (select public.has_permission('see_all_tasks')) then true else public.task_visible(work_item_id) end);
+
+-- Followers join the fan-out for comment, client_comment, status and
+-- client_decision. Nothing else reads task_people, so the due bell, the
+-- unowned nudge, assigned, turn and mentions are all unchanged.
+-- A follower is included only while their role can still see the task
+-- from the outside; people on the task or who created it are already
+-- in the first two branches.
+create or replace function public.task_people(p_item uuid) returns setof uuid
+language sql stable set search_path = '' as $$
+  select a.user_id from public.work_item_assignees a where a.work_item_id = p_item
+  union
+  select w.created_by from public.work_items w where w.id = p_item and w.created_by is not null
+  union
+  select f.user_id from public.work_item_followers f
+  join public.profiles pr on pr.id = f.user_id and pr.is_active and pr.role <> 'client'
+  where f.work_item_id = p_item
+    and (pr.role = 'admin' or exists (select 1 from public.permissions p where p.role = pr.role and p.key = 'see_all_tasks'));
+$$;
+```
+
+No new notification kinds, no email default change, no change to
+`notify_on_comment` or `notify_on_item_change`: both already loop over
+`task_people`. `task_visible()`, `hand_off`, `work_item_owner_follows`,
+`work_item_assignee_removed`, `time_entry_claims_task`,
+`capacity_weekly`, `search`, the soft-delete triggers and the client
+portal are untouched. Deleting a task cascades the follower rows with
+it, and `restore_deleted()` needs no change because the rows were never
+touched by a soft delete. Rollback is dropping the table and putting
+`task_people` back to its two branches.
+
+### The commits
+
+Each one is verified, committed and pushed on its own. `package-lock.json`
+stays out.
+
+- **F1. `schema.sql`** and the `following` migration, applied to
+  Supabase, plus `shared/types/database.ts` regenerated in the same
+  commit so the task page can select the new embed. `npx nuxt typecheck`
+  clean. Nothing in the UI reads it yet.
+- **F2. `app/pages/tasks/[id].vue`.** The task select gains
+  `work_item_followers(user_id, profiles(full_name))`. A third row in
+  the property grid, after Also on it: `dt` `Following`, `dd` an avatar
+  cluster at `opacity-50` drawn the same way the Also on it cluster is,
+  names beside it using the same "Kylee and 2 others" rule, or the
+  muted `Nobody yet`; to the right one ghost `UButton`, `Follow` when
+  you are not in the list and `Unfollow` when you are. Follow inserts
+  `{ work_item_id, user_id: me }`; Unfollow deletes by both keys; both
+  refresh the item and toast. The whole row is hidden for clients,
+  which never reach this page anyway, and the button is hidden when the
+  task is done. Help text beneath the cluster, the same size as the
+  Also on it help.
+- **F3. `app/pages/notifications.vue`.** Two labels change so the page
+  says who a bell reaches: `comment` and `status`. `EMAIL_DEFAULT` is
+  unchanged.
+- **F4. `docs/guide.md`** gains a "Following" paragraph inside the
+  "Up now and who else is on it" section, and the Notifications
+  section's first sentence mentions following; **`docs/status.md`** gets
+  the entry.
+
+### UI copy
+
+Task page
+- Row label `Following`
+- Empty: `Nobody yet`
+- Button: `Follow` / `Unfollow`
+- Help under the row: `Followers get comments and status changes, nothing else. Following never puts a task on your list.`
+- Toasts: `Following` / `Unfollowed`
+
+Notifications page
+- `comment`: `Comment on a task you are on, made, or follow`
+- `status`: `Status change on a task you are on or follow`
+
+Guide paragraph, under "Up now and who else is on it":
+
+> **Following.** Follow a task from its page to get its comments and
+> status changes without being on it. It is for keeping an eye on work
+> that is not yours: a build you are managing, a task you handed on.
+> Following never puts a task on your list, on Home, in the timer, or
+> on Planner, and it never changes who is up. You can only follow a
+> task you can already see, and Unfollow is the only way to stop.
+
+### Verify, in Luke's Chrome, on `docket-dev` (restart after F2)
+
+1. **Nothing moved.** After F1 and before F2, Home, `/tasks`, the task
+   page and the Notifications page look exactly as they did.
+2. **Follow.** As Luke (admin, so `see_all_tasks`), open a task you are
+   not on and not the creator of. Follow. The row shows your avatar and
+   name and the button reads `Unfollow`. Confirm the task is still
+   absent from Home's buckets and "N open", from `/tasks` with Everyone
+   off, from the timer popover, from your Planner row and from the
+   brief's lists.
+3. **The bells.** As the person up on that task, in a second signed-in
+   window, add a comment and move the status. As Luke: one `comment`
+   bell and one `status` bell, no email (both default off). Set a due
+   date of today on that task and run
+   `select public.run_due_notifications();` at 9am Central or on a
+   branch with the hour guard relaxed: Luke gets **no** `due` bell.
+   `select public.nudge_unowned_tasks();` on an unowned followed task:
+   Luke gets no `unowned` bell.
+4. **Mentions still explicit.** As the other person, comment
+   `@Luke David` on a task Luke does not follow. Luke gets `mentioned`
+   and nothing else, and is not made a follower.
+5. **Unfollow.** Unfollow. Another comment from the other person: no
+   bell. The row reads `Nobody yet`.
+6. **Only what you can see.** As a staff member without
+   `see_all_tasks`, in the browser console:
+   `await supabase.from('work_item_followers').insert({ work_item_id: '<a task they are not on>', user_id: '<their id>' })`
+   returns an RLS error. Then the same insert with a task they are on
+   but `user_id` set to Luke's id: RLS error. Then a task they are on
+   with their own id: succeeds, delete it afterward. Nothing they
+   follow this way changes what they can see: `select` on
+   `work_items` for a task they only follow returns no row.
+7. **Losing sight.** A staff member without `see_all_tasks` follows a
+   task they are on, then is removed from it. A comment on that task
+   bells them no longer, and the follower row still exists, which is
+   fine.
+8. **Everything else byte for byte.** Everyone mode, the Gantt, the
+   project page, the client page, Cmd+K search, `/portal` and a
+   `/r/<token>` review page as a client contact: no follower names, no
+   Follow button.
