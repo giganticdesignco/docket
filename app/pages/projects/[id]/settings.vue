@@ -75,8 +75,8 @@ const fallbackRate = computed(() => project.value?.hourly_rate)
 
 <template>
   <div v-if="project" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Projects', to: '/projects' }, { label: project.name, to: `/projects/${id}` }]" class="mb-3" />
     <div class="flex items-center gap-3">
-      <UButton :to="`/projects/${id}`" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <div>
         <h1 class="text-2xl font-semibold">{{ project.name }} settings</h1>
         <p class="text-sm text-muted">{{ project.clients?.name }}</p>

@@ -311,8 +311,8 @@ const invoiceLabel = (inv: InvoiceLike) =>
 
 <template>
   <div v-if="client" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Clients', to: '/clients' }]" class="mb-3" />
     <div class="flex items-center gap-3">
-      <UButton to="/clients" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <h1 class="text-2xl font-semibold">{{ client.name }}</h1>
       <UBadge v-if="!client.is_active" color="neutral" variant="subtle">Inactive</UBadge>
       <div class="ml-auto flex gap-2">

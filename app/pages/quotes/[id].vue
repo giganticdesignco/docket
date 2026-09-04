@@ -345,8 +345,8 @@ async function deleteQuote() {
 
 <template>
   <div v-if="quote" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Quotes', to: '/quotes' }]" class="mb-3" />
     <div class="flex flex-wrap items-center gap-3">
-      <UButton to="/quotes" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <h1 class="text-2xl font-semibold">
         {{ quote.number }}
         <span class="font-normal text-muted">for <NuxtLink :to="`/clients/${quote.client_id}`" class="hover:underline">{{ quote.clients?.name }}</NuxtLink></span>

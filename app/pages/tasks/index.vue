@@ -668,7 +668,8 @@ function created(id: string) {
       </div>
       <div v-else class="space-y-4">
         <div class="flex items-center gap-3">
-          <UButton icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" @click="activeClient = null;">All clients</UButton>
+          <button type="button" class="text-sm text-muted hover:text-highlighted" @click="activeClient = null;">All clients</button>
+          <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
           <h2 class="text-lg font-semibold">{{ activeClient }}</h2>
           <span class="text-sm text-muted">{{ clientTasks.length }} {{ clientTasks.length === 1 ? 'task' : 'tasks' }}</span>
         </div>

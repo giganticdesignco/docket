@@ -129,8 +129,8 @@ async function voidBatch() {
 
 <template>
   <div v-if="batch" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Billing', to: '/billing' }]" class="mb-3" />
     <div class="flex items-center gap-3">
-      <UButton to="/billing" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <h1 class="text-2xl font-semibold">
         <NuxtLink :to="`/clients/${batch.client_id}`" class="hover:underline">{{ batch.clients?.name }}</NuxtLink>
         <span v-if="batch.projects" class="font-normal text-muted"> / {{ batch.projects.name }}</span>

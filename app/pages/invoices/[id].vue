@@ -272,8 +272,8 @@ async function voidInvoice() {
 
 <template>
   <div v-if="invoice" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Invoices', to: '/invoices' }]" class="mb-3" />
     <div class="flex flex-wrap items-center gap-3">
-      <UButton to="/invoices" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <h1 class="text-2xl font-semibold">
         Invoice {{ invoice.number }}
         <span class="font-normal text-muted">for <NuxtLink :to="`/clients/${invoice.client_id}`" class="hover:underline">{{ invoice.clients?.name }}</NuxtLink></span>

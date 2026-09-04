@@ -181,8 +181,8 @@ async function copyFolder() {
 
 <template>
   <div v-if="project" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Projects', to: '/projects' }]" class="mb-3" />
     <div class="flex items-center gap-3">
-      <UButton to="/projects" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <div>
         <h1 class="text-2xl font-semibold">{{ project.name }}</h1>
         <NuxtLink :to="`/clients/${project.client_id}`" class="text-sm text-muted hover:underline">{{ project.clients?.name }}</NuxtLink>

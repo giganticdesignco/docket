@@ -75,8 +75,8 @@ const seeMoney = computed(() => useCurrentUser().can('see_money'))
 
 <template>
   <div v-if="seed" class="space-y-6">
+    <AppCrumbs :items="[{ label: 'Clients', to: '/clients' }, { label: client?.name ?? '', to: `/clients/${seed.client_id}` }]" class="mb-3" />
     <div class="flex flex-wrap items-center gap-3">
-      <UButton :to="`/clients/${seed.client_id}`" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <div>
         <h1 class="text-2xl font-semibold">{{ seed.name }}</h1>
         <div class="text-sm text-muted">

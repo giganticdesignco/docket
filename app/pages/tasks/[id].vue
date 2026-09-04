@@ -622,7 +622,8 @@ function startResize(e: PointerEvent) {
   <div v-if="item" class="-my-6 flex flex-col lg:h-screen">
     <!-- Top bar: breadcrumb, actions -->
     <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-default py-3 text-sm">
-      <UButton to="/tasks" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
+      <NuxtLink to="/tasks" class="text-muted hover:text-highlighted">Tasks</NuxtLink>
+      <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
       <NuxtLink :to="`/clients/${item.projects?.clients?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.clients?.name }}</NuxtLink>
       <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
       <NuxtLink :to="`/projects/${item.projects?.id}`" class="text-muted hover:text-highlighted">{{ item.projects?.name === 'General' ? 'General tasks' : item.projects?.name }}</NuxtLink>

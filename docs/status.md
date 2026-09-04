@@ -2350,3 +2350,17 @@ order you look at it (list, cards, focus), what is in it (grouping,
 Everyone, Completed, search), then the odd jobs (Reset view, unsorted);
 New task alone on the right. Unsorted tasks: the back arrow leads the
 title on the left, and the client filter and search sit under it.
+
+## Breadcrumbs instead of back arrows (2026-09-04)
+
+Luke's rule: the way back is a breadcrumb line above the heading, not
+an arrow in front of it, because the arrow made the heading jump
+sideways between pages that had one and pages that did not. A small
+`AppCrumbs` component (ancestors only, chevrons between) now sits
+above the heading on the client, project, project settings, retainer,
+quote, invoice, billing batch, new batch, detailed report and unsorted
+tasks pages; the task page's top bar starts with Tasks; the Tasks
+cards view's "All clients" is the same style inline. No page has a
+back arrow any more. Tailwind v4 note: `space-y` puts its gap on the
+previous sibling's margin-bottom, so the crumbs take `mb-3` rather
+than a negative margin.

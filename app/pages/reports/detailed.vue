@@ -284,8 +284,8 @@ async function remove(r: Saved) {
 
 <template>
   <div class="space-y-4">
+    <AppCrumbs :items="[{ label: 'Reports', to: '/reports' }]" class="mb-3" />
     <div class="flex items-center gap-4">
-      <UButton to="/reports" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" />
       <h1 class="text-2xl font-semibold">Detailed report</h1>
       <div class="ml-auto flex items-center gap-2">
         <UDropdownMenu v-if="saved?.length" :items="savedItems">
