@@ -40,7 +40,7 @@ const TOURS: Tour[] = [
     match: p => p === '/tasks',
     steps: [
       { el: '[data-tour="group-by"]', title: 'Grouped', text: 'By status, project, or due date. Drag a row onto another group to move it.' },
-      { el: '[data-tour="everyone"]', title: 'Yours or everyone', text: 'Off shows what is assigned to you. On shows the whole team.' },
+      { el: '[data-tour="everyone"]', title: 'Yours or everyone', text: 'Off shows what is on you. On shows the whole team.' },
       { el: '[data-tour="row"]', title: 'Change things in place', text: 'Click the dot for status, the faces to assign, the date to set a due date. J and K walk the rows, X selects several, then S or A acts on all of them.' },
       { el: '[data-tour="new-task"]', title: 'New task', text: 'Or press N from anywhere. Open a task to add files, comments, and to share it with a client for review.' },
     ],
