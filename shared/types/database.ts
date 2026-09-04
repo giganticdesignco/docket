@@ -399,13 +399,6 @@ export type Database = {
             foreignKeyName: "billing_batches_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "billing_batches_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -756,13 +749,6 @@ export type Database = {
             foreignKeyName: "expenses_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "expenses_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -1056,13 +1042,6 @@ export type Database = {
             foreignKeyName: "harvest_archive_monthly_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "harvest_archive_monthly_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -1261,13 +1240,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_lines_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "invoice_lines_project_id_fkey"
@@ -2007,13 +1979,6 @@ export type Database = {
             foreignKeyName: "project_tasks_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "project_tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -2546,13 +2511,6 @@ export type Database = {
             foreignKeyName: "quotes_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "quotes_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -2699,13 +2657,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["client_id"]
-          },
-          {
-            foreignKeyName: "retainers_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "retainers_project_id_fkey"
@@ -2966,13 +2917,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "time_entries_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "time_entries_project_id_fkey"
@@ -3853,13 +3797,6 @@ export type Database = {
             foreignKeyName: "work_items_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "work_items_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -4065,13 +4002,6 @@ export type Database = {
             foreignKeyName: "invoice_lines_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "invoice_lines_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -4088,63 +4018,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["project_id"]
-          },
-        ]
-      }
-      project_budget_status: {
-        Row: {
-          amount_used: number | null
-          billing_method: Database["public"]["Enums"]["billing_method"] | null
-          budget_amount: number | null
-          budget_hours: number | null
-          client_name: string | null
-          hours_used: number | null
-          pct_hours_used: number | null
-          project_id: string | null
-          project_name: string | null
-        }
-        Relationships: []
-      }
-      retainer_burndown: {
-        Row: {
-          allotted: number | null
-          basis: Database["public"]["Enums"]["retainer_basis"] | null
-          client_id: string | null
-          name: string | null
-          period_end: string | null
-          period_start: string | null
-          remaining: number | null
-          retainer_id: string | null
-          used: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "retainers_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "retainers_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "time_detail"
-            referencedColumns: ["client_id"]
-          },
-          {
-            foreignKeyName: "retainers_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "unbilled_expenses"
-            referencedColumns: ["client_id"]
-          },
-          {
-            foreignKeyName: "retainers_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "unbilled_time"
-            referencedColumns: ["client_id"]
           },
         ]
       }
@@ -4228,13 +4101,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "expense_categories"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "expenses_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "project_budget_status"
-            referencedColumns: ["project_id"]
           },
           {
             foreignKeyName: "expenses_project_id_fkey"
@@ -4624,6 +4490,10 @@ export type Database = {
           oldest: string
           time_amount: number
         }[]
+      }
+      user_has_permission: {
+        Args: { p_key: string; p_user: string }
+        Returns: boolean
       }
       vault_secret: {
         Args: { p_default?: string; p_name: string }

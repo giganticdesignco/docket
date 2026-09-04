@@ -1305,58 +1305,7 @@ select period_month, client_name, project_name, user_name, task_name,
        'harvest_archive'::text as source
 from harvest_archive_monthly;
 
--- Budget burn per project.
--- Admin-only. Runs as the caller, so staff would see only their own
--- hours. The app reads project_budget() instead.
-create view project_budget_status with (security_invoker = true) as
-select
-  p.id as project_id,
-  p.name as project_name,
-  c.name as client_name,
-  p.billing_method,
-  p.budget_hours,
-  p.budget_amount,
-  coalesce(sum(td.hours), 0) as hours_used,
-  coalesce(sum(td.amount), 0) as amount_used,
-  case when p.budget_hours > 0
-       then round(coalesce(sum(td.hours), 0) / p.budget_hours * 100, 1)
-  end as pct_hours_used
-from projects p
-join clients c on c.id = p.client_id
-left join time_detail td on td.project_id = p.id
-group by p.id, p.name, c.name, p.billing_method, p.budget_hours, p.budget_amount;
 
--- Retainer burn-down = sum of billable time in the window, against allotted.
--- Admin-only, same caveat. The app reads retainer_status() instead,
--- which also handles rollover.
-create view retainer_burndown with (security_invoker = true) as
-select
-  r.id as retainer_id,
-  r.client_id,
-  r.name,
-  r.period_start,
-  r.period_end,
-  r.basis,
-  r.allotted,
-  coalesce(sum(
-    case when r.basis = 'hours' then te.hours
-         else te.hours * coalesce(te.rate_snapshot, 0)
-    end
-  ), 0) as used,
-  r.allotted - coalesce(sum(
-    case when r.basis = 'hours' then te.hours
-         else te.hours * coalesce(te.rate_snapshot, 0)
-    end
-  ), 0) as remaining
-from retainers r
-left join projects p
-  on p.client_id = r.client_id
- and (r.project_id is null or p.id = r.project_id)
-left join time_entries te
-  on te.project_id = p.id
- and te.is_billable
- and te.spent_on between r.period_start and r.period_end
-group by r.id;
 
 -- Capacity: available vs booked vs actually logged, by person by week.
 create view capacity_weekly with (security_invoker = true) as
@@ -1790,7 +1739,9 @@ as $$
     select * from live union all select * from arch
   )
   select e.key, e.label, e.sublabel,
-         sum(e.hours), sum(e.billable_hours), sum(e.amount), sum(e.uninvoiced)
+         sum(e.hours), sum(e.billable_hours),
+         case when (select public.has_permission('see_money')) then sum(e.amount) end,
+         case when (select public.has_permission('see_money')) then sum(e.uninvoiced) end
   from everything e
   group by e.key, e.label, e.sublabel
   order by case when p_group in ('day', 'week', 'month') then e.key end, sum(e.hours) desc, e.key;
@@ -2549,7 +2500,7 @@ create or replace function public.accept_quote(p_quote_id uuid, p_name text, p_e
 language plpgsql security definer set search_path = '' as $$
 declare q record; v_project uuid; v_item uuid; v_hours numeric; r record;
 begin
-  if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
+  if auth.uid() is not null and not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
   if coalesce(trim(p_name), '') = '' then raise exception 'A name is required to accept'; end if;
   select * into q from public.quotes where id = p_quote_id for update;
   if q.id is null then raise exception 'Quote not found'; end if;
@@ -2601,7 +2552,7 @@ create or replace function public.decline_quote(p_quote_id uuid, p_name text, p_
 language plpgsql security definer set search_path = '' as $$
 declare v_status public.quote_status;
 begin
-  if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
+  if auth.uid() is not null and not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
   select status into v_status from public.quotes where id = p_quote_id for update;
   if v_status is null then raise exception 'Quote not found'; end if;
   if v_status not in ('draft', 'sent') then raise exception 'This quote is already %', v_status; end if;
@@ -2666,29 +2617,29 @@ create policy read_all on project_tasks      for select to authenticated using (
 create policy read_all on expense_categories for select to authenticated using (not (select is_client()));
 create policy read_all on retainers          for select to authenticated using (not (select is_client()));
 
-create policy admin_write on roles              for all to authenticated using (is_admin()) with check (is_admin());
-create policy admin_write on permissions        for all to authenticated using (is_admin()) with check (is_admin());
+create policy admin_write on roles              for all to authenticated using ((select is_admin())) with check ((select is_admin()));
+create policy admin_write on permissions        for all to authenticated using ((select is_admin())) with check ((select is_admin()));
 -- Notifications: yours to read, mark, and clear; only triggers write them.
 create policy own_select on notifications      for select to authenticated using (user_id = auth.uid());
 create policy own_update on notifications      for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy own_delete on notifications      for delete to authenticated using (user_id = auth.uid());
 create policy own_all    on notification_prefs for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 -- Google tokens: own row or the people permission, never the token column.
-create policy own_or_people on google_tokens for select to authenticated using (user_id = auth.uid() or has_permission('manage_people'));
+create policy own_or_people on google_tokens for select to authenticated using (user_id = auth.uid() or (select has_permission('manage_people')));
 revoke select on google_tokens from authenticated;
 grant select (user_id, google_email, connected_at, last_synced_at, last_error) on google_tokens to authenticated;
-create policy manage_reference on clients       for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
-create policy manage_reference on projects      for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
-create policy manage_reference on tasks         for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
-create policy manage_reference on project_tasks for all to authenticated using (has_permission('manage_reference')) with check (has_permission('manage_reference'));
-create policy manage_settings on expense_categories for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy manage_reference on clients       for all to authenticated using ((select has_permission('manage_reference'))) with check ((select has_permission('manage_reference')));
+create policy manage_reference on projects      for all to authenticated using ((select has_permission('manage_reference'))) with check ((select has_permission('manage_reference')));
+create policy manage_reference on tasks         for all to authenticated using ((select has_permission('manage_reference'))) with check ((select has_permission('manage_reference')));
+create policy manage_reference on project_tasks for all to authenticated using ((select has_permission('manage_reference'))) with check ((select has_permission('manage_reference')));
+create policy manage_settings on expense_categories for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
 create policy manage_retainers on retainers       for all to authenticated using ((select has_permission('manage_retainers'))) with check ((select has_permission('manage_retainers')));
 
 -- Profiles: you edit yourself (full_name only, see trigger), admins edit anyone.
 -- No insert policy: rows come from the auth trigger.
 create policy own_profile on profiles for update to authenticated
-  using (id = auth.uid() or has_permission('manage_people'))
-  with check (id = auth.uid() or has_permission('manage_people'));
+  using (id = auth.uid() or (select has_permission('manage_people')))
+  with check (id = auth.uid() or (select has_permission('manage_people')));
 
 -- ---------- Time: own unlocked rows, admins everything ----------
 
@@ -2696,7 +2647,7 @@ create policy own_time_select on time_entries for select to authenticated
   using (deleted_at is null and (user_id = (select auth.uid()) or (select has_permission('see_all_time')) or (select has_permission('approve_time'))));
 
 create policy own_time_insert on time_entries for insert to authenticated
-  with check ((user_id = auth.uid() and not is_client()) or is_admin());
+  with check ((user_id = auth.uid() and not (select is_client())) or (select is_admin()));
 
 -- Submitted and approved entries are frozen for their owner; submitting
 -- is the owner moving a draft or rejected row to 'submitted'.
@@ -2713,14 +2664,14 @@ create policy own_exp_select on expenses for select to authenticated
   using (deleted_at is null and (user_id = (select auth.uid()) or (select has_permission('see_all_time'))));
 
 create policy own_exp_insert on expenses for insert to authenticated
-  with check ((user_id = auth.uid() and not is_client()) or is_admin());
+  with check ((user_id = auth.uid() and not (select is_client())) or (select is_admin()));
 
 create policy own_exp_update on expenses for update to authenticated
-  using ((user_id = auth.uid() and not is_locked) or is_admin())
-  with check ((user_id = auth.uid() and not is_locked) or is_admin());
+  using ((user_id = auth.uid() and not is_locked) or (select is_admin()))
+  with check ((user_id = auth.uid() and not is_locked) or (select is_admin()));
 
 create policy own_exp_delete on expenses for delete to authenticated
-  using ((user_id = auth.uid() and not is_locked) or is_admin());
+  using ((user_id = auth.uid() and not is_locked) or (select is_admin()));
 
 -- ---------- Billing batches ----------
 
@@ -2729,21 +2680,21 @@ create policy manage_invoices on billing_batches for all to authenticated using 
 
 -- ---------- Invoicing: admins only ----------
 
-create policy manage_settings on invoice_settings for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
-create policy client_select    on invoice_settings for select to authenticated using (is_client());  -- portal header
+create policy manage_settings on invoice_settings for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+create policy client_select    on invoice_settings for select to authenticated using ((select is_client()));  -- portal header
 create policy manage_invoices on invoices         for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 -- Clients read their own sent and paid invoices (and Harvest history).
-create policy client_select on invoices         for select to authenticated using (is_client() and client_id = my_client_id() and status in ('sent', 'paid'));
-create policy client_select on invoice_lines    for select to authenticated using (is_client() and exists (select 1 from invoices i where i.id = invoice_id));
-create policy client_select on invoice_payments for select to authenticated using (is_client() and exists (select 1 from invoices i where i.id = invoice_id));
+create policy client_select on invoices         for select to authenticated using ((select is_client()) and client_id = (select my_client_id()) and status in ('sent', 'paid'));
+create policy client_select on invoice_lines    for select to authenticated using ((select is_client()) and exists (select 1 from invoices i where i.id = invoice_id));
+create policy client_select on invoice_payments for select to authenticated using ((select is_client()) and exists (select 1 from invoices i where i.id = invoice_id));
 create policy manage_invoices on invoice_lines    for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 create policy manage_invoices on invoice_payments for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 
 -- ---------- Quoting ----------
 
 create policy read_all on quotes              for select to authenticated using (not (select is_client()) or (client_id = (select my_client_id()) and status <> 'draft'));
-create policy read_all on quote_line_items    for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
-create policy read_all on quote_sitemap_nodes for select to authenticated using (not is_client() or exists (select 1 from quotes q where q.id = quote_id));
+create policy read_all on quote_line_items    for select to authenticated using (not (select is_client()) or exists (select 1 from quotes q where q.id = quote_id));
+create policy read_all on quote_sitemap_nodes for select to authenticated using (not (select is_client()) or exists (select 1 from quotes q where q.id = quote_id));
 
 create policy manage_quotes on quotes              for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
 create policy manage_quotes on quote_line_items    for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
@@ -2754,14 +2705,14 @@ create policy manage_quotes on quote_sitemap_nodes for all to authenticated usin
 create policy read_all    on harvest_archive_monthly for select to authenticated using (not (select is_client()));
 create policy manage_invoices on harvest_archive_monthly for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
 create policy manage_invoices on harvest_invoices for all to authenticated using ((select has_permission('manage_invoices'))) with check ((select has_permission('manage_invoices')));
-create policy client_select  on harvest_invoices for select to authenticated using (is_client() and client_id = my_client_id());
+create policy client_select  on harvest_invoices for select to authenticated using ((select is_client()) and client_id = (select my_client_id()));
 
 -- ---------- Tasks: the whole team reads and writes ----------
 -- Deleting a task is the creator's or an admin's; comments and files are
 -- edited by their author or an admin.
 
 create policy read_all    on work_statuses for select to authenticated using (true);
-create policy manage_settings on work_statuses for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+create policy manage_settings on work_statuses for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
 
 -- Who sees a task: the same rule as task_visible(), written so the
 -- permission and client checks run once per query and the row parts
@@ -2777,9 +2728,9 @@ create policy visible_select on work_items for select to authenticated using (
   end
   and (not (select is_client()) or exists (select 1 from projects p where p.id = work_items.project_id and p.client_id = (select my_client_id())))
 );
-create policy team_insert    on work_items for insert to authenticated with check (created_by = auth.uid() and not is_client());
-create policy visible_update on work_items for update to authenticated using (task_visible(id) and not is_client()) with check (task_visible(id) and not is_client());
-create policy owner_delete   on work_items for delete to authenticated using (created_by = auth.uid() or has_permission('manage_tasks'));
+create policy team_insert    on work_items for insert to authenticated with check (created_by = auth.uid() and not (select is_client()));
+create policy visible_update on work_items for update to authenticated using (task_visible(id) and not (select is_client())) with check (task_visible(id) and not (select is_client()));
+create policy owner_delete   on work_items for delete to authenticated using (created_by = auth.uid() or (select has_permission('manage_tasks')));
 
 -- CASE so the one-per-query permission check is tried before the per-row function.
 create policy visible_select on work_item_assignees for select to authenticated using (case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end);
@@ -2794,15 +2745,15 @@ create policy visible_write  on work_item_assignees for all to authenticated
 
 -- Clients see and write only comments marked visible to them.
 create policy visible_select on work_item_comments for select to authenticated using (deleted_at is null and (case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end) and (not (select is_client()) or visible_to_client));
-create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid() and task_visible(work_item_id) and (not is_client() or visible_to_client));
-create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or has_permission('manage_tasks')) with check (author_id = auth.uid() or has_permission('manage_tasks'));
-create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or has_permission('manage_tasks'));
+create policy own_insert on work_item_comments for insert to authenticated with check (author_id = auth.uid() and task_visible(work_item_id) and (not (select is_client()) or visible_to_client));
+create policy own_update on work_item_comments for update to authenticated using (author_id = auth.uid() or (select has_permission('manage_tasks'))) with check (author_id = auth.uid() or (select has_permission('manage_tasks')));
+create policy own_delete on work_item_comments for delete to authenticated using (author_id = auth.uid() or (select has_permission('manage_tasks')));
 
 create policy visible_select on work_item_files for select to authenticated using ((case when (select has_permission('see_all_tasks')) then true else task_visible(work_item_id) end) and (not (select is_client()) or kind = 'upload'));
-create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid() and not is_client());
+create policy own_insert  on work_item_files for insert to authenticated with check (uploaded_by = auth.uid() and not (select is_client()));
 -- Anyone on the team may turn a server link into a shareable uploaded copy.
-create policy visible_update on work_item_files for update to authenticated using (task_visible(work_item_id) and not is_client()) with check (task_visible(work_item_id) and not is_client());
-create policy own_delete  on work_item_files for delete to authenticated using (uploaded_by = auth.uid() or has_permission('manage_tasks'));
+create policy visible_update on work_item_files for update to authenticated using (task_visible(work_item_id) and not (select is_client())) with check (task_visible(work_item_id) and not (select is_client()));
+create policy own_delete  on work_item_files for delete to authenticated using (uploaded_by = auth.uid() or (select has_permission('manage_tasks')));
 
 -- ---------- Time off, capacity ----------
 
@@ -2810,40 +2761,40 @@ create policy read_all on time_off            for select to authenticated using 
 create policy read_all on availability        for select to authenticated using (not (select is_client()));
 create policy read_all on estimator_materials for select to authenticated using (not (select is_client()));
 create policy read_all on estimator_settings  for select to authenticated using (not (select is_client()));
-create policy manage_settings on estimator_materials for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
-create policy manage_settings on estimator_settings  for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
-create policy own_or_settings on ai_events for select to authenticated using (user_id = auth.uid() or has_permission('manage_settings'));
+create policy manage_settings on estimator_materials for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+create policy manage_settings on estimator_settings  for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+create policy own_or_settings on ai_events for select to authenticated using (user_id = auth.uid() or (select has_permission('manage_settings')));
 
 -- People log their own time off; admins manage holidays and everyone else.
 create policy own_time_off on time_off for all to authenticated
-  using ((user_id = auth.uid() and not is_client()) or has_permission('manage_people'))
-  with check ((user_id = auth.uid() and not is_client()) or has_permission('manage_people'));
+  using ((user_id = auth.uid() and not (select is_client())) or (select has_permission('manage_people')))
+  with check ((user_id = auth.uid() and not (select is_client())) or (select has_permission('manage_people')));
 
 -- Calendar detail is personal: own rows only.
 create policy own_calendar on calendar_busy for select to authenticated
-  using (user_id = auth.uid() or has_permission('see_capacity'));
+  using (user_id = auth.uid() or (select has_permission('see_capacity')));
 
-create policy manage_people on availability      for all to authenticated using (has_permission('manage_people')) with check (has_permission('manage_people'));
-create policy manage_people on calendar_busy     for all to authenticated using (has_permission('manage_people')) with check (has_permission('manage_people'));
+create policy manage_people on availability      for all to authenticated using ((select has_permission('manage_people'))) with check ((select has_permission('manage_people')));
+create policy manage_people on calendar_busy     for all to authenticated using ((select has_permission('manage_people'))) with check ((select has_permission('manage_people')));
 
 -- ---------- Reminders ----------
 
 create policy own_reminders on reminder_log for select to authenticated
-  using (user_id = auth.uid() or has_permission('manage_settings'));
-create policy manage_settings on reminder_log for all to authenticated using (has_permission('manage_settings')) with check (has_permission('manage_settings'));
+  using (user_id = auth.uid() or (select has_permission('manage_settings')));
+create policy manage_settings on reminder_log for all to authenticated using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
 
 -- ---------- Audit log: admins read, nobody writes directly ----------
 
-create policy manage_settings on audit_log for select to authenticated using (has_permission('manage_settings'));
+create policy manage_settings on audit_log for select to authenticated using ((select has_permission('manage_settings')));
 
 -- ---------- Saved reports ----------
 
 create policy own_or_shared on saved_reports for select to authenticated
-  using (owner_id = auth.uid() or is_shared or is_admin());
+  using (owner_id = auth.uid() or is_shared or (select is_admin()));
 
 create policy own_reports on saved_reports for all to authenticated
-  using ((owner_id = auth.uid() and not is_client()) or is_admin())
-  with check ((owner_id = auth.uid() and not is_client()) or is_admin());
+  using ((owner_id = auth.uid() and not (select is_client())) or (select is_admin()))
+  with check ((owner_id = auth.uid() and not (select is_client())) or (select is_admin()));
 
 -- ============================================================
 -- 5. FUNCTION GRANTS
@@ -2924,21 +2875,21 @@ on conflict (id) do nothing;
 
 create policy receipts_read on storage.objects for select to authenticated
   using (bucket_id = 'receipts'
-         and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+         and ((storage.foldername(name))[1] = auth.uid()::text or (select public.is_admin())));
 
 create policy receipts_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'receipts'
-              and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+              and ((storage.foldername(name))[1] = auth.uid()::text or (select public.is_admin())));
 
 create policy receipts_update on storage.objects for update to authenticated
   using (bucket_id = 'receipts'
-         and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()))
+         and ((storage.foldername(name))[1] = auth.uid()::text or (select public.is_admin())))
   with check (bucket_id = 'receipts'
-              and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+              and ((storage.foldername(name))[1] = auth.uid()::text or (select public.is_admin())));
 
 create policy receipts_delete on storage.objects for delete to authenticated
   using (bucket_id = 'receipts'
-         and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+         and ((storage.foldername(name))[1] = auth.uid()::text or (select public.is_admin())));
 
 -- Files on tasks (work_item_files): private bucket. The team reads and
 -- uploads, and only on tasks they can see (the first path segment is the
@@ -2953,12 +2904,12 @@ on conflict (id) do nothing;
 
 create policy work_files_read on storage.objects for select to authenticated
   using (bucket_id = 'work-files' and not (select public.is_client())
-         and (public.has_permission('see_all_tasks') or public.task_visible(((storage.foldername(name))[1])::uuid)));
+         and ((select public.has_permission('see_all_tasks')) or public.task_visible(((storage.foldername(name))[1])::uuid)));
 create policy work_files_insert on storage.objects for insert to authenticated
   with check (bucket_id = 'work-files' and not (select public.is_client())
-              and (public.has_permission('see_all_tasks') or public.task_visible(((storage.foldername(name))[1])::uuid)));
+              and ((select public.has_permission('see_all_tasks')) or public.task_visible(((storage.foldername(name))[1])::uuid)));
 create policy work_files_delete on storage.objects for delete to authenticated
-  using (bucket_id = 'work-files' and (owner = auth.uid() or public.is_admin()));
+  using (bucket_id = 'work-files' and (owner = auth.uid() or (select public.is_admin())));
 
 -- ============================================================
 -- 7. REMINDERS
@@ -3243,9 +3194,9 @@ insert into storage.buckets (id, name, public, file_size_limit)
 values ('desktop', 'desktop', true, 209715200)
 on conflict (id) do nothing;
 create policy desktop_read   on storage.objects for select to anon, authenticated using (bucket_id = 'desktop');
-create policy desktop_insert on storage.objects for insert to authenticated with check (bucket_id = 'desktop' and has_permission('manage_settings'));
-create policy desktop_update on storage.objects for update to authenticated using (bucket_id = 'desktop' and has_permission('manage_settings'));
-create policy desktop_delete on storage.objects for delete to authenticated using (bucket_id = 'desktop' and has_permission('manage_settings'));
+create policy desktop_insert on storage.objects for insert to authenticated with check (bucket_id = 'desktop' and (select has_permission('manage_settings')));
+create policy desktop_update on storage.objects for update to authenticated using (bucket_id = 'desktop' and (select has_permission('manage_settings')));
+create policy desktop_delete on storage.objects for delete to authenticated using (bucket_id = 'desktop' and (select has_permission('manage_settings')));
 
 -- ============================================================
 -- PHASE 3. UNDO

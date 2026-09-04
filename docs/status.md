@@ -2572,3 +2572,24 @@ approval" fact follows the approve-time permission and overrides; the
 digest lists only open, undeleted tasks. MCP update_task surfaces
 refused assignee writes, list_projects and list_clients filter in the
 database, and the guide search stems only a trailing s.
+
+## Review fixes, tranche 3: policies, quotes, reports (2026-09-04)
+
+Migration `review_foundation_tranche_3`, mirrored. Fifty-three RLS
+policies that called is_admin(), is_client(), my_client_id() or
+has_permission() once per row now call them once per query through
+(select ...), the rule CLAUDE.md already states; task_visible(row)
+stays per row because it depends on the row. accept_quote and
+decline_quote ask for the Quotes permission instead of the Admin role,
+which is what the guide says about deciding on a client's behalf.
+report_time masks money without see_money the way report_rollup does.
+The two views nothing read, project_budget_status and
+retainer_burndown, are gone and the types regenerated. One approved
+finding went on hold with a note: money columns on the base tables
+are readable by direct query without see_money; the fix is a rebuild
+of how the app reads money, its own project. That leaves the
+foundation review at 36 done, 1 held.
+
+Run 2, the screens, finished: 133 agents, 64 findings, 41 confirmed,
+filed as Open under "Code review: screens" with a plain-English line
+each, for Luke's triage.
