@@ -20,7 +20,7 @@ const __ad1 = useWorkStatuses()
 const __ad2 = useAsyncData(`task-${id}`, async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('*, projects(id, name, server_path, clients(id, name)), profiles!work_items_created_by_fkey(full_name), up:profiles!work_items_assignee_id_fkey(id, full_name), work_item_assignees(user_id, profiles(full_name))')
+    .select('*, projects(id, name, server_path, clients(id, name)), profiles!work_items_created_by_fkey(full_name), up:profiles!work_items_assignee_id_fkey(id, full_name), work_item_assignees(user_id, profiles(full_name)), work_item_followers(user_id, profiles(full_name))')
     .eq('id', id)
     .single()
   if (error) throw createError({ statusCode: 404, statusMessage: 'Task not found' })
@@ -245,6 +245,31 @@ async function handOff(to: string | null, note?: string) {
   }
 }
 const takeIt = () => handOff(me.value)
+
+// ---------- following ----------
+// Bells only: comments, status changes, client decisions. Never puts the
+// task on your list, never changes who is up. RLS lets you follow only as
+// yourself and only what you can already see.
+const { profile } = useCurrentUser()
+const isClientUser = computed(() => profile.value?.role === 'client')
+const following = computed(() => !!me.value && (item.value?.work_item_followers ?? []).some(f => f.user_id === me.value))
+const followBusy = ref(false)
+async function toggleFollow() {
+  if (!me.value) return
+  followBusy.value = true
+  try {
+    const { error } = following.value
+      ? await supabase.from('work_item_followers').delete().eq('work_item_id', id).eq('user_id', me.value)
+      : await supabase.from('work_item_followers').insert({ work_item_id: id, user_id: me.value })
+    if (error) throw error
+    await refresh()
+    toast.add({ title: following.value ? 'Following' : 'Unfollowed' })
+  } catch (e) {
+    toast.add({ title: 'Not saved', description: (e as Error).message, color: 'error' })
+  } finally {
+    followBusy.value = false
+  }
+}
 // Subtask avatars: the child's owner first and solid, the rest behind it.
 const childPeople = (c: { assignee_id: string | null, work_item_assignees: { user_id: string, profiles: { full_name: string } | null }[] }) =>
   [...c.work_item_assignees].sort((a, b) => Number(b.user_id === c.assignee_id) - Number(a.user_id === c.assignee_id))
@@ -671,6 +696,23 @@ function startResize(e: PointerEvent) {
                 </template>
               </USelectMenu>
               <p class="mt-0.5 text-xs text-muted">Everyone here gets comments, status changes, and mentions. Only the person up now sees it on their own list.</p>
+            </dd>
+          </div>
+          <div v-if="!isClientUser" class="flex items-start gap-3">
+            <dt class="w-24 shrink-0 pt-1 text-muted">Following</dt>
+            <dd class="min-w-0 flex-1">
+              <div class="flex min-w-0 items-center gap-2">
+                <span v-if="item.work_item_followers.length" class="flex min-w-0 items-center gap-2 opacity-50" :title="item.work_item_followers.map(f => f.profiles?.full_name).join(', ')">
+                  <span class="flex shrink-0 -space-x-1.5">
+                    <span v-for="f in item.work_item_followers.slice(0, 5)" :key="f.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(f.profiles?.full_name ?? '?') }}</span>
+                    <span v-if="item.work_item_followers.length > 5" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ item.work_item_followers.length - 5 }}</span>
+                  </span>
+                  <span class="min-w-0 truncate">{{ item.work_item_followers.length <= 2 ? item.work_item_followers.map(f => f.profiles?.full_name).join(', ') : `${item.work_item_followers[0]?.profiles?.full_name?.split(' ')[0]} and ${item.work_item_followers.length - 1} others` }}</span>
+                </span>
+                <span v-else class="text-muted">Nobody yet</span>
+                <UButton v-if="!ws.isDone(item.status)" size="xs" variant="ghost" color="neutral" :icon="following ? 'i-lucide-bell-off' : 'i-lucide-bell'" :loading="followBusy" @click="toggleFollow">{{ following ? 'Unfollow' : 'Follow' }}</UButton>
+              </div>
+              <p class="mt-0.5 text-xs text-muted">Followers get comments and status changes, nothing else. Following never puts a task on your list.</p>
             </dd>
           </div>
           <div class="flex items-start gap-3">
