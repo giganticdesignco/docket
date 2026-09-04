@@ -147,6 +147,40 @@ sees hours.
   brings subtasks in under their parent, except for lists it is told to
   skip (Hills Bank, which is run out of ClickUp).
 
+### Up now and who else is on it
+
+A task can have several people on it, and one of them is up right now.
+The task page shows both: **Up now** is the one person whose turn it
+is, with the date it became theirs; **Also on it** is everyone the task
+belongs to. Everyone on a task gets its comments, status changes,
+mentions, and client decisions. Only the person up now sees it on their
+own lists: the Tasks page with Everyone off, Home, the timer picker,
+and the morning brief.
+
+- **Take it** puts you up on a task. **Hand off** passes it to someone
+  else, with an optional note that lands as a comment so the reason
+  stays with the work; they get a bell saying you handed it to them.
+  Handing off to someone who was not on the task adds them to it. Pick
+  **Nobody yet** to leave the task with nobody up.
+- **Nobody up** is a real state, not a hidden one. Tasks you are on
+  that nobody is up on sit in their own group on the Tasks page, open
+  by default, each with a Take it button. **Sort these** goes through
+  them one at a time (J and K move, 1 takes it, 2 skips). Tasks where
+  someone else is up wait in **Waiting on someone else**, folded, with
+  their name on the row. The row menu behind the faces has Take it and
+  Nobody as well, and `T` takes the focused row.
+- **Statuses move the turn.** Moving a task to In progress puts you up
+  on it, if nobody was and you are on the task. On hold leaves nobody
+  up. Client review does not change who is up, since the person who
+  sent it out is still the one chasing it. Admins tune which statuses
+  do this on the Task statuses settings page.
+- **Starting a timer** on a task nobody is up on puts you up on it.
+  Taking yourself off a task clears you from Up now.
+- An unowned task that has not moved in two weeks bells everyone on
+  it, once a week at most. The 9am due-date bell goes to whoever is up,
+  to everyone on the task when nobody is, and to everyone again once
+  the task is overdue.
+
 ### Schedule and Planner
 
 - **Schedule** is the timeline: tasks as bars by project or by person,

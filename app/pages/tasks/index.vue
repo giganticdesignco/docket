@@ -21,7 +21,7 @@ type ViewMode = 'list' | 'cards'
 // desktop app and the browser agree.
 const view = await useViewState('tasks', {
   groupBy: 'status' as GroupBy, viewMode: 'list' as ViewMode, activeClient: null as string | null,
-  everyone: false, showCompleted: false, collapsed: [] as string[],
+  everyone: false, showCompleted: false, collapsed: ['waiting'] as string[],
 })
 const groupBy = persisted(view, 'groupBy')
 const viewMode = persisted(view, 'viewMode')
@@ -31,15 +31,21 @@ const showCompleted = persisted(view, 'showCompleted')
 // Focus is a mode you step into, not a view you are left in, so it is
 // not persisted. /tasks?view=focus opens straight into it.
 const focusMode = ref(useRoute().query.view === 'focus')
+// /tasks?view=unowned opens on what has nobody up: Everyone off and every
+// other group folded, without touching the folds you keep. The first
+// fold you click makes the layout yours again.
+const onlyUnowned = ref(useRoute().query.view === 'unowned')
+if (onlyUnowned.value) everyone.value = false
 const search = ref('')
 const collapsed = ref(new Set<string>(view.collapsed))
 watch(collapsed, (s) => { view.collapsed = [...s] }, { deep: true })
-function resetView() { view.$reset(); collapsed.value = new Set() }
+const isCollapsed = (key: string) => (onlyUnowned.value ? key !== 'unowned' : collapsed.value.has(key))
+function resetView() { view.$reset(); collapsed.value = new Set(['waiting']); onlyUnowned.value = false }
 
 const __ad1 = useAsyncData('work-items', async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, due_on, estimate_hours, project_id, parent_id, updated_at, projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
+    .select('id, title, status, priority, due_on, estimate_hours, project_id, parent_id, updated_at, assignee_id, up:profiles!work_items_assignee_id_fkey(id, full_name), projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
     .order('due_on', { ascending: true, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .limit(2000)
@@ -77,7 +83,7 @@ const __ad5 = useAsyncData('focus-items', async () => {
   if (!fids.length) return { rows: [], stale: [] as string[] }
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, due_on, estimate_hours, project_id, parent_id, updated_at, projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
+    .select('id, title, status, priority, due_on, estimate_hours, project_id, parent_id, updated_at, assignee_id, up:profiles!work_items_assignee_id_fkey(id, full_name), projects(id, name, client_id, clients(name)), work_item_assignees(user_id, profiles(full_name))')
     .in('id', fids)
   if (error) throw error
   const found = new Map((data ?? []).map(d => [d.id, d]))
@@ -107,6 +113,15 @@ const visible = computed(() => (items.value ?? []).filter((i) => {
   return true
 }))
 
+// Up now: with Everyone off, your list is what you are up on. What has
+// nobody up sits in its own open group with a Take it, and what someone
+// else is up on waits in a folded group with their name. Done tasks stay
+// in the ordinary groups whoever is up, so Completed reads as before.
+const me = computed(() => user.value?.sub ?? null)
+const mine = computed(() => (everyone.value ? visible.value : visible.value.filter(i => ws.isDone(i.status) || i.assignee_id === me.value)))
+const unowned = computed(() => (everyone.value ? [] : visible.value.filter(i => !ws.isDone(i.status) && !i.assignee_id)))
+const waiting = computed(() => (everyone.value ? [] : visible.value.filter(i => !ws.isDone(i.status) && i.assignee_id && i.assignee_id !== me.value)))
+
 const focusRows = computed(() => focusData.value?.rows ?? [])
 const staleIds = computed(() => focusData.value?.stale ?? [])
 const finished = computed(() => focusRows.value.filter(i => ws.isDone(i.status)))
@@ -122,7 +137,12 @@ const groups = computed<Group[]>(() => {
     if (finished.value.length) out.push({ key: 'focus-done', label: 'Finished', color: 'success', done: true, items: finished.value })
     return out
   }
-  const list = visible.value
+  const out = grouped(mine.value)
+  if (unowned.value.length) out.push({ key: 'unowned', label: 'Nobody up', color: 'warning', items: unowned.value })
+  if (waiting.value.length) out.push({ key: 'waiting', label: 'Waiting on someone else', items: waiting.value })
+  return out
+})
+function grouped(list: Item[]): Group[] {
   if (groupBy.value === 'status') {
     return ws.statuses.value
       .map(s => ({ key: s.key, label: s.label, color: s.color, done: s.is_done, items: list.filter(i => i.status === s.key) }))
@@ -150,9 +170,78 @@ const groups = computed<Group[]>(() => {
     else g[2]!.items.push(i)
   }
   return g.filter(x => x.items.length)
-})
+}
 
-const toggle = (key: string) => { collapsed.value.has(key) ? collapsed.value.delete(key) : collapsed.value.add(key) }
+// ---------- up now: Take it, Nobody, and Whose turn ----------
+
+// Every path goes through hand_off(), which keeps the receiver on the
+// task and bells them. A selection hands off each task in turn.
+const handingOff = ref(false)
+async function handOff(rows: Item[], to: string | null) {
+  if (!rows.length) return
+  handingOff.value = true
+  try {
+    for (const r of rows) {
+      const { error } = await supabase.rpc('hand_off', { p_item: r.id, p_to: to ?? undefined })
+      if (error) throw error
+    }
+    await refreshAll()
+    const name = to && to !== me.value ? (people.value ?? []).find(p => p.id === to)?.full_name.split(' ')[0] : null
+    toast.add({ title: !to ? 'Nobody is up on this now' : to === me.value ? 'Yours now' : `Handed to ${name}` })
+  } catch (e) {
+    toast.add({ title: 'Not handed off', description: (e as Error).message, color: 'error' })
+  } finally {
+    handingOff.value = false
+  }
+}
+const takeIt = (i: Item) => handOff(targets(i), me.value)
+function handOffFromMenu(to: string | null) {
+  const m = menu.value
+  closeMenu()
+  if (m) handOff(targets(m.item), to)
+}
+// Owner first and solid, the rest dimmed behind; a dashed ring when the
+// task has people but nobody is up.
+const cluster = (i: Item) => [...i.work_item_assignees].sort((a, b) => Number(b.user_id === i.assignee_id) - Number(a.user_id === i.assignee_id))
+const peopleTitle = (i: Item) => cluster(i).map(a => (a.profiles?.full_name ?? '?') + (a.user_id === i.assignee_id ? ' (up now)' : '')).join(', ')
+const otherNames = (i: Item) => i.work_item_assignees.filter(a => a.user_id !== me.value).map(a => a.profiles?.full_name?.split(' ')[0]).filter(Boolean).join(', ')
+
+// Whose turn: one unowned task at a time. Skip only hides it for this
+// pass; it is still in the Nobody up group when the drawer closes.
+const sorting = ref(false)
+const skipped = ref(new Set<string>())
+const sortAt = ref(0)
+const sortRows = computed(() => unowned.value.filter(i => !skipped.value.has(i.id)))
+function openSort() { skipped.value = new Set(); sortAt.value = 0; sorting.value = true }
+const clampSort = () => { sortAt.value = Math.max(0, Math.min(sortAt.value, sortRows.value.length - 1)) }
+async function sortTake(i = sortRows.value[sortAt.value]) {
+  if (!i) return
+  await handOff([i], me.value)
+  clampSort()
+}
+function sortSkip(i = sortRows.value[sortAt.value]) {
+  if (!i) return
+  skipped.value.add(i.id)
+  clampSort()
+}
+function sortKeys(e: KeyboardEvent) {
+  if (!sorting.value || handingOff.value) return
+  const t = e.target as HTMLElement | null
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+  if (e.key === 'j') { sortAt.value = Math.min(sortRows.value.length - 1, sortAt.value + 1) }
+  else if (e.key === 'k') { sortAt.value = Math.max(0, sortAt.value - 1) }
+  else if (e.key === '1') { e.preventDefault(); sortTake() }
+  else if (e.key === '2') { e.preventDefault(); sortSkip() }
+  else return
+  nextTick(() => document.querySelector(`[data-sort="${sortRows.value[sortAt.value]?.id}"]`)?.scrollIntoView({ block: 'nearest' }))
+}
+onMounted(() => window.addEventListener('keydown', sortKeys))
+onBeforeUnmount(() => window.removeEventListener('keydown', sortKeys))
+
+const toggle = (key: string) => {
+  if (onlyUnowned.value) { collapsed.value = new Set(groups.value.filter(g => g.key !== 'unowned').map(g => g.key)); onlyUnowned.value = false }
+  collapsed.value.has(key) ? collapsed.value.delete(key) : collapsed.value.add(key)
+}
 // A subtask shows its parent's title beside it.
 const parentTitle = (i: { parent_id: string | null }) => (i.parent_id ? items.value?.find(x => x.id === i.parent_id)?.title ?? '' : '')
 const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -352,12 +441,18 @@ async function addFromBox(i: Item) {
 
 // ---------- cards ----------
 
-type ClientCard = { name: string, count: number, overdue: number, dueSoon: number, projects: number, nextDue: string | null }
+type ClientCard = { name: string, count: number, overdue: number, dueSoon: number, projects: number, nextDue: string | null, nobodyUp: number }
 const clientCards = computed<ClientCard[]>(() => {
   const m = new Map<string, ClientCard & { projectIds: Set<string> }>()
-  for (const i of visible.value) {
+  for (const i of unowned.value) {
     const name = i.projects?.clients?.name ?? 'No client'
-    const c = m.get(name) ?? { name, count: 0, overdue: 0, dueSoon: 0, projects: 0, nextDue: null, projectIds: new Set<string>() }
+    const c = m.get(name) ?? { name, count: 0, overdue: 0, dueSoon: 0, projects: 0, nextDue: null, nobodyUp: 0, projectIds: new Set<string>() }
+    c.nobodyUp += 1
+    m.set(name, c)
+  }
+  for (const i of mine.value) {
+    const name = i.projects?.clients?.name ?? 'No client'
+    const c = m.get(name) ?? { name, count: 0, overdue: 0, dueSoon: 0, projects: 0, nextDue: null, nobodyUp: 0, projectIds: new Set<string>() }
     c.count += 1
     c.projectIds.add(i.project_id)
     if (i.due_on && !ws.isDone(i.status)) {
@@ -367,9 +462,9 @@ const clientCards = computed<ClientCard[]>(() => {
     }
     m.set(name, c)
   }
-  return [...m.values()].map(c => ({ ...c, projects: c.projectIds.size })).sort((a, b) => b.overdue - a.overdue || b.count - a.count || a.name.localeCompare(b.name))
+  return [...m.values()].filter(c => c.count).map(c => ({ ...c, projects: c.projectIds.size })).sort((a, b) => b.overdue - a.overdue || b.count - a.count || a.name.localeCompare(b.name))
 })
-const clientTasks = computed(() => visible.value.filter(i => (i.projects?.clients?.name ?? 'No client') === activeClient.value).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999')))
+const clientTasks = computed(() => mine.value.filter(i => (i.projects?.clients?.name ?? 'No client') === activeClient.value).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999')))
 const clientProjects = computed(() => {
   const m = new Map<string, { name: string, items: Item[] }>()
   for (const i of clientTasks.value) {
@@ -386,7 +481,7 @@ const clientProjects = computed(() => {
 // keys act on the focused row (or the whole selection).
 const focused = ref<string | null>(null)
 const selected = ref(new Set<string>())
-const order = computed(() => groups.value.filter(g => !collapsed.value.has(g.key)).flatMap(g => g.items.map(i => i.id)))
+const order = computed(() => groups.value.filter(g => !isCollapsed(g.key)).flatMap(g => g.items.map(i => i.id)))
 const focusedItem = computed(() => (items.value ?? []).find(i => i.id === focused.value) ?? null)
 function move(step: 1 | -1) {
   const ids = order.value
@@ -434,6 +529,7 @@ useShortcuts('Tasks', {
   'p': { label: 'Change priority (selection too)', handler: () => menuOnFocused('priority') },
   'd': { label: 'Set the due date', handler: () => { if (focused.value) editingDue.value = focused.value } },
   'f': { label: 'Add to your focus list, or take it off (selection too)', handler: () => { if (focusedItem.value) toggleFocus(focusedItem.value) } },
+  't': { label: 'Take it: put yourself up on the task (selection too)', handler: () => { if (focusedItem.value && !handingOff.value) takeIt(focusedItem.value) } },
   'escape': { label: 'Clear the selection', handler: () => { closeMenu(); selected.value = new Set(); focused.value = null } },
   'delete': { label: 'Delete the task (selection too)', handler: () => { if (toDeleteCount.value) deletingMany.value = true } },
 })
@@ -484,9 +580,10 @@ function created(id: string) {
             <UBadge v-if="c.overdue" color="error" variant="subtle" size="sm">{{ c.overdue }} overdue</UBadge>
             <UBadge v-if="c.dueSoon" color="warning" variant="subtle" size="sm">{{ c.dueSoon }} due this week</UBadge>
             <span v-if="!c.overdue && !c.dueSoon && c.nextDue" class="text-muted">next {{ shortDate(c.nextDue) }}</span>
+            <UBadge v-if="c.nobodyUp" color="warning" variant="outline" size="sm" title="Tasks you are on that nobody is up on">+{{ c.nobodyUp }} nobody up</UBadge>
           </div>
         </button>
-        <p v-if="!clientCards.length" class="col-span-full py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.' }}</p>
+        <p v-if="!clientCards.length" class="col-span-full py-8 text-center text-sm text-muted">{{ everyone ? 'No open tasks.' : 'Nothing is on you right now. Open Nobody up to take something, or switch to Everyone.' }}</p>
       </div>
       <div v-else class="space-y-4">
         <div class="flex items-center gap-3">
@@ -522,20 +619,23 @@ function created(id: string) {
       class="rounded-lg border border-default transition-colors" :class="over === g.key && dragging ? 'border-primary bg-primary/5' : ''"
       @dragover.prevent="over = g.key" @dragleave="over === g.key && (over = null)" @drop.prevent="onDrop(g)"
     >
-      <button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm" @click="toggle(g.key)">
-        <UIcon :name="collapsed.has(g.key) ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-4 text-dimmed" />
-        <span v-if="focusMode || groupBy !== 'project'" class="size-2.5 rounded-full" :class="dotClass(g.color)" />
-        <span class="font-semibold">{{ g.label }}</span>
-        <span v-if="g.sublabel" class="text-muted">/ {{ g.sublabel }}</span>
-        <span class="text-muted">{{ g.items.length }}</span>
-      </button>
+      <div class="flex items-center">
+        <button type="button" class="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm" @click="toggle(g.key)">
+          <UIcon :name="isCollapsed(g.key) ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-4 text-dimmed" />
+          <span v-if="focusMode || groupBy !== 'project' || g.key === 'unowned' || g.key === 'waiting'" class="size-2.5 rounded-full" :class="dotClass(g.color)" />
+          <span class="font-semibold">{{ g.label }}</span>
+          <span v-if="g.sublabel" class="text-muted">/ {{ g.sublabel }}</span>
+          <span class="text-muted">{{ g.items.length }}</span>
+        </button>
+        <UButton v-if="g.key === 'unowned'" size="xs" variant="outline" color="neutral" icon="i-lucide-list-checks" class="mr-2" title="Go through these one at a time" @click="openSort">Sort these</UButton>
+      </div>
 
-      <table v-if="!collapsed.has(g.key) && g.items.length" class="w-full border-t border-default text-sm">
+      <table v-if="!isCollapsed(g.key) && g.items.length" class="w-full border-t border-default text-sm">
         <tbody>
           <tr
             v-for="(i, idx) in g.items" :key="i.id" :draggable="!focusMode || !ws.isDone(i.status)" :data-task="i.id" :data-tour="idx === 0 && g === groups[0] ? 'row' : undefined"
             class="border-b border-default last:border-0 hover:bg-elevated/60"
-            :class="[dragging?.id === i.id ? 'opacity-40' : '', focused === i.id ? 'bg-elevated/60' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
+            :class="[dragging?.id === i.id ? 'opacity-40' : g.key === 'waiting' ? 'opacity-60' : '', focused === i.id ? 'bg-elevated/60' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
             :style="rowStyle(i)"
             @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null; dropAt = null" @dragover="onRowDragOver(i, $event)" @drop="onRowDrop($event)" @click="focused = i.id;"
           >
@@ -561,11 +661,14 @@ function created(id: string) {
               <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline" :class="focusMode && ws.isDone(i.status) ? 'text-dimmed line-through' : ''">{{ i.title }}</NuxtLink>
               <span v-if="i.parent_id" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
               <span v-if="focusMode || groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
+              <span v-if="g.key === 'waiting' && i.up" class="ml-2 text-xs text-muted">{{ i.up.full_name }} is up</span>
+              <UButton v-if="g.key === 'unowned'" size="xs" variant="outline" icon="i-lucide-hand" class="ml-2 align-middle" :disabled="handingOff" @click.stop="takeIt(i)">Take it</UButton>
             </td>
             <td class="hidden px-2 py-1.5 sm:table-cell">
-              <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Assign'" @click="openMenu(i, 'assignees', $event)">
+              <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="peopleTitle(i) || 'Assign'" @click="openMenu(i, 'assignees', $event)">
                 <template v-if="i.work_item_assignees.length">
-                  <span v-for="a in i.work_item_assignees.slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+                  <span v-if="!i.assignee_id" class="grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" title="Nobody is up" />
+                  <span v-for="a in cluster(i).slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full text-[10px] font-medium ring-2 ring-default" :class="a.user_id === i.assignee_id ? 'bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                   <span v-if="i.work_item_assignees.length > 4" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ i.work_item_assignees.length - 4 }}</span>
                 </template>
                 <span v-else class="grid size-6 place-items-center rounded-full border border-dashed border-accented text-dimmed"><UIcon name="i-lucide-plus" class="size-3" /></span>
@@ -585,7 +688,7 @@ function created(id: string) {
           </tr>
         </tbody>
       </table>
-      <p v-else-if="!collapsed.has(g.key)" class="border-t border-default px-3 py-3 text-xs text-muted">Nothing here. Drop a task to move it.</p>
+      <p v-else-if="!isCollapsed(g.key)" class="border-t border-default px-3 py-3 text-xs text-muted">Nothing here. Drop a task to move it.</p>
 
       <div v-if="focusMode && g.key === 'focus'" class="border-t border-default">
         <ul v-if="suggestions.length" class="divide-y divide-default">
@@ -627,7 +730,7 @@ function created(id: string) {
       </template>
     </UModal>
 
-    <p v-if="focusMode ? !groups.length : (viewMode === 'list' && !groups.length)" class="py-8 text-center text-sm text-muted">{{ focusMode ? 'Your focus list is empty. Click the star on a task, here or on the task itself, and it lands on the bottom of this list. Drag to put it in the order you want to work. Only you see it.' : (everyone ? 'No open tasks.' : 'Nothing assigned to you. Switch to Everyone to see the team.') }}</p>
+    <p v-if="focusMode ? !groups.length : (viewMode === 'list' && !groups.length)" class="py-8 text-center text-sm text-muted">{{ focusMode ? 'Your focus list is empty. Click the star on a task, here or on the task itself, and it lands on the bottom of this list. Drag to put it in the order you want to work. Only you see it.' : (everyone ? 'No open tasks.' : 'Nothing is on you right now. Open Nobody up to take something, or switch to Everyone.') }}</p>
 
     <Teleport to="body">
       <div v-if="menu" class="fixed inset-0 z-50" @click="closeMenu">
@@ -647,10 +750,19 @@ function created(id: string) {
             </button>
           </template>
           <template v-else>
+            <button v-if="menu.item.assignee_id !== me" type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated" @click="handOffFromMenu(me)">
+              <UIcon name="i-lucide-hand" class="size-4 text-primary" />
+              <span class="flex-1">Take it</span>
+            </button>
+            <button v-if="menu.item.assignee_id" type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated" @click="handOffFromMenu(null)">
+              <UIcon name="i-lucide-circle-dashed" class="size-4 text-muted" />
+              <span class="flex-1">Nobody</span>
+            </button>
+            <div class="my-1 border-t border-default" />
             <div class="max-h-72 overflow-y-auto">
               <button v-for="p in people ?? []" :key="p.id" type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated" @click="toggleAssignee(p.id)">
-                <span class="grid size-5 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(p.full_name) }}</span>
-                <span class="flex-1">{{ p.full_name }}</span>
+                <span class="grid size-5 place-items-center rounded-full text-[10px] font-medium" :class="menu.item.assignee_id === p.id ? 'bg-primary text-inverted' : 'bg-elevated'">{{ initials(p.full_name) }}</span>
+                <span class="flex-1">{{ p.full_name }}<span v-if="menu.item.assignee_id === p.id" class="ml-1 text-xs text-muted">up now</span></span>
                 <UIcon v-if="menu.item.work_item_assignees.some(a => a.user_id === p.id)" name="i-lucide-check" class="size-4 text-primary" />
               </button>
             </div>
@@ -658,6 +770,25 @@ function created(id: string) {
         </div>
       </div>
     </Teleport>
+
+    <AppDrawer v-model:open="sorting" title="Whose turn" description="Tasks you are on that nobody is up on. Take the ones that are yours to do next; skip the rest.">
+      <template #body>
+        <ul v-if="sortRows.length" class="divide-y divide-default text-sm">
+          <li v-for="(i, idx) in sortRows" :key="i.id" :data-sort="i.id" class="flex items-center gap-3 py-2" :class="idx === sortAt ? '-mx-2 rounded bg-elevated/60 px-2' : ''" @click="sortAt = idx;">
+            <div class="min-w-0 flex-1">
+              <NuxtLink :to="`/tasks/${i.id}`" class="block truncate font-medium hover:underline">{{ i.title }}</NuxtLink>
+              <div class="truncate text-xs text-muted">{{ projectLabel(i) }}<span v-if="otherNames(i)"> · with {{ otherNames(i) }}</span></div>
+            </div>
+            <UButton size="xs" variant="outline" icon="i-lucide-hand" :disabled="handingOff" @click.stop="sortTake(i)">Take it</UButton>
+            <UButton size="xs" variant="ghost" color="neutral" @click.stop="sortSkip(i)">Skip</UButton>
+          </li>
+        </ul>
+        <p v-else class="py-8 text-center text-sm text-muted">Nothing left to sort.</p>
+      </template>
+      <template #footer>
+        <p class="text-xs text-muted">J and K move, 1 takes it, 2 skips.</p>
+      </template>
+    </AppDrawer>
 
     <AppDrawer v-model:open="creating" title="New task">
       <template #body>

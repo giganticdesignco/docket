@@ -28,8 +28,19 @@ Shipped:
   person with a note (the note landed as a comment, the receiver became
   up, "Since Sep 4" showed), the select, and Hand off to Nobody.
 
-Not started: section 3 items 5 through 18, then section 9 (Following)
-after item 5. The next one is item 5, the task list. The `turn` bell
+- **Section 3 item 5**, the task list: Nobody up (open, warning dot,
+  Take it per row, Sort these drawer with J, K, 1, 2) and Waiting on
+  someone else (folded by default, owner named, rows dimmed), the
+  avatar cluster rule, Take it and Nobody in the row menu, `T` on the
+  focused row, `?view=unowned`, cards footers, empty copy, and the
+  guide section. Verified in Chrome on Luke's own list.
+- **Section 3 item 6**, the tour copy.
+
+Not started: section 9 (Following, F1 to F4) which comes next, then
+section 3 items 7 through 18. Two notes from item 5: done tasks stay in
+the ordinary groups whoever is up, so Completed reads as before; and
+`waiting` is folded by default only for people with no saved fold
+state, since `user_views` keeps the folds you had. The `turn` bell
 for the receiver was not checked from the browser: notifications RLS
 is own-rows only, so verify step 3's bell half waits for a second
 signed-in person.

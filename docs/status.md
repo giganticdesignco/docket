@@ -2185,3 +2185,27 @@ other person with a note, picking myself from the select, and handing
 it to Nobody; the task was left as it was found and the test comment
 deleted. Not verified from this seat: the receiver's `turn` bell
 (notifications are own-rows under RLS).
+
+## Up now: item 5, the task list (2026-09-04)
+
+With Everyone off, your list is what you are up on. Two groups follow
+the ordinary ones: **Nobody up**, open, with a Take it on every row and
+a Sort these button that opens the Whose turn drawer (J and K move, 1
+takes it, 2 skips, Skip only hides for that pass), and **Waiting on
+someone else**, folded by default, rows dimmed with "Hannah Birkholz is
+up" beside the title. The avatar cluster draws the owner solid, the
+rest dimmed, and a dashed ring in front when the task has people but
+nobody up. The row menu behind the faces gains Take it and Nobody
+above the people, `T` takes the focused row (selection too), and
+`/tasks?view=unowned` opens with Everyone off and every group but
+Nobody up folded without touching the folds you keep. Cards read your
+owned tasks and each client card says "+3 nobody up". Empty copy per
+the spec. Everyone mode and Focus are untouched apart from the cluster.
+Guide: new "Up now and who else is on it" section under Tasks.
+
+Two decisions: done tasks stay in the ordinary groups whoever is up,
+so Completed reads as before; and the default fold on `waiting` only
+applies to people with no saved view state, because `user_views` keeps
+whatever folds you had. Verified by taking a task from the drawer with
+`1`, handing it back to Nobody from the row menu, handing one to Hannah
+to see the waiting group, and handing it back.
