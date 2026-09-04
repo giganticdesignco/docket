@@ -1939,3 +1939,28 @@ removes the row by FK cascade.
 Deliberately untouched: TimeClockPopover, the morning brief, MCP tools,
 the Assistant, Planner, Schedule, reports, notifications, the portal.
 Nothing shared or team-wide was built.
+
+## Harvest invoice history relinked (2026-09-04)
+
+The Harvest invoice import brought in 7,463 invoices (2015 to now,
+$20.16M), but 1,154 of them across 169 client names had `client_id`
+null: those clients never existed in Docket, because the client list
+came from this year's time entries and ClickUp lists, so invoice-only
+history had nothing to attach to. Those invoices appeared nowhere in
+the app.
+
+Created the 169 clients from `harvest_invoices.client_name` and
+relinked by a case-insensitive name match. Checked first that no name
+collided with an existing client once punctuation and spacing were
+ignored; none did, so there are no duplicates. `is_active` is true when
+the client still owes us or invoiced within twelve months (38 of them)
+and false otherwise (131), so the Clients list stays readable while the
+$24,259.58 that was invisible is now reachable. All 7,463 invoices are
+linked; none remain orphaned.
+
+The new rows carry no `harvest_id`, because the Harvest clients
+endpoint pages at 100 and the MCP tool has no cursor. That is fine:
+the invoice importer already falls back to a name match, and the time
+importer's `ensureClient` adopts the harvest_id the first time it sees
+one of these clients. A rename in Harvest before that happens would
+create a second client, which is the one thing to watch.
