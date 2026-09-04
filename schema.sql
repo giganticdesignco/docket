@@ -2917,16 +2917,23 @@ create policy receipts_delete on storage.objects for delete to authenticated
   using (bucket_id = 'receipts'
          and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
 
--- Files on tasks (work_item_files): private bucket, whole team reads and
--- uploads, uploader or admin deletes. Paths are <work_item_id>/<uuid>.<ext>.
+-- Files on tasks (work_item_files): private bucket. The team reads and
+-- uploads, and only on tasks they can see (the first path segment is the
+-- task id); clients never touch the bucket, the review page signs its
+-- own URLs server-side. Uploader or admin deletes. Paths are
+-- <work_item_id>/<uuid>.<ext>. (Bucket-only policies here once let every
+-- portal login list and download every task's files: migration
+-- work_files_storage_team_only, from the 2026-09-04 review.)
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('work-files', 'work-files', false, 26214400)
 on conflict (id) do nothing;
 
 create policy work_files_read on storage.objects for select to authenticated
-  using (bucket_id = 'work-files');
+  using (bucket_id = 'work-files' and not (select public.is_client())
+         and (public.has_permission('see_all_tasks') or public.task_visible(((storage.foldername(name))[1])::uuid)));
 create policy work_files_insert on storage.objects for insert to authenticated
-  with check (bucket_id = 'work-files');
+  with check (bucket_id = 'work-files' and not (select public.is_client())
+              and (public.has_permission('see_all_tasks') or public.task_visible(((storage.foldername(name))[1])::uuid)));
 create policy work_files_delete on storage.objects for delete to authenticated
   using (bucket_id = 'work-files' and (owner = auth.uid() or public.is_admin()));
 

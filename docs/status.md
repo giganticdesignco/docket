@@ -2481,3 +2481,32 @@ therefore the same act as documenting it: write it in the guide.
 Verified from Billing: the answer described batches, locking, the
 invoice, and voiding, all from the guide. Also from a screenshot: the
 assistant header's History and New chat no longer wrap.
+
+## The first agentic review, run 1: the foundation (2026-09-04)
+
+Luke asked to plan and run an agentic review of the whole app. Run 1
+covered the schema, RLS, security definer functions, server routes,
+the MCP and assistant tools, the crons and the importers. Five
+reviewers (security, correctness, speed, structure and efficiency,
+docs drift), Opus for the sweeps and Sonnet for docs, then every
+finding went to two verifiers, one told to refute it and one told to
+trace it end to end; only findings both let stand count. 117 agents,
+about twenty minutes. 56 findings, 37 confirmed, 19 refuted. Every
+confirmed finding is a row on Settings, Feedback with page title
+"Code review: foundation", the file and line in the selector, so they
+are triaged and fixed through the same loop as everything else.
+
+Fixed on the spot, before anything else: the work-files storage
+bucket was readable and writable by every authenticated user, client
+portal logins included (migration `work_files_storage_team_only`,
+mirrored). The rest waits for Luke's triage. Headlines: retainer
+rollover carries a negative balance forward when uncapped;
+run_reminders emails client contacts about missing time; the Harvest
+sync unlocks entries a billing batch has claimed; four definitions of
+"unbilled" that disagree; RLS policies calling security definer
+helpers per row in about 45 places; no index on
+harvest_archive_monthly.project_id; the ClickUp sync updating every
+task every night; project_budgets() readable by clients; see_money
+enforced only in views while base tables expose the columns; the
+share endpoint usable as an email relay by any signed-in user.
+Run 2, the screens, started straight after.
