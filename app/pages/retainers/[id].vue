@@ -28,19 +28,23 @@ const status = computed(() => (periods.value.some(p => p.period_start <= today &
 const startedOn = computed(() => periods.value[periods.value.length - 1]!.period_start)
 
 // Term and renewal live on the retainer row, not in retainer_status().
-const { data: terms } = await useAsyncData(`retainer-${id}-terms`, async () => {
+const __s1 = useAsyncData(`retainer-${id}-terms`, async () => {
   const { data } = await supabase.from('retainers').select('term, renews').eq('id', periods.value[0]!.retainer_id).maybeSingle()
   return data
 }, fresh)
-const { data: client } = await useAsyncData(`retainer-${id}-client`, async () => {
+const __s2 = useAsyncData(`retainer-${id}-client`, async () => {
   const { data } = await supabase.from('clients').select('id, name').eq('id', seed.value!.client_id).single()
   return data
 }, fresh)
-const { data: project } = await useAsyncData(`retainer-${id}-project`, async () => {
+const __s3 = useAsyncData(`retainer-${id}-project`, async () => {
   if (!seed.value!.project_id) return null
   const { data } = await supabase.from('projects').select('id, name').eq('id', seed.value!.project_id).single()
   return data
 }, fresh)
+await Promise.all([__s1, __s2, __s3])
+const { data: terms } = __s1
+const { data: client } = __s2
+const { data: project } = __s3
 useHead({ title: () => seed.value?.name ?? 'Retainer' })
 useAssistantScreen(() => ({ client: client.value?.name, retainer: seed.value?.name }))
 

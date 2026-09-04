@@ -10,15 +10,18 @@ const showInactive = ref(false)
 const creating = ref(false)
 const editing = ref<Tables<'departments'> | null>(null)
 
-const { data: departments, refresh } = await useAsyncData('departments', async () => {
+const __s1 = useAsyncData('departments', async () => {
   const { data, error } = await supabase.from('departments').select('*').order('name')
   if (error) throw error
   return data
 }, fresh)
-const { data: people } = await useAsyncData('departments-people', async () => {
+const __s2 = useAsyncData('departments-people', async () => {
   const { data } = await supabase.from('profiles').select('id, full_name, department_id').eq('is_active', true).neq('role', 'client').order('full_name')
   return data ?? []
 }, fresh)
+await Promise.all([__s1, __s2])
+const { data: departments, refresh } = __s1
+const { data: people } = __s2
 const leadName = (id: string | null) => people.value?.find(p => p.id === id)?.full_name ?? ''
 const members = (d: Tables<'departments'>) => (people.value ?? []).filter(p => p.department_id === d.id)
 const unplaced = computed(() => (people.value ?? []).filter(p => !p.department_id))

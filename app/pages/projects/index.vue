@@ -11,11 +11,7 @@ const clientFilter = ref<string | undefined>()
 const departmentFilter = ref<string | undefined>()
 const creating = ref(false)
 
-const __ad1 = useAsyncData('clients-for-projects', async () => {
-  const { data, error } = await supabase.from('clients').select('id, name').order('name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad1 = useClientNames()
 
 const __ad2 = useAsyncData('projects', async () => {
   const { data, error } = await supabase
@@ -27,16 +23,8 @@ const __ad2 = useAsyncData('projects', async () => {
 }, fresh)
 
 // Burn for every project in one call (security definer, totals only).
-const __ad3 = useAsyncData('project-budgets', async () => {
-  const { data, error } = await supabase.rpc('project_budgets')
-  if (error) throw error
-  return data
-}, fresh)
-const __ad4 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad3 = useProjectBudgets()
+const __ad4 = useActivePeople()
 const __ad5 = useAsyncData('departments-for-projects', async () => {
   const { data, error } = await supabase.from('departments').select('id, name').eq('is_active', true).order('name')
   if (error) throw error

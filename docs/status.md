@@ -2690,3 +2690,24 @@ Verified in Chrome: every strip switches, Feedback counts show, Reports
 renders both kinds, /admin cards match the sidebar, the bell lists
 twelve with icons, the task page crumbs read Tasks > client > project >
 parent, the client page's one table and tiles, the picker strip.
+
+## 2026-09-04: code review, screens tranche 5 (reference data, one wave per page)
+
+Two findings. `app/composables/useReference.ts` owns the lists many
+pages share: `useActivePeople`, `useActiveProjects`,
+`useProjectTaskTypes` (lazy, for the entry forms), `useClientNames`,
+`useTaskTypes`, `useProjectBudgets`, and the three report filter lists.
+Sixteen pasted `useAsyncData` blocks across eleven pages are gone, and
+the collision where the task list and the task page cached different
+project shapes under one key is closed: both now read the fuller shape
+(with billing method) under `projects-active`. Every page now starts
+its queries and awaits them together: Harvest import (four), Permissions
+(five, roles included), the Retainer page (terms, client and project
+after the chain), Account, Departments, and the client page (contacts
+and budgets join the second wave).
+
+Verified in Chrome: Tasks, a task page, Time and Home entry forms
+(task select fills after a project), Permissions, a Retainer page,
+Harvest import, Account, Departments, a client page, the detailed
+report (330 client options), Page templates, Projects (people chips and
+budgets). Typecheck clean.

@@ -41,21 +41,9 @@ const config = reactive({
 
 // Filter options come from live tables. Archive-only names still show up
 // in results, they just cannot be picked as a filter.
-const __ad1 = useAsyncData('report-clients', async () => {
-  const { data, error } = await supabase.from('clients').select('name').order('name')
-  if (error) throw error
-  return data
-}, fresh)
-const __ad2 = useAsyncData('report-projects', async () => {
-  const { data, error } = await supabase.from('projects').select('name, clients(name)').order('name')
-  if (error) throw error
-  return data
-}, fresh)
-const __ad3 = useAsyncData('report-people', async () => {
-  const { data, error } = await supabase.from('profiles').select('full_name').order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad1 = useReportClients()
+const __ad2 = useReportProjects()
+const __ad3 = useReportPeople()
 const __ad4 = useAsyncData('saved-reports', async () => {
   const { data, error } = await supabase.from('saved_reports').select('*').order('name')
   if (error) throw error

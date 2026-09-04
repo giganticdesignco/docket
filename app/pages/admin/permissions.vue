@@ -15,13 +15,13 @@ useHead({ title: 'Permissions' })
 const supabase = useSupabaseClient()
 const toast = useToast()
 
-const { data: roles, refresh: refreshRoles } = await useRoles()
-const { data: rows, refresh } = await useAsyncData('permissions', async () => {
+const __s1 = useRoles()
+const __s2 = useAsyncData('permissions', async () => {
   const { data, error } = await supabase.from('permissions').select('role, key')
   if (error) throw error
   return data
 }, fresh)
-const { data: counts } = await useAsyncData('role-counts', async () => {
+const __s3 = useAsyncData('role-counts', async () => {
   const { data, error } = await supabase.from('profiles').select('role')
   if (error) throw error
   const c: Record<string, number> = {}
@@ -49,7 +49,7 @@ async function viewAsPerson(p: { id: string, full_name: string, role: string }) 
 }
 
 // ---------- people: overrides on top of the role ----------
-const { data: people } = await useAsyncData('permission-people', async () => {
+const __s4 = useAsyncData('permission-people', async () => {
   const { data, error } = await supabase.from('profiles').select('id, full_name, role').eq('is_active', true).neq('role', 'client').order('full_name')
   if (error) throw error
   return data
@@ -57,11 +57,17 @@ const { data: people } = await useAsyncData('permission-people', async () => {
 const personId = ref<string | undefined>()
 const person = computed(() => people.value?.find(p => p.id === personId.value) ?? null)
 const personOptions = computed(() => (people.value ?? []).map(p => ({ label: p.full_name, value: p.id })))
-const { data: overrides, refresh: refreshOverrides } = await useAsyncData('permission-overrides', async () => {
+const __s5 = useAsyncData('permission-overrides', async () => {
   const { data, error } = await supabase.from('permission_overrides').select('user_id, key, allowed')
   if (error) throw error
   return data
 }, fresh)
+await Promise.all([__s1, __s2, __s3, __s4, __s5])
+const { data: roles, refresh: refreshRoles } = __s1
+const { data: rows, refresh } = __s2
+const { data: counts } = __s3
+const { data: people } = __s4
+const { data: overrides, refresh: refreshOverrides } = __s5
 const overrideCount = (id: string) => (overrides.value ?? []).filter(o => o.user_id === id).length
 const override = (key: string) => (overrides.value ?? []).find(o => o.user_id === personId.value && o.key === key)?.allowed
 const OVERRIDE_OPTIONS = [{ label: 'Role default', value: 'default' }, { label: 'Allowed', value: 'yes' }, { label: 'Not allowed', value: 'no' }]

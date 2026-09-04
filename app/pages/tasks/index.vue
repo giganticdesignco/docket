@@ -53,17 +53,9 @@ const __ad1 = useAsyncData('work-items', async () => {
   return data
 }, fresh)
 
-const __ad2 = useAsyncData('projects-for-tasks', async () => {
-  const { data, error } = await supabase.from('projects').select('id, name, clients(name)').eq('is_active', true).order('name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad2 = useActiveProjects()
 
-const __ad3 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad3 = useActivePeople()
 // Open tasks still in a client's General project, from the ClickUp
 // import. A button points at /tasks/triage while there are any.
 const { can } = useCurrentUser()

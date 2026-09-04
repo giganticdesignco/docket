@@ -14,11 +14,7 @@ const __ad1 = useAsyncData('admin-project-templates', async () => {
   if (error) throw error
   return data
 }, fresh)
-const __ad2 = useAsyncData('task-types-for-templates', async () => {
-  const { data, error } = await supabase.from('tasks').select('id, name').eq('is_active', true).order('name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad2 = useTaskTypes()
 const __ad3 = useRoles()
 await Promise.all([__ad1, __ad2, __ad3])
 const { data: rows, refresh } = __ad1

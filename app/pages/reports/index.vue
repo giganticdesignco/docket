@@ -93,21 +93,9 @@ const days = computed(() => Math.round((parseDateString(state.to).getTime() - pa
 
 // ---------- filters ----------
 
-const __ad1 = useAsyncData('report-clients', async () => {
-  const { data, error } = await supabase.from('clients').select('name').order('name')
-  if (error) throw error
-  return data
-}, fresh)
-const __ad2 = useAsyncData('report-projects', async () => {
-  const { data, error } = await supabase.from('projects').select('name, clients(name)').order('name')
-  if (error) throw error
-  return data
-}, fresh)
-const __ad3 = useAsyncData('report-people', async () => {
-  const { data, error } = await supabase.from('profiles').select('full_name').order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad1 = useReportClients()
+const __ad2 = useReportProjects()
+const __ad3 = useReportPeople()
 const __ad4 = useAsyncData('report-tasks', async () => {
   const { data, error } = await supabase.from('tasks').select('name').order('name')
   if (error) throw error

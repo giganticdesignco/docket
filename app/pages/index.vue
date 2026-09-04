@@ -55,16 +55,8 @@ const __ad4 = useAsyncData('home-brief', async () => {
   return data
 }, { ...fresh, server: false })
 // For the Start timer drawer: the same lists the timesheet's form uses.
-const __ad5 = useAsyncData('projects-for-time', async () => {
-  const { data, error } = await supabase.from('projects').select('id, name, billing_method, clients(name)').eq('is_active', true).order('name')
-  if (error) throw error
-  return data
-}, { ...fresh, server: false })
-const __ad6 = useAsyncData('project-tasks-for-time', async () => {
-  const { data, error } = await supabase.from('project_tasks').select('project_id, task_id, tasks(id, name, is_billable_default, is_active)')
-  if (error) throw error
-  return data
-}, { ...fresh, server: false, immediate: false })
+const __ad5 = useActiveProjects({ server: false })
+const __ad6 = useProjectTaskTypes({ server: false, immediate: false })
 // The focus list, by id, so it shows a task even when someone else is
 // the assignee. Home only reads it; the star lives on Tasks.
 const __ad7 = useAsyncData('home-focus', async () => {

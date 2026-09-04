@@ -37,11 +37,7 @@ const __ad5 = useAsyncData('page-templates', async () => {
   if (error) throw error
   return data
 }, fresh)
-const __ad6 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad6 = useActivePeople()
 // Cost and margin per saved line, for people who see money. Cost rates
 // never reach the browser; the function does the arithmetic.
 const { can } = useCurrentUser()

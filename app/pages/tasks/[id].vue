@@ -46,17 +46,9 @@ const __ad5 = useAsyncData(`task-${id}-time`, async () => {
   return (data ?? []).reduce((s, r) => s + r.hours, 0)
 }, fresh)
 
-const __ad6 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad6 = useActivePeople()
 
-const __ad7 = useAsyncData('projects-for-tasks', async () => {
-  const { data, error } = await supabase.from('projects').select('id, name, billing_method, clients(name)').eq('is_active', true).order('name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad7 = useActiveProjects()
 // Subtasks: the children of this task, and the parent if this is one.
 const __ad8 = useAsyncData(`task-${id}-children`, async () => {
   const { data, error } = await supabase.from('work_items').select('id, title, status, due_on, estimate_hours, assignee_id, work_item_assignees(user_id, profiles(full_name))').eq('parent_id', id).order('position').order('created_at')

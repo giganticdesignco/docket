@@ -68,11 +68,7 @@ const __ad6 = useAsyncData(`client-${id}-invoices`, async () => {
   if (error) throw error
   return data
 }, fresh)
-const __ad7 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad7 = useActivePeople()
 await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
 const { data: client, refresh } = __ad1
 const { data: projects, refresh: refreshProjects } = __ad2
@@ -105,7 +101,17 @@ const __ad9 = useAsyncData(`client-${id}-recent-time`, async () => {
   if (error) throw error
   return data
 }, { ...fresh, watch: [projectIds] })
-await Promise.all([__ad8, __ad9])
+// Client contacts: people with a login for this client's portal.
+const __ad10 = useAsyncData(`client-${id}-contacts`, async () => {
+  const { data, error } = await supabase.from('profiles').select('id, full_name, email, is_active, created_at').eq('client_id', id).order('full_name')
+  if (error) throw error
+  return data
+}, fresh)
+// Lifetime burn per project, everyone's time, for the projects table.
+const __ad11 = useProjectBudgets()
+await Promise.all([__ad8, __ad9, __ad10, __ad11])
+const { data: contacts, refresh: refreshContacts } = __ad10
+const { data: budgets } = __ad11
 const { data: openTasks } = __ad8
 const { data: recentTime } = __ad9
 const nameOf = (uid: string) => people.value?.find(p => p.id === uid)?.full_name ?? ''
@@ -151,12 +157,6 @@ watch(member, (m) => { if (m) refreshNuxtData('client-member-time') })
 useHead({ title: () => client.value?.name ?? 'Client' })
 useAssistantScreen(() => ({ client: client.value?.name }))
 
-// Client contacts: people with a login for this client's portal.
-const { data: contacts, refresh: refreshContacts } = await useAsyncData(`client-${id}-contacts`, async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name, email, is_active, created_at').eq('client_id', id).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
 const inviting = ref(false)
 const invite = reactive({ fullName: '', email: '' })
 const inviteBusy = ref(false)
@@ -181,12 +181,6 @@ async function setContactActive(contactId: string, active: boolean) {
   else await refreshContacts()
 }
 
-// Lifetime burn per project, everyone's time, for the projects table.
-const { data: budgets } = await useAsyncData('project-budgets', async () => {
-  const { data, error } = await supabase.rpc('project_budgets')
-  if (error) throw error
-  return data
-}, fresh)
 const burn = (projectId: string) => budgets.value?.find(b => b.project_id === projectId)
 const usedPct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : null)
 

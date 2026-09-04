@@ -37,23 +37,9 @@ const __ad1 = useAsyncData('time-week', async () => {
   return data
 }, { ...fresh, watch: [weekStart] })
 
-const __ad2 = useAsyncData('projects-for-time', async () => {
-  const { data, error } = await supabase
-    .from('projects')
-    .select('id, name, billing_method, clients(name)')
-    .eq('is_active', true)
-    .order('name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad2 = useActiveProjects()
 
-const __ad3 = useAsyncData('project-tasks-for-time', async () => {
-  const { data, error } = await supabase
-    .from('project_tasks')
-    .select('project_id, task_id, tasks(id, name, is_billable_default, is_active)')
-  if (error) throw error
-  return data
-}, { ...fresh, immediate: false })
+const __ad3 = useProjectTaskTypes({ immediate: false })
 
 const __ad4 = timer.load()
 

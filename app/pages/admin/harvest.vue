@@ -13,13 +13,13 @@ const now = new Date()
 const thisYear = now.getFullYear()
 const thisMonth = now.getMonth() + 1
 
-const { data: yearly, refresh: refreshYearly } = await useAsyncData('harvest-yearly', async () => {
+const __s1 = useAsyncData('harvest-yearly', async () => {
   const { data, error } = await supabase.from('harvest_archive_yearly').select('*').order('year')
   if (error) throw error
   return data
 }, fresh)
 
-const { data: liveCount, refresh: refreshLive } = await useAsyncData('harvest-live-count', async () => {
+const __s2 = useAsyncData('harvest-live-count', async () => {
   const { count, error } = await supabase
     .from('time_entries')
     .select('id', { count: 'exact', head: true })
@@ -29,7 +29,7 @@ const { data: liveCount, refresh: refreshLive } = await useAsyncData('harvest-li
   return count ?? 0
 }, fresh)
 
-const { data: expenseCount, refresh: refreshExpenses } = await useAsyncData('harvest-expense-count', async () => {
+const __s3 = useAsyncData('harvest-expense-count', async () => {
   const { count, error } = await supabase
     .from('expenses')
     .select('id', { count: 'exact', head: true })
@@ -38,11 +38,16 @@ const { data: expenseCount, refresh: refreshExpenses } = await useAsyncData('har
   return count ?? 0
 }, fresh)
 
-const { data: invoiceCount, refresh: refreshInvoices } = await useAsyncData('harvest-invoice-count', async () => {
+const __s4 = useAsyncData('harvest-invoice-count', async () => {
   const { count, error } = await supabase.from('harvest_invoices').select('id', { count: 'exact', head: true })
   if (error) throw error
   return count ?? 0
 }, fresh)
+await Promise.all([__s1, __s2, __s3, __s4])
+const { data: yearly, refresh: refreshYearly } = __s1
+const { data: liveCount, refresh: refreshLive } = __s2
+const { data: expenseCount, refresh: refreshExpenses } = __s3
+const { data: invoiceCount, refresh: refreshInvoices } = __s4
 
 const archiveFrom = ref(2015)
 const archiveTo = ref(thisYear - 1)

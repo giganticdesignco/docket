@@ -9,7 +9,7 @@ const route = useRoute()
 const toast = useToast()
 const { profile, can } = useCurrentUser()
 
-const { data: connections, refresh } = await useAsyncData('calendar-connections', async () => {
+const __s1 = useAsyncData('calendar-connections', async () => {
   const { data, error } = await supabase.from('calendar_connections').select('user_id, google_email, connected_at, last_synced_at, last_error')
   if (error) throw error
   // The view's columns come back nullable; the rows never are.
@@ -17,11 +17,14 @@ const { data: connections, refresh } = await useAsyncData('calendar-connections'
 }, fresh)
 const mine = computed(() => connections.value?.find(c => c.user_id === user.value?.sub) ?? null)
 const others = computed(() => (connections.value ?? []).filter(c => c.user_id !== user.value?.sub))
-const { data: people } = await useAsyncData('people-for-account', async () => {
+const __s2 = useAsyncData('people-for-account', async () => {
   if (!can('manage_people')) return []
   const { data } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).neq('role', 'client').order('full_name')
   return data ?? []
 }, fresh)
+await Promise.all([__s1, __s2])
+const { data: connections, refresh } = __s1
+const { data: people } = __s2
 const nameOf = (id: string) => people.value?.find(p => p.id === id)?.full_name ?? id
 
 // Back from Google: the callback appends what happened.

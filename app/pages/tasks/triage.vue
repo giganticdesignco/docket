@@ -32,11 +32,7 @@ const __ad2 = useAsyncData('projects-for-triage', async () => {
   if (error) throw error
   return data
 }, fresh)
-const __ad3 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad3 = useActivePeople()
 await Promise.all([__ad0, __ad1, __ad2, __ad3])
 const ws = await __ad0
 const { data: items, refresh } = __ad1

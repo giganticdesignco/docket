@@ -24,11 +24,7 @@ const __ad2 = useAsyncData(`project-${id}-tasks-named`, async () => {
   return data
 }, fresh)
 
-const __ad3 = useAsyncData('clients-for-projects', async () => {
-  const { data, error } = await supabase.from('clients').select('id, name').order('name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad3 = useClientNames()
 
 // Tasks on this project, newest due first among the open ones.
 const __ad4 = useAsyncData(`project-${id}-work-items`, async () => {
@@ -40,11 +36,7 @@ const __ad4 = useAsyncData(`project-${id}-work-items`, async () => {
   if (error) throw error
   return data
 }, fresh)
-const __ad5 = useAsyncData('people-for-tasks', async () => {
-  const { data, error } = await supabase.from('profiles').select('id, full_name').eq('is_active', true).order('full_name')
-  if (error) throw error
-  return data
-}, fresh)
+const __ad5 = useActivePeople()
 const __ad6 = useWorkStatuses()
 const showDone = ref(false)
 const openItems = computed(() => (workItems.value ?? []).filter(i => !ws.isDone(i.status)))
