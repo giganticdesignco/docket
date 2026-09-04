@@ -2711,3 +2711,23 @@ Verified in Chrome: Tasks, a task page, Time and Home entry forms
 Harvest import, Account, Departments, a client page, the detailed
 report (330 client options), Page templates, Projects (people chips and
 budgets). Typecheck clean.
+
+## 2026-09-04: live updates, searchable lists, sitemap full screen
+
+Three of Luke's ideas from the feedback list. **Live updates:** the
+task screens (Tasks, a task page, Home, Planner, Schedule, Unsorted
+tasks) subscribe through `useLive(tables, refresh)` to `work_items`,
+`work_item_assignees`, `work_item_followers`, `work_item_comments` and
+`work_item_plans`, added to the `supabase_realtime` publication
+(migration `live_updates_publication`, mirrored in schema.sql). A change
+by anyone refetches the page within half a second; realtime applies
+RLS per subscriber. Tested by inserting a marked task by SQL while the
+Tasks page sat open: it appeared without a navigation, and vanished
+when purged. **Searchable lists:** every dropdown fed by a table
+(projects on the Planner, task types and people on quote lines and
+templates, project templates on the project form, page templates on
+sitemap cards) is a `USelectMenu` with a search box. **Sitemap:** the
+canvas centers in its card and a full-screen button gives it the whole
+window; Esc comes back. Verified on a marked test quote with four
+pages (centered with equal margins, the overlay filled 2560 by 1267),
+then deleted.

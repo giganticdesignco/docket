@@ -190,7 +190,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
       </UFormField>
     </div>
     <UFormField v-if="!project && templates?.length" label="Start from" name="template" :help="templateNote || 'A template adds its tasks, with their hours, once the project is made.'">
-      <USelect v-model="templateId" :items="templateOptions" class="w-full" />
+      <USelectMenu v-model="templateId" :items="templateOptions" value-key="value" class="w-full" />
     </UFormField>
     <SimilarProjects v-if="!project" :name="state.name" :client-name="allClients.find(c => c.id === state.client_id)?.name" @use="(h, a) => { state.budget_hours = h; if (a != null) state.budget_amount = a }" />
     <UFormField label="Server folder" name="server_path" help="Where this project's files live on the office server. New task file links start here.">

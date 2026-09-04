@@ -84,6 +84,8 @@ async function addChild() {
   }
 }
 const { data: comments, refresh: refreshComments } = __ad3
+// The task, its people, subtasks and comments follow other people's changes.
+useLive(['work_items', 'work_item_assignees', 'work_item_followers', 'work_item_comments'], () => Promise.all([refresh(), refreshChildren(), refreshComments()]))
 const { data: attachments, refresh: refreshFiles } = __ad4
 const { data: timeLogged, refresh: refreshTimeLogged } = __ad5
 const { data: people } = __ad6

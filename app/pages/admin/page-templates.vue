@@ -120,7 +120,7 @@ async function move(r: Row, dir: -1 | 1) {
             <UFormField label="Hours" help="What one page of this kind usually takes, all task types together."><UInput v-model.number="form.hours" type="number" step="0.5" min="0" class="w-full" /></UFormField>
             <UFormField label="Rate" help="Blank uses the rate already on the quote for the task type."><UInput v-model="form.rate" type="number" step="1" min="0" class="w-full" /></UFormField>
           </div>
-          <UFormField label="Task type" help="Where the time logs when the pages become work."><USelect v-model="form.task_id" :items="taskOptions" class="w-full" /></UFormField>
+          <UFormField label="Task type" help="Where the time logs when the pages become work."><USelectMenu v-model="form.task_id" :items="taskOptions" value-key="value" class="w-full" /></UFormField>
           <UFormField label="Color"><USelect v-model="form.color" :items="COLORS" class="w-full" /></UFormField>
           <USwitch v-model="form.is_active" label="Offered on the sitemap" />
         </div>

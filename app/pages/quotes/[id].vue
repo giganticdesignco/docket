@@ -408,9 +408,9 @@ async function deleteQuote() {
                 <UInput v-model="l.description" class="w-full" size="sm" />
                 <div v-if="pagesFor(l.id)" class="mt-0.5 text-xs text-muted">{{ pagesFor(l.id) }} page{{ pagesFor(l.id) === 1 ? '' : 's' }} in the sitemap</div>
               </td>
-              <td class="px-2 py-1.5"><USelect :model-value="l.task_id ?? '__none__'" :items="taskOptions" size="sm" class="w-full" @update:model-value="setTask(l, $event as string)" /></td>
+              <td class="px-2 py-1.5"><USelectMenu :model-value="l.task_id ?? '__none__'" :items="taskOptions" value-key="value" size="sm" class="w-full" @update:model-value="setTask(l, $event as string)" /></td>
               <td class="px-2 py-1.5">
-                <USelect :model-value="l.assignee_id ?? '__none__'" :items="peopleOptions" size="sm" class="w-full" @update:model-value="l.assignee_id = $event === '__none__' ? null : ($event as string)" />
+                <USelectMenu :model-value="l.assignee_id ?? '__none__'" :items="peopleOptions" value-key="value" size="sm" class="w-full" @update:model-value="l.assignee_id = $event === '__none__' ? null : ($event as string)" />
                 <UInput v-if="l.assignee_id" :model-value="l.target_week" type="date" size="sm" class="mt-1 w-full" title="The week the work lands, shown on Planner as quoted" @update:model-value="setWeek(l, $event as string)" />
               </td>
               <td class="px-2 py-1.5"><UInput v-model="l.hours" type="number" step="0.25" size="sm" class="w-full" :ui="{ base: 'text-right' }" /></td>

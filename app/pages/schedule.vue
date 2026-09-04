@@ -76,6 +76,7 @@ const plannedUsers = computed(() => {
   return m
 })
 const { data: deps, refresh: refreshDeps } = __ad2
+useLive(['work_items', 'work_item_assignees'], () => Promise.all([refresh(), refreshDeps()]))
 const { data: people } = __ad3
 const capacityKey = computed(() => `${from.value}-${to.value}`)
 const { data: capacity } = await useAsyncData('schedule-capacity', async () => {

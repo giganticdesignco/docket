@@ -159,7 +159,7 @@ async function remove() {
             <div class="space-y-2">
               <div v-for="(it, i) in form.items" :key="i" class="grid grid-cols-[1fr_9rem_5rem_8rem_auto] items-center gap-2">
                 <UInput v-model="it.title" size="sm" placeholder="Task title" />
-                <USelect v-model="it.task_id" :items="taskOptions" size="sm" />
+                <USelectMenu v-model="it.task_id" :items="taskOptions" value-key="value" size="sm" />
                 <UInput v-model="it.estimate_hours" type="number" step="0.25" min="0" size="sm" placeholder="hours" :ui="{ base: 'text-right' }" />
                 <USelect v-model="it.default_role" :items="roleOptions" size="sm" />
                 <div class="flex">

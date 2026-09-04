@@ -1066,6 +1066,14 @@ create table notifications (
 create index notifications_user on notifications (user_id, created_at desc);
 create index notifications_pending on notifications (email) where email = 'pending';
 alter publication supabase_realtime add table notifications;
+-- Live updates (2026-09-04): the task screens subscribe to these and
+-- refetch on any change. Realtime applies RLS per subscriber.
+alter publication supabase_realtime add table
+  public.work_items,
+  public.work_item_assignees,
+  public.work_item_followers,
+  public.work_item_comments,
+  public.work_item_plans;
 
 -- Per person, per kind: show it in the bell, and email never, as it
 -- happens, or in a daily digest. Missing rows mean the defaults

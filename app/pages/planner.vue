@@ -74,6 +74,7 @@ const { data: deptRows } = __ad6
 const { data: tasks, refresh: refreshTasks } = __ad2
 const { data: plans, refresh: refreshPlans } = __ad5
 const refreshAll = () => Promise.all([refreshTasks(), refreshPlans()])
+useLive(['work_items', 'work_item_assignees', 'work_item_plans'], refreshAll)
 const { data: off } = __ad3
 const { data: busyRows } = __ad4
 
@@ -416,7 +417,7 @@ const assignMenu = (t: Task) => assignMenus.value.get(t.id) ?? []
         <USelectMenu v-model="peopleFilter" :items="peopleItems" value-key="value" multiple size="sm" placeholder="Everyone" class="w-48" />
         <UButton size="sm" :variant="onlyMe ? 'solid' : 'outline'" :color="onlyMe ? 'primary' : 'neutral'" @click="peopleFilter = onlyMe ? [] : [me];">Me</UButton>
         <UButton v-if="myTeam.length > 1" size="sm" :variant="onlyTeam ? 'solid' : 'outline'" :color="onlyTeam ? 'primary' : 'neutral'" icon="i-lucide-users" :title="leads.length ? 'The people in the departments you lead' : 'The people in your department'" @click="peopleFilter = onlyTeam ? [] : [...myTeam];">{{ teamLabel }}</UButton>
-        <USelect v-model="projectId" :items="projectItems" value-key="value" size="sm" class="w-56" />
+        <USelectMenu v-model="projectId" :items="projectItems" value-key="value" size="sm" class="w-56" />
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search tasks" size="sm" class="w-48" />
       </div>
     </div>

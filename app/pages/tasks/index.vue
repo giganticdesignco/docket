@@ -129,6 +129,8 @@ const focusRows = computed(() => focusData.value?.rows ?? [])
 const staleIds = computed(() => focusData.value?.stale ?? [])
 const finished = computed(() => focusRows.value.filter(i => ws.isDone(i.status)))
 const refreshAll = () => (focusMode.value ? Promise.all([refresh(), refreshFocus()]) : refresh())
+// Someone else's change lands here without a reload.
+useLive(['work_items', 'work_item_assignees', 'work_item_followers'], refreshAll)
 
 const groups = computed<Group[]>(() => {
   // Search, Everyone and Completed do not apply in Focus mode: it is a

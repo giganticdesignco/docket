@@ -36,6 +36,7 @@ const __ad3 = useActivePeople()
 await Promise.all([__ad0, __ad1, __ad2, __ad3])
 const ws = await __ad0
 const { data: items, refresh } = __ad1
+useLive(['work_items'], refresh)
 const { data: projects, refresh: refreshProjects } = __ad2
 const { data: people } = __ad3
 

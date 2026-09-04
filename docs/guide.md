@@ -27,6 +27,16 @@ keyboard shortcuts alone.
   "Reset view" on the Tasks page puts its defaults back.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
+- **Task screens stay current.** Leave Tasks, a task, Home, the
+  Planner, the Schedule, or Unsorted tasks open all day and another
+  person's change (a hand-off, a new subtask, a comment, a plan) shows
+  up on its own within a second. No reload.
+- **Long lists are searchable.** A dropdown that lists projects,
+  people, task types or templates opens with a search box; type a few
+  letters instead of scrolling.
+- **The sitemap on a quote** sits centered in its card, and the
+  full-screen button in its toolbar gives it the whole window (Esc
+  brings the page back).
 - **Found a bug, or want something?** Click the speech-bubble icon in
   the rail, the Feedback pill beside the Assistant, or press
   `Cmd+Shift+F` on any screen. Click

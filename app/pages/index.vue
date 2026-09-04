@@ -84,6 +84,7 @@ async function timerSaved() {
 }
 const { data: pace, refresh: refreshPace } = __ad1
 const { data: tasks, refresh: refreshTasks } = __ad2
+useLive(['work_items', 'work_item_assignees'], refreshTasks)
 const { data: recentIds } = __ad3
 
 const { data: projects } = await useAsyncData('home-projects', async () => {

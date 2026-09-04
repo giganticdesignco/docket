@@ -148,10 +148,18 @@ const COLOR: Record<string, string> = {
 const cardClass = (n: CanvasNode) => COLOR[n.template_id ? templateById.value.get(n.template_id)?.color ?? 'neutral' : 'neutral'] ?? COLOR.neutral
 const totalHours = computed(() => props.nodes.reduce((s, n) => s + hoursOf(n), 0))
 defineExpose({ hoursOf })
+
+// Full screen: the same canvas over the whole window, Esc brings the
+// page back. Fit again on the way in, since the width changes.
+const fullscreen = ref(false)
+const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape' && fullscreen.value) fullscreen.value = false }
+watch(fullscreen, (v) => { if (v) nextTick(fitToWidth) })
+onMounted(() => window.addEventListener('keydown', onEsc))
+onBeforeUnmount(() => window.removeEventListener('keydown', onEsc))
 </script>
 
 <template>
-  <div>
+  <div :class="fullscreen ? 'fixed inset-0 z-50 flex flex-col bg-default p-4' : ''">
     <div class="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted">
       <span>{{ nodes.length }} {{ nodes.length === 1 ? 'page' : 'pages' }}, {{ formatHours(totalHours) }}</span>
       <span class="hidden sm:inline">Enter adds a page beside, Tab nests it, drag a card onto another to move it.</span>
@@ -160,15 +168,16 @@ defineExpose({ hoursOf })
         <span class="w-10 text-center tabular-nums">{{ Math.round(zoom * 100) }}%</span>
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-plus" aria-label="Zoom in" @click="zoom = Math.min(1.5, zoom + 0.1);" />
         <UButton size="xs" variant="ghost" color="neutral" @click="fitToWidth">Fit</UButton>
+        <UButton size="xs" variant="ghost" color="neutral" :icon="fullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'" :aria-label="fullscreen ? 'Back to the page' : 'Full screen'" :title="fullscreen ? 'Back to the page (Esc)' : 'Full screen'" @click="fullscreen = !fullscreen;" />
         <UButton v-if="editable" size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="add(null)">Top-level page</UButton>
       </div>
     </div>
-    <div ref="fit" class="overflow-auto rounded-md border border-default bg-elevated/30" style="max-height: 70vh">
+    <div ref="fit" class="overflow-auto rounded-md border border-default bg-elevated/30" :class="fullscreen ? 'min-h-0 flex-1' : ''" :style="fullscreen ? '' : 'max-height: 70vh'">
       <div v-if="!nodes.length" class="flex h-40 items-center justify-center text-sm text-muted">
         <UButton v-if="editable" variant="outline" color="neutral" icon="i-lucide-plus" @click="add(null)">Add the home page</UButton>
         <span v-else>No pages yet.</span>
       </div>
-      <div v-else class="relative origin-top-left p-4" :style="{ width: `${size.w * zoom + 32}px`, height: `${size.h * zoom + 32}px` }">
+      <div v-else class="relative mx-auto origin-top-left p-4" :style="{ width: `${size.w * zoom + 32}px`, height: `${size.h * zoom + 32}px` }">
         <div class="absolute left-4 top-4 origin-top-left" :style="{ transform: `scale(${zoom})`, width: `${size.w}px`, height: `${size.h}px` }">
           <svg class="pointer-events-none absolute inset-0 overflow-visible" :width="size.w" :height="size.h">
             <path v-for="l in links" :key="l.id" :d="l.d" fill="none" stroke="currentColor" class="text-muted opacity-60" stroke-width="1.5" />
@@ -186,7 +195,7 @@ defineExpose({ hoursOf })
             <input v-model="p.node.title" :readonly="!editable" class="w-full rounded-t-md bg-transparent px-2 pt-1.5 text-sm font-medium outline-none placeholder:text-dimmed" placeholder="Page title" @input="autoPath(p.node)" @keydown="onKey(p.node, $event)">
             <input v-model="p.node.path" :readonly="!editable" class="w-full bg-transparent px-2 text-[11px] text-muted outline-none placeholder:text-dimmed" placeholder="/path" @input="pathTouched.add(p.node.id)" @keydown="onKey(p.node, $event)">
             <div class="mt-auto flex items-center gap-1 px-1.5 pb-1.5">
-              <USelect :model-value="p.node.template_id ?? '__none__'" :items="templateOptions" size="xs" class="min-w-0 flex-1" :disabled="!editable" @update:model-value="setTemplate(p.node, $event as string)" />
+              <USelectMenu :model-value="p.node.template_id ?? '__none__'" :items="templateOptions" value-key="value" size="xs" class="min-w-0 flex-1" :disabled="!editable" @update:model-value="setTemplate(p.node, $event as string)" />
               <input v-model="p.node.hours" :readonly="!editable" type="number" step="0.5" min="0" class="w-12 rounded border border-default bg-default px-1 py-0.5 text-right text-xs tabular-nums outline-none" :placeholder="String(hoursOf(p.node))" title="Hours for this page. Blank uses the template's.">
             </div>
             <div v-if="editable" class="absolute -right-2 -top-2 hidden gap-0.5 group-hover:flex">
