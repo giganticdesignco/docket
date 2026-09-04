@@ -16,7 +16,7 @@ const __ad1 = useClientNames()
 const __ad2 = useAsyncData('projects', async () => {
   const { data, error } = await supabase
     .from('projects')
-    .select('*, clients(name), departments(name)')
+    .select(`${PROJECT_COLS}, clients(name), departments(name)`)
     .order('name')
   if (error) throw error
   return data

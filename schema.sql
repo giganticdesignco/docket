@@ -4261,3 +4261,132 @@ from permissions p
 cross join (values ('field:rates'), ('field:amounts'), ('field:budgets'), ('field:cost_margin')) as f(field)
 where p.key = 'see_money'
 on conflict do nothing;
+
+-- ============================================================
+-- 2026-09-04: money off the base tables (review finding 8f3fdbd6).
+-- see_money used to be enforced only in views and RPCs; the rate
+-- columns were readable straight off the tables by direct query.
+-- Now `authenticated` has column-level SELECT on profiles, projects,
+-- project_tasks and time_entries that leaves out default_rate,
+-- cost_rate, hourly_rate, rate_snapshot and cost_snapshot. The app
+-- reads those tables through PROFILE_COLS, PROJECT_COLS and
+-- TIME_ENTRY_COLS (app/utils/columns.ts; select('*') fails) and the
+-- rates through profile_rates, project_rates and project_task_rates,
+-- owner-run views that keep each table's row rule and return null
+-- without see_money. time_detail runs as its owner too, with the
+-- time_entries read rule inside it (time_entry_readable). A column
+-- added to one of these four tables later must be granted to
+-- authenticated by hand.
+-- Migrations: money_columns_gated_views, money_columns_gated_grants.
+-- ============================================================
+
+create or replace function public.resolve_rate(p_project_id uuid, p_task_id uuid, p_user_id uuid)
+returns numeric language plpgsql stable security definer set search_path = '' as $$
+begin
+  return coalesce(
+    (select pt.hourly_rate from public.project_tasks pt
+      where pt.project_id = p_project_id and pt.task_id = p_task_id),
+    (select p.hourly_rate from public.projects p where p.id = p_project_id),
+    (select pr.default_rate from public.profiles pr where pr.id = p_user_id)
+  );
+end;
+$$;
+
+create or replace function public.set_rate_snapshot()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT'
+     or new.project_id is distinct from old.project_id
+     or new.task_id    is distinct from old.task_id
+     or new.user_id    is distinct from old.user_id then
+    new.rate_snapshot := public.resolve_rate(new.project_id, new.task_id, new.user_id);
+    new.cost_snapshot := (select cost_rate from public.profiles where id = new.user_id);
+  else
+    if new.rate_snapshot is distinct from old.rate_snapshot
+       and auth.uid() is not null and not public.is_admin() then
+      new.rate_snapshot := old.rate_snapshot;
+    end if;
+    if new.cost_snapshot is distinct from old.cost_snapshot
+       and auth.uid() is not null and not public.is_admin() then
+      new.cost_snapshot := old.cost_snapshot;
+    end if;
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+-- Who may read a time entry: the same rule as own_time_select and
+-- lead_time_select, in one place, for the owner-run time_detail.
+create or replace function public.time_entry_readable(p_user_id uuid)
+returns boolean language sql stable security definer set search_path = '' as $$
+  select auth.uid() is null
+      or p_user_id = auth.uid()
+      or public.has_permission('see_all_time')
+      or public.has_permission('approve_time')
+      or p_user_id in (
+        select p.id from public.profiles p join public.departments d on d.id = p.department_id
+        where d.lead_id = auth.uid());
+$$;
+
+create or replace view public.time_detail with (security_invoker = false) as
+select
+  te.id,
+  te.spent_on,
+  date_trunc('month', te.spent_on)::date as period_month,
+  c.id   as client_id,
+  c.name as client_name,
+  p.id   as project_id,
+  p.name as project_name,
+  p.code as project_code,
+  t.name as task_name,
+  pr.id  as user_id,
+  pr.full_name as user_name,
+  te.hours,
+  te.is_billable,
+  case when te.is_billable then te.hours else 0 end as billable_hours,
+  case when not (select public.has_permission('see_money')) then null
+       when te.is_billable then te.hours * coalesce(te.rate_snapshot, 0) else 0 end as amount,
+  te.notes,
+  te.is_locked,
+  te.batch_id,
+  te.status
+from public.time_entries te
+join public.projects p  on p.id = te.project_id
+join public.clients  c  on c.id = p.client_id
+join public.tasks    t  on t.id = te.task_id
+join public.profiles pr on pr.id = te.user_id
+where (te.ended_at is not null or te.started_at is null)
+  and te.deleted_at is null
+  and (select public.time_entry_readable(te.user_id));
+revoke select on public.time_detail from anon;
+
+create view public.profile_rates with (security_invoker = false) as
+select pr.id,
+       case when (select public.has_permission('see_money')) then pr.default_rate end as default_rate,
+       case when (select public.has_permission('see_money')) then pr.cost_rate end as cost_rate
+from public.profiles pr
+where auth.uid() is not null and (pr.id = auth.uid() or not (select public.is_client()));
+
+create view public.project_rates with (security_invoker = false) as
+select p.id,
+       case when (select public.has_permission('see_money')) then p.hourly_rate end as hourly_rate
+from public.projects p
+where auth.uid() is not null and (not (select public.is_client()) or p.client_id = (select public.my_client_id()));
+
+create view public.project_task_rates with (security_invoker = false) as
+select pt.project_id, pt.task_id,
+       case when (select public.has_permission('see_money')) then pt.hourly_rate end as hourly_rate
+from public.project_tasks pt
+where auth.uid() is not null and not (select public.is_client());
+
+grant select on public.profile_rates, public.project_rates, public.project_task_rates to authenticated, service_role;
+revoke select on public.profile_rates, public.project_rates, public.project_task_rates from anon;
+
+-- Step 2: the revoke itself. Column privileges cannot subtract from a
+-- table-wide grant, so SELECT is revoked and granted back per column.
+revoke select on public.profiles, public.projects, public.project_tasks, public.time_entries from authenticated, anon;
+grant select (id, full_name, email, role, is_active, created_at, tours_seen, client_id, department_id, brief_email) on public.profiles to authenticated;
+grant select (id, client_id, name, code, billing_method, budget_hours, budget_amount, is_active, created_at, harvest_id, server_path, search, client_visible, lead_id, department_id) on public.projects to authenticated;
+grant select (project_id, task_id) on public.project_tasks to authenticated;
+grant select (id, user_id, project_id, task_id, spent_on, started_at, ended_at, hours, notes, is_billable, is_locked, batch_id, created_at, updated_at, harvest_id, work_item_id, deleted_at, deleted_by, status, submitted_at, reviewed_at, reviewed_by, reject_reason) on public.time_entries to authenticated;

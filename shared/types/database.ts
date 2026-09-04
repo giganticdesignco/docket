@@ -67,6 +67,13 @@ export type Database = {
             foreignKeyName: "ai_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -115,6 +122,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "assistant_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "assistant_conversations_user_id_fkey"
@@ -217,6 +231,13 @@ export type Database = {
             foreignKeyName: "audit_log_changed_by_fkey"
             columns: ["changed_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -265,6 +286,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "availability_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "availability_user_id_fkey"
@@ -378,6 +406,13 @@ export type Database = {
             foreignKeyName: "billing_batches_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -394,6 +429,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "billing_batches_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "billing_batches_project_id_fkey"
@@ -453,6 +495,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "calendar_busy_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "calendar_busy_user_id_fkey"
@@ -533,6 +582,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "departments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "departments_lead_id_fkey"
@@ -728,6 +784,13 @@ export type Database = {
             foreignKeyName: "expenses_deleted_by_fkey"
             columns: ["deleted_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -744,6 +807,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expenses_project_id_fkey"
@@ -772,6 +842,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expenses_user_id_fkey"
@@ -860,6 +937,13 @@ export type Database = {
             foreignKeyName: "feedback_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -883,6 +967,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "feedback_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "feedback_done_by_fkey"
@@ -939,6 +1030,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "google_tokens_user_id_fkey"
@@ -1042,6 +1140,13 @@ export type Database = {
             foreignKeyName: "harvest_archive_monthly_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "harvest_archive_monthly_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -1065,6 +1170,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "harvest_archive_monthly_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "harvest_archive_monthly_user_id_fkey"
@@ -1245,6 +1357,13 @@ export type Database = {
             foreignKeyName: "invoice_lines_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -1305,6 +1424,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "invoice_payments_created_by_fkey"
@@ -1519,6 +1645,13 @@ export type Database = {
             foreignKeyName: "invoices_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1575,6 +1708,13 @@ export type Database = {
             foreignKeyName: "morning_briefs_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "morning_briefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1620,6 +1760,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notification_prefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notification_prefs_user_id_fkey"
@@ -1696,6 +1843,13 @@ export type Database = {
             foreignKeyName: "notifications_actor_id_fkey"
             columns: ["actor_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1719,6 +1873,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notifications_user_id_fkey"
@@ -1823,6 +1984,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "permission_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "permission_overrides_user_id_fkey"
@@ -1975,6 +2143,13 @@ export type Database = {
           task_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "project_tasks_project_id_fkey"
             columns: ["project_id"]
@@ -2186,6 +2361,13 @@ export type Database = {
             foreignKeyName: "projects_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2258,6 +2440,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "quote_line_items_assignee_id_fkey"
@@ -2490,6 +2679,13 @@ export type Database = {
             foreignKeyName: "quotes_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2506,6 +2702,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quotes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "quotes_project_id_fkey"
@@ -2559,6 +2762,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reminder_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "reminder_log_user_id_fkey"
@@ -2662,6 +2872,13 @@ export type Database = {
             foreignKeyName: "retainers_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retainers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -2743,6 +2960,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "saved_reports_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "saved_reports_owner_id_fkey"
@@ -2901,6 +3125,13 @@ export type Database = {
             foreignKeyName: "time_entries_deleted_by_fkey"
             columns: ["deleted_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -2917,6 +3148,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "time_entries_project_id_fkey"
@@ -2945,6 +3183,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "time_entries_reviewed_by_fkey"
@@ -2980,6 +3225,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "time_entries_user_id_fkey"
@@ -3054,6 +3306,13 @@ export type Database = {
             foreignKeyName: "time_off_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_off_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3104,6 +3363,13 @@ export type Database = {
             foreignKeyName: "user_views_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3143,6 +3409,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_item_assignees_user_id_fkey"
@@ -3226,6 +3499,13 @@ export type Database = {
             foreignKeyName: "work_item_comments_author_id_fkey"
             columns: ["author_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3249,6 +3529,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_item_comments_deleted_by_fkey"
@@ -3359,6 +3646,13 @@ export type Database = {
             foreignKeyName: "work_item_files_uploaded_by_fkey"
             columns: ["uploaded_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3411,6 +3705,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_focus_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_item_focus_user_id_fkey"
@@ -3470,6 +3771,13 @@ export type Database = {
             foreignKeyName: "work_item_followers_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_followers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3519,6 +3827,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_order_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_item_order_user_id_fkey"
@@ -3685,6 +4000,13 @@ export type Database = {
             foreignKeyName: "work_items_assigned_by_fkey"
             columns: ["assigned_by"]
             isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3708,6 +4030,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_items_assignee_id_fkey"
@@ -3736,6 +4065,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_items_created_by_fkey"
@@ -3764,6 +4100,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_items_deleted_by_fkey"
@@ -3791,6 +4134,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
             referencedColumns: ["id"]
           },
           {
@@ -3901,6 +4251,13 @@ export type Database = {
             foreignKeyName: "google_tokens_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4002,6 +4359,13 @@ export type Database = {
             foreignKeyName: "invoice_lines_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -4018,6 +4382,93 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["project_id"]
+          },
+        ]
+      }
+      profile_rates: {
+        Row: {
+          cost_rate: number | null
+          default_rate: number | null
+          id: string | null
+        }
+        Insert: {
+          cost_rate?: never
+          default_rate?: never
+          id?: string | null
+        }
+        Update: {
+          cost_rate?: never
+          default_rate?: never
+          id?: string | null
+        }
+        Relationships: []
+      }
+      project_rates: {
+        Row: {
+          hourly_rate: number | null
+          id: string | null
+        }
+        Insert: {
+          hourly_rate?: never
+          id?: string | null
+        }
+        Update: {
+          hourly_rate?: never
+          id?: string | null
+        }
+        Relationships: []
+      }
+      project_task_rates: {
+        Row: {
+          hourly_rate: number | null
+          project_id: string | null
+          task_id: string | null
+        }
+        Insert: {
+          hourly_rate?: never
+          project_id?: string | null
+          task_id?: string | null
+        }
+        Update: {
+          hourly_rate?: never
+          project_id?: string | null
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_tasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4106,6 +4557,13 @@ export type Database = {
             foreignKeyName: "expenses_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
@@ -4129,6 +4587,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "capacity_weekly"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profile_rates"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "expenses_user_id_fkey"
@@ -4479,6 +4944,7 @@ export type Database = {
       }
       task_people: { Args: { p_item: string }; Returns: string[] }
       task_visible: { Args: { p_item: string }; Returns: boolean }
+      time_entry_readable: { Args: { p_user_id: string }; Returns: boolean }
       unbilled_summary: {
         Args: never
         Returns: {

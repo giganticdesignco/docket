@@ -61,3 +61,27 @@ amounts on the billing card, budgets on the project burn. Quote page
 and invoice page: cost and margin. People form: cost rate. Approvals,
 the report rollup and the retainer page: amounts. Everything else that
 shows money still keys off see_money through the views.
+
+## Money at the database
+
+Since 2026-09-04 the rate columns are not readable off the tables by
+anyone signed in through the app's key. `authenticated` has
+column-level SELECT on profiles, projects, project_tasks and
+time_entries that leaves out `default_rate`, `cost_rate`,
+`hourly_rate`, `rate_snapshot` and `cost_snapshot`. Rates come only
+through three owner-run views, `profile_rates`, `project_rates` and
+`project_task_rates`, each of which keeps its table's row rule and
+returns null without see_money. `time_detail` runs as its owner too,
+with the time entry read rule inside it (`time_entry_readable()`), and
+nulls amount without see_money as before. The trigger that freezes a
+rate onto an entry (`set_rate_snapshot`, through `resolve_rate`) runs
+as definer, so saving time still resolves a rate the saver cannot read.
+
+Consequences for code: `select('*')` on those four tables fails with
+permission denied; use `PROFILE_COLS`, `PROJECT_COLS` and
+`TIME_ENTRY_COLS` from `app/utils/columns.ts`, and `.select(...)` after
+an insert or update on them must name columns too. A column added to
+one of them later needs `grant select (col) on <table> to
+authenticated` in the same migration. Invoice line amounts are not
+part of this: invoice_lines is already limited by RLS to people with
+manage_invoices and to the client on the invoice.

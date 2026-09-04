@@ -39,9 +39,13 @@ async function addPerson() {
 }
 
 const __ad1 = useAsyncData('admin-profiles', async () => {
-  const { data, error } = await supabase.from('profiles').select('*').order('full_name')
+  // Rates come through profile_rates, null without see_money.
+  const [{ data, error }, { data: rates }] = await Promise.all([
+    supabase.from('profiles').select(PROFILE_COLS).order('full_name'),
+    supabase.from('profile_rates').select('id, default_rate, cost_rate'),
+  ])
   if (error) throw error
-  return data
+  return data.map(p => ({ ...p, default_rate: rates?.find(r => r.id === p.id)?.default_rate ?? null, cost_rate: rates?.find(r => r.id === p.id)?.cost_rate ?? null }))
 }, fresh)
 
 const __ad2 = useAsyncData('admin-availability', async () => {

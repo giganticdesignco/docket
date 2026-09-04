@@ -149,7 +149,7 @@ function onDropNew(g: { clientId: string, clientName: string, generalId: string 
 
 // ---------- a project that does not exist yet ----------
 const newFor = ref<{ clientId: string, clientName: string, generalId: string } | null>(null)
-async function projectCreated(p: Tables<'projects'>) {
+async function projectCreated(p: Omit<Tables<'projects'>, 'search' | 'hourly_rate'>) {
   const g = newFor.value
   newFor.value = null
   await refreshProjects()

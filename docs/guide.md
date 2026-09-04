@@ -37,6 +37,9 @@ keyboard shortcuts alone.
   Planner, the Schedule, or Unsorted tasks open all day and another
   person's change (a hand-off, a new subtask, a comment, a plan) shows
   up on its own within a second. No reload.
+- **Money stays behind its permission all the way down.** Without
+  "see rates and amounts" the database itself returns no rate, not just
+  the screens, so a direct query cannot read what the app hides.
 - **Long lists are searchable.** A dropdown that lists projects,
   people, task types or templates opens with a search box; type a few
   letters instead of scrolling.

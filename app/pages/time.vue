@@ -27,7 +27,7 @@ function goTo(date: string) {
 const __ad1 = useAsyncData('time-week', async () => {
   const { data, error } = await supabase
     .from('time_entries')
-    .select('*, projects(name, clients(name)), tasks(name)')
+    .select(`${TIME_ENTRY_COLS}, projects(name, clients(name)), tasks(name)`)
     .eq('user_id', user.value!.sub)
     .gte('spent_on', weekStart.value)
     .lte('spent_on', weekEnd.value)

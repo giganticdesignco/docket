@@ -2,7 +2,7 @@
 import type { FormSubmitEvent } from '@nuxt/ui'
 import type { Tables } from '~~/shared/types/database'
 
-type Entry = Tables<'time_entries'>
+type Entry = Omit<Tables<'time_entries'>, 'rate_snapshot' | 'cost_snapshot'>
 type ProjectOption = Pick<Tables<'projects'>, 'id' | 'name' | 'billing_method'> & { clients: { name: string } | null }
 type ProjectTaskOption = Pick<Tables<'project_tasks'>, 'project_id' | 'task_id'> & {
   tasks: Pick<Tables<'tasks'>, 'id' | 'name' | 'is_billable_default' | 'is_active'> | null
@@ -99,7 +99,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
       const query = props.entry
         ? supabase.from('time_entries').update(values).eq('id', props.entry.id)
         : supabase.from('time_entries').insert(values)
-      const { data, error } = await query.select().single()
+      const { data, error } = await query.select(TIME_ENTRY_COLS).single()
       if (error) throw error
       saved = data
     }

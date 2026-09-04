@@ -1,6 +1,7 @@
 import type { Tables, TablesInsert } from '~~/shared/types/database'
 
-type Entry = Tables<'time_entries'>
+// Without the frozen rates: the client reads entries through TIME_ENTRY_COLS.
+type Entry = Omit<Tables<'time_entries'>, 'rate_snapshot' | 'cost_snapshot'>
 type Result = { data: Entry | null, error: { code?: string, message: string } | null }
 
 // One shared clock so every live counter on the page ticks together.
@@ -30,7 +31,7 @@ export function useTimer() {
     }
     const { data, error } = await supabase
       .from('time_entries')
-      .select('*')
+      .select(TIME_ENTRY_COLS)
       .eq('user_id', user.value.sub)
       .not('started_at', 'is', null)
       .is('ended_at', null)
@@ -54,7 +55,7 @@ export function useTimer() {
       .from('time_entries')
       .update({ hours, ended_at: endedAt.toISOString() })
       .eq('id', entry.id)
-      .select()
+      .select(TIME_ENTRY_COLS)
       .single()
     if (error) throw error
     if (running.value?.id === entry.id) running.value = null
@@ -81,7 +82,7 @@ export function useTimer() {
     return claimSlot(() => supabase
       .from('time_entries')
       .insert({ ...values, started_at: new Date().toISOString(), ended_at: null })
-      .select()
+      .select(TIME_ENTRY_COLS)
       .single())
   }
 
@@ -91,7 +92,7 @@ export function useTimer() {
       .from('time_entries')
       .update({ started_at: new Date().toISOString(), ended_at: null })
       .eq('id', entryId)
-      .select()
+      .select(TIME_ENTRY_COLS)
       .single())
   }
 

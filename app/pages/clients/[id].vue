@@ -27,7 +27,7 @@ const __ad1 = useAsyncData(`client-${id}`, async () => {
 }, fresh)
 
 const __ad2 = useAsyncData(`client-${id}-projects`, async () => {
-  const { data, error } = await supabase.from('projects').select('*').eq('client_id', id).order('name')
+  const { data, error } = await supabase.from('projects').select(PROJECT_COLS).eq('client_id', id).order('name')
   if (error) throw error
   return data
 }, fresh)

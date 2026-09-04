@@ -5,12 +5,14 @@ import type { FormSubmitEvent } from '@nuxt/ui'
 
 // Create or edit a project. Admin only (see ClientForm).
 const props = defineProps<{
-  project?: Tables<'projects'>
+  project?: Omit<Tables<'projects'>, 'search'>
   clients: Pick<Tables<'clients'>, 'id' | 'name'>[]
   people: Pick<Tables<'profiles'>, 'id' | 'full_name'>[]
   defaultClientId?: string
 }>()
-const emit = defineEmits<{ saved: [project: Tables<'projects'>]; cancel: [] }>()
+// What comes back from a save is the row without its rate (the client
+// reads rates only through project_rates).
+const emit = defineEmits<{ saved: [project: Omit<Tables<'projects'>, 'search' | 'hourly_rate'>]; cancel: [] }>()
 
 const supabase = useSupabaseClient()
 const toast = useToast()
@@ -138,7 +140,7 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
   const query = props.project
     ? supabase.from('projects').update(values).eq('id', props.project.id)
     : supabase.from('projects').insert(values)
-  const { data, error } = await query.select().single()
+  const { data, error } = await query.select(PROJECT_COLS).single()
   saving.value = false
   if (error) {
     const description = error.code === '23505' ? 'That client already has a project with this name.' : error.message

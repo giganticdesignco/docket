@@ -20,7 +20,8 @@ export function useCurrentUser() {
   const user = useSupabaseUser()
   const supabase = useSupabaseClient()
 
-  const profile = useState<Tables<'profiles'> | null>('current-profile', () => null)
+  // Without the rates: the client reads profiles through PROFILE_COLS.
+  const profile = useState<Omit<Tables<'profiles'>, 'default_rate' | 'cost_rate'> | null>('current-profile', () => null)
   // The keys this person's role carries; admins carry all of them.
   const permissions = useState<string[]>('current-permissions', () => [])
   // Their own overrides: key -> allowed.
@@ -42,7 +43,7 @@ export function useCurrentUser() {
     if (profile.value?.id === user.value.sub) return
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select(PROFILE_COLS)
       .eq('id', user.value.sub)
       .single()
     if (error) throw error

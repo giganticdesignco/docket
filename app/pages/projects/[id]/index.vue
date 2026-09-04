@@ -13,15 +13,22 @@ const seeAmounts = computed(() => can('field:amounts'))
 const editing = ref(false)
 
 const __ad1 = useAsyncData(`project-${id}`, async () => {
-  const { data, error } = await supabase.from('projects').select('*, clients(id, name), profiles!projects_lead_id_fkey(full_name)').eq('id', id).single()
+  // The rate comes through project_rates, null without see_money.
+  const [{ data, error }, { data: rate }] = await Promise.all([
+    supabase.from('projects').select(`${PROJECT_COLS}, clients(id, name), profiles!projects_lead_id_fkey(full_name)`).eq('id', id).single(),
+    supabase.from('project_rates').select('hourly_rate').eq('id', id).maybeSingle(),
+  ])
   if (error) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-  return data
+  return { ...data, hourly_rate: rate?.hourly_rate ?? null }
 }, fresh)
 
 const __ad2 = useAsyncData(`project-${id}-tasks-named`, async () => {
-  const { data, error } = await supabase.from('project_tasks').select('project_id, task_id, hourly_rate, tasks(id, name, is_billable_default, is_active)').eq('project_id', id)
+  const [{ data, error }, { data: rates }] = await Promise.all([
+    supabase.from('project_tasks').select('project_id, task_id, tasks(id, name, is_billable_default, is_active)').eq('project_id', id),
+    supabase.from('project_task_rates').select('task_id, hourly_rate').eq('project_id', id),
+  ])
   if (error) throw error
-  return data
+  return data.map(pt => ({ ...pt, hourly_rate: rates?.find(r => r.task_id === pt.task_id)?.hourly_rate ?? null }))
 }, fresh)
 
 const __ad3 = useClientNames()

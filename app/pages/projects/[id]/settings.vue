@@ -9,9 +9,12 @@ const supabase = useSupabaseClient()
 const toast = useToast()
 
 const { data: project } = await useAsyncData(`project-${id}`, async () => {
-  const { data, error } = await supabase.from('projects').select('*, clients(id, name)').eq('id', id).single()
+  const [{ data, error }, { data: rate }] = await Promise.all([
+    supabase.from('projects').select(`${PROJECT_COLS}, clients(id, name)`).eq('id', id).single(),
+    supabase.from('project_rates').select('hourly_rate').eq('id', id).maybeSingle(),
+  ])
   if (error) throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-  return data
+  return { ...data, hourly_rate: rate?.hourly_rate ?? null }
 }, fresh)
 
 const { data: tasks } = await useAsyncData('tasks-active', async () => {
@@ -21,9 +24,12 @@ const { data: tasks } = await useAsyncData('tasks-active', async () => {
 }, fresh)
 
 const { data: assigned, refresh } = await useAsyncData(`project-${id}-tasks`, async () => {
-  const { data, error } = await supabase.from('project_tasks').select('*').eq('project_id', id)
+  const [{ data, error }, { data: rates }] = await Promise.all([
+    supabase.from('project_tasks').select('project_id, task_id').eq('project_id', id),
+    supabase.from('project_task_rates').select('task_id, hourly_rate').eq('project_id', id),
+  ])
   if (error) throw error
-  return data
+  return data.map(pt => ({ ...pt, hourly_rate: rates?.find(r => r.task_id === pt.task_id)?.hourly_rate ?? null }))
 }, fresh)
 
 useHead({ title: () => `${project.value?.name ?? 'Project'} settings` })

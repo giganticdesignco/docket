@@ -28,6 +28,14 @@ run `vercel --prod` (it once uploaded the 2 GB desktop build).
   `server/`.
 - **Rates are frozen per entry.** `time_entries.rate_snapshot` is set by
   a DB trigger. Never recompute a rate at read time in app code.
+- **Money never comes off a base table in the client.** `authenticated`
+  has column-level SELECT on profiles, projects, project_tasks and
+  time_entries that leaves out the rate columns, so `select('*')` on
+  those tables fails. Read them with `PROFILE_COLS`, `PROJECT_COLS`,
+  `TIME_ENTRY_COLS` (`app/utils/columns.ts`) and take rates from
+  `profile_rates`, `project_rates`, `project_task_rates`, which are
+  null without `see_money`. A new column on one of those tables needs
+  a `grant select (col)` to authenticated in the same migration.
 - **No em dashes in any UI copy.** American spelling (color, gray,
   canceled), in the app and the docs.
 - **Never delete real data in tests.** ClickUp tasks and Harvest entries
