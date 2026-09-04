@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<{
 
 const supabase = useSupabaseClient()
 const { can } = useCurrentUser()
-const seeMoney = computed(() => can('see_money'))
+const seeMoney = computed(() => can('field:amounts'))
 const seeAll = computed(() => can('see_all_time'))
 
 const args = computed(() => ({

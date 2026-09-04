@@ -9,7 +9,8 @@ const id = route.params.id as string
 const supabase = useSupabaseClient()
 const { can } = useCurrentUser()
 const isAdmin = computed(() => can('manage_reference'))
-const seeMoney = computed(() => can('see_money'))
+const seeMoney = computed(() => can('field:amounts'))
+const seeBudgets = computed(() => can('field:budgets'))
 const canBill = computed(() => can('manage_invoices') || can('manage_quotes') || can('manage_retainers'))
 
 const editing = ref(false)
@@ -407,7 +408,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
                     <span :class="usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.hours_used, p.budget_hours) }}%</span>
                     <span class="text-muted"> of {{ formatHours(p.budget_hours) }}</span>
                   </template>
-                  <template v-else-if="p.budget_amount && burn(p.id) && seeMoney">
+                  <template v-else-if="p.budget_amount && burn(p.id) && seeBudgets">
                     <span :class="usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.amount_used, p.budget_amount) }}%</span>
                     <span class="text-muted"> of {{ money(p.budget_amount) }}</span>
                   </template>

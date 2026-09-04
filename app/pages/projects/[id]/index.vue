@@ -7,7 +7,9 @@ const supabase = useSupabaseClient()
 const { can } = useCurrentUser()
 const isAdmin = computed(() => can('manage_reference'))
 const seeAll = computed(() => can('see_all_time'))
-const seeMoney = computed(() => can('see_money'))
+const seeRates = computed(() => can('field:rates'))
+const seeBudgets = computed(() => can('field:budgets'))
+const seeAmounts = computed(() => can('field:amounts'))
 const editing = ref(false)
 
 const __ad1 = useAsyncData(`project-${id}`, async () => {
@@ -199,9 +201,9 @@ async function copyFolder() {
       <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
         <div><dt class="text-muted">Job code</dt><dd>{{ project.code || 'None' }}</dd></div>
         <div><dt class="text-muted">Billing</dt><dd>{{ billingLabel(project.billing_method) }}</dd></div>
-        <div v-if="seeMoney"><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) }}</dd></div>
+        <div v-if="seeRates"><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) }}</dd></div>
         <div><dt class="text-muted">Budget hours</dt><dd>{{ project.budget_hours ?? 'No budget' }}</dd></div>
-        <div v-if="seeMoney"><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
+        <div v-if="seeBudgets"><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
         <div><dt class="text-muted">Lead</dt><dd>{{ project.profiles?.full_name ?? 'Unassigned' }}</dd></div>
       </dl>
     </UCard>
@@ -244,7 +246,7 @@ async function copyFolder() {
             <span v-if="budget.billable_hours !== budget.hours_used"> &middot; {{ formatHours(budget.billable_hours) }} billable</span>
           </p>
         </div>
-        <div v-if="seeMoney && budget.amount_used != null" class="space-y-2">
+        <div v-if="seeBudgets && budget.amount_used != null" class="space-y-2">
           <div class="flex items-baseline justify-between text-sm">
             <span class="text-muted">Billable amount</span>
             <span class="tabular-nums">
@@ -268,7 +270,7 @@ async function copyFolder() {
           <li v-for="q in quotes" :key="q.id" class="flex items-center gap-3 px-4 py-2">
             <NuxtLink :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
             <span class="min-w-0 flex-1 truncate">{{ q.title }}</span>
-            <span v-if="seeMoney" class="tabular-nums">{{ money(q.subtotal) }}</span>
+            <span v-if="seeAmounts" class="tabular-nums">{{ money(q.subtotal) }}</span>
             <UBadge :color="quoteColor(q.status)" variant="subtle" size="sm">{{ q.status }}</UBadge>
           </li>
         </ul>
@@ -280,7 +282,7 @@ async function copyFolder() {
           <li v-for="inv in invoices" :key="inv.id" class="flex items-center gap-3 px-4 py-2">
             <NuxtLink :to="`/invoices/${inv.id}`" class="font-medium tabular-nums hover:underline">{{ inv.number }}</NuxtLink>
             <span class="min-w-0 flex-1 truncate text-muted">{{ inv.subject }}</span>
-            <span v-if="seeMoney" class="tabular-nums">{{ money(inv.total) }}</span>
+            <span v-if="seeAmounts" class="tabular-nums">{{ money(inv.total) }}</span>
             <UBadge :color="invoiceColor(inv)" variant="subtle" size="sm">{{ invoiceLabel(inv) }}</UBadge>
           </li>
         </ul>
@@ -326,7 +328,7 @@ async function copyFolder() {
       <ul v-if="projectTasks?.length" class="divide-y divide-default text-sm">
         <li v-for="pt in projectTasks" :key="pt.tasks?.name" class="flex justify-between py-2">
           <span>{{ pt.tasks?.name }}</span>
-          <span v-if="seeMoney" class="tabular-nums text-muted">{{ pt.hourly_rate == null ? 'Project rate' : money(pt.hourly_rate) }}</span>
+          <span v-if="seeRates" class="tabular-nums text-muted">{{ pt.hourly_rate == null ? 'Project rate' : money(pt.hourly_rate) }}</span>
         </li>
       </ul>
       <p v-else class="text-sm text-muted">

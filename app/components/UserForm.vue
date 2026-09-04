@@ -18,7 +18,7 @@ const supabase = useSupabaseClient()
 const toast = useToast()
 // Cost rate is money, so only people who see money see or set it.
 const { can } = useCurrentUser()
-const seeMoney = computed(() => can('see_money'))
+const seeMoney = computed(() => can('field:cost_margin'))
 
 const state = reactive({
   full_name: props.profile.full_name,

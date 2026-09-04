@@ -44,4 +44,38 @@ export const PERMISSIONS = [
   { key: 'manage_settings', label: 'Settings', hint: 'Statuses, categories, invoice settings, imports.' },
   { key: 'see_capacity', label: 'See planner', hint: 'The Planner page and everyone\'s calendar busy time.' },
 ] as const
-export type PermissionKey = typeof PERMISSIONS[number]['key']
+// Screens a role may open. The rail lists a screen only when the role
+// has its key, and the route guard sends anyone else home. Home, the
+// task page, Account, Notifications and Help are always open.
+export const SCREENS = [
+  { key: 'screen:time', label: 'Time', path: '/time', hint: 'Timesheet and timers.' },
+  { key: 'screen:tasks', label: 'Tasks', path: '/tasks', hint: 'The task list. A task page opens from anywhere it is linked.' },
+  { key: 'screen:projects', label: 'Projects', path: '/projects', hint: 'The projects list and project pages.' },
+  { key: 'screen:clients', label: 'Clients', path: '/clients', hint: 'The clients list and client pages.' },
+  { key: 'screen:reports', label: 'Reports', path: '/reports', hint: 'Needs "see everyone\'s time" to show anything.' },
+  { key: 'screen:schedule', label: 'Schedule', path: '/schedule', hint: 'The Gantt view.' },
+  { key: 'screen:planner', label: 'Planner', path: '/planner', hint: 'People by weekday.' },
+  { key: 'screen:estimator', label: 'Estimator', path: '/estimator', hint: 'Rough numbers for new work.' },
+  { key: 'screen:expenses', label: 'Expenses', path: '/expenses', hint: 'Their own, or everyone\'s with "see everyone\'s time".' },
+  { key: 'screen:time_off', label: 'Time off', path: '/time-off', hint: 'Their own, or everyone\'s with "manage people".' },
+  { key: 'screen:quotes', label: 'Quotes', path: '/quotes', hint: 'Needs the Quotes permission to change anything.' },
+  { key: 'screen:approvals', label: 'Approvals', path: '/approvals', hint: 'Department leads always pass.' },
+  { key: 'screen:billing', label: 'Billing', path: '/billing', hint: 'Batches. Needs the Invoices permission.' },
+  { key: 'screen:invoices', label: 'Invoices', path: '/invoices', hint: 'Needs the Invoices permission.' },
+  { key: 'screen:retainers', label: 'Retainers', path: '/retainers', hint: 'Retainer pages, reached from a client.' },
+  { key: 'screen:settings', label: 'Settings', path: '/admin', hint: 'Each settings page also needs its own permission.' },
+] as const
+export type ScreenKey = typeof SCREENS[number]['key']
+
+// Money fields, finer than "see rates and amounts". Without that key
+// the database returns no money at all; with it, these say which of it
+// the screens show.
+export const FIELDS = [
+  { key: 'field:rates', label: 'Hourly rates', hint: 'Rates on projects, task types, people, and time entries.' },
+  { key: 'field:amounts', label: 'Billable amounts and totals', hint: 'Amounts on time, reports, clients, retainers, and invoices.' },
+  { key: 'field:budgets', label: 'Budgets and burn', hint: 'Project budgets and how much is used.' },
+  { key: 'field:cost_margin', label: 'Cost and margin', hint: 'Cost rates, and margin on quotes and invoices.' },
+] as const
+export type FieldKey = typeof FIELDS[number]['key']
+
+export type PermissionKey = typeof PERMISSIONS[number]['key'] | ScreenKey | FieldKey

@@ -4200,3 +4200,73 @@ do $$ begin
 exception when others then
   raise notice 'pg_cron not available here, retainer renewal not scheduled: %', sqlerrm;
 end $$;
+
+-- ============================================================
+-- PERMISSIONS: SCREENS, FIELDS, PER-PERSON OVERRIDES
+-- Keys come in three kinds, all in the one permissions table:
+--   screen:<name>  which screens a role can open (the rail and the
+--                  route guard read these)
+--   <action>       what a role may do or see beyond its own rows, the
+--                  original twelve (see_money, manage_invoices ...)
+--   field:<name>   which money fields a role sees in the UI: rates,
+--                  amounts, budgets, cost_margin. RLS and the views
+--                  still null every amount without see_money; fields
+--                  cut finer inside that.
+-- permission_overrides grants or revokes one key for one person on top
+-- of their role. has_permission() reads the override first, then the
+-- role, so RLS follows it. Admins keep everything regardless.
+-- ============================================================
+
+create table permission_overrides (
+  user_id    uuid not null references profiles(id) on delete cascade,
+  key        text not null,
+  allowed    boolean not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, key)
+);
+alter table permission_overrides enable row level security;
+create policy read_own_or_admin on permission_overrides for select to authenticated
+  using (user_id = (select auth.uid()) or (select public.is_admin()));
+create policy admin_write on permission_overrides for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create or replace function public.has_permission(p_key text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles pr
+    where pr.id = auth.uid()
+      and (pr.role = 'admin'
+           or coalesce(
+                (select o.allowed from public.permission_overrides o where o.user_id = pr.id and o.key = p_key),
+                exists (select 1 from public.permissions p where p.role = pr.role and p.key = p_key)))
+  );
+$$;
+
+-- Screens every non-client role opens today, so nothing changes on day
+-- one; the gated screens follow the key that gated them.
+insert into permissions (role, key)
+select r.key, s.screen
+from roles r
+cross join (values ('screen:time'), ('screen:tasks'), ('screen:projects'), ('screen:clients'), ('screen:schedule'),
+                   ('screen:estimator'), ('screen:expenses'), ('screen:time_off'), ('screen:retainers')) as s(screen)
+where r.key not in ('admin', 'client')
+on conflict do nothing;
+
+insert into permissions (role, key)
+select p.role, m.screen
+from permissions p
+join (values ('see_all_time', 'screen:reports'), ('manage_quotes', 'screen:quotes'), ('see_capacity', 'screen:planner'),
+             ('approve_time', 'screen:approvals'), ('manage_invoices', 'screen:billing'), ('manage_invoices', 'screen:invoices'),
+             ('manage_settings', 'screen:settings'), ('manage_people', 'screen:settings')) as m(key, screen) on m.key = p.key
+on conflict do nothing;
+
+-- Fields: whoever sees money today sees every money field.
+insert into permissions (role, key)
+select p.role, f.field
+from permissions p
+cross join (values ('field:rates'), ('field:amounts'), ('field:budgets'), ('field:cost_margin')) as f(field)
+where p.key = 'see_money'
+on conflict do nothing;

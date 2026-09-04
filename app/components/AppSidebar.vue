@@ -16,35 +16,32 @@ const sections = computed<Section[]>(() => {
     label: '',
     links: [
       { label: 'Home', to: '/', icon: 'i-lucide-house' },
-      { label: 'Time', to: '/time', icon: 'i-lucide-clock' },
-      { label: 'Tasks', to: '/tasks', icon: 'i-lucide-list-todo' },
-      { label: 'Projects', to: '/projects', icon: 'i-lucide-folder-kanban' },
-      { label: 'Clients', to: '/clients', icon: 'i-lucide-building-2' },
-      ...(can('see_all_time') ? [{ label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' }] : []),
+      ...(can('screen:time') ? [{ label: 'Time', to: '/time', icon: 'i-lucide-clock' }] : []),
+      ...(can('screen:tasks') ? [{ label: 'Tasks', to: '/tasks', icon: 'i-lucide-list-todo' }] : []),
+      ...(can('screen:projects') ? [{ label: 'Projects', to: '/projects', icon: 'i-lucide-folder-kanban' }] : []),
+      ...(can('screen:clients') ? [{ label: 'Clients', to: '/clients', icon: 'i-lucide-building-2' }] : []),
+      ...(can('screen:reports') ? [{ label: 'Reports', to: '/reports', icon: 'i-lucide-chart-column' }] : []),
     ],
   }
+  // Which screens a role opens is set on Settings, Permissions.
   const more: Section = {
     label: 'More',
     links: [
-      { label: 'Schedule', to: '/schedule', icon: 'i-lucide-gantt-chart' },
-      { label: 'Estimator', to: '/estimator', icon: 'i-lucide-calculator' },
-      { label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' },
-      { label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' },
-      ...(can('manage_quotes') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
-      ...(can('see_capacity') ? [{ label: 'Planner', to: '/planner', icon: 'i-lucide-move' }] : []),
-      ...(canReview ? [{ label: 'Approvals', to: '/approvals', icon: 'i-lucide-badge-check' }] : []),
-      ...(can('manage_invoices')
-        ? [
-            { label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' },
-            { label: 'Invoices', to: '/invoices', icon: 'i-lucide-file-text' },
-          ]
-        : []),
+      ...(can('screen:schedule') ? [{ label: 'Schedule', to: '/schedule', icon: 'i-lucide-gantt-chart' }] : []),
+      ...(can('screen:estimator') ? [{ label: 'Estimator', to: '/estimator', icon: 'i-lucide-calculator' }] : []),
+      ...(can('screen:expenses') ? [{ label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' }] : []),
+      ...(can('screen:time_off') ? [{ label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' }] : []),
+      ...(can('screen:quotes') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),
+      ...(can('screen:planner') ? [{ label: 'Planner', to: '/planner', icon: 'i-lucide-move' }] : []),
+      ...(can('screen:approvals') || canReview.value ? [{ label: 'Approvals', to: '/approvals', icon: 'i-lucide-badge-check' }] : []),
+      ...(can('screen:billing') ? [{ label: 'Billing', to: '/billing', icon: 'i-lucide-wallet' }] : []),
+      ...(can('screen:invoices') ? [{ label: 'Invoices', to: '/invoices', icon: 'i-lucide-file-text' }] : []),
     ],
   }
-  return [daily, more]
+  return [daily, more].filter(s => s.links.length)
 })
 const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
-const showSettings = computed(() => can('manage_settings') || can('manage_people'))
+const showSettings = computed(() => can('screen:settings') && (can('manage_settings') || can('manage_people')))
 const searchOpen = useState('search-open', () => false)
 const sheetOpen = useState('shortcut-sheet-open', () => false)
 const tour = useTour()

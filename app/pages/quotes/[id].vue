@@ -66,7 +66,8 @@ async function refreshAll() {
   await Promise.all([refreshQuote(), refreshLines(), refreshNodes(), refreshMargins()])
   await refreshDoc()
 }
-const seeMoney = computed(() => can('see_money'))
+// The margin column is cost and margin; rates and amounts on lines are the quote itself.
+const seeMoney = computed(() => can('field:cost_margin'))
 const marginFor = (lineId: string) => margins.value?.find(m => m.line_item_id === lineId)
 const marginTotal = computed(() => round2((margins.value ?? []).reduce((s, m) => s + m.margin, 0)))
 const marginLines = computed(() => (margins.value ?? []).length)

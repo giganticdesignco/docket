@@ -45,7 +45,7 @@ const { data: doc, refresh: refreshDoc } = await useAsyncData(`invoice-${id}-doc
 // Cost and margin per line, for people who see money. Comes from the
 // gated view, never from the public document.
 const { can } = useCurrentUser()
-const seeMoney = computed(() => can('see_money'))
+const seeMoney = computed(() => can('field:cost_margin'))
 const { data: margins, refresh: refreshMargins } = await useAsyncData(`invoice-${id}-margins`, async () => {
   const { data, error } = await supabase.from('invoice_lines_detail').select('id, cost_amount, margin_amount').eq('invoice_id', id)
   if (error) throw error

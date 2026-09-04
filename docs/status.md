@@ -2434,3 +2434,19 @@ on h1 to h3 in `main.css`, so running text keeps a lone word off its
 last line and headings split evenly. Inherited everywhere, nothing per
 page. The Feedback page blurb also stopped calling the pill "the
 round button".
+
+## Permissions: screens, fields, overrides, view as (2026-09-04)
+
+Luke asked for a comprehensive view permissions tool and said "all"
+to the four readings: screens, per-person overrides, view as, and
+fields. `docs/permissions.md` is the write-up. Migration
+`permissions_screens_fields_overrides`: `screen:*` and `field:*` keys
+in the same permissions table, a `permission_overrides` table, and
+`has_permission()` reading the override before the role so RLS follows
+it; seeds so nothing changed for anyone on day one. The rail and a
+global `screens` middleware read the screen keys; `can()` answers for
+screens, actions and fields, a field also needing see_money; an admin
+can View as a role or a person (a strip across the top, data still
+their own). Settings, Permissions has four tabs. Money on the project,
+client, quote, invoice, approvals, report rollup, retainer and people
+form now keys off the specific field.

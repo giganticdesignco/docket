@@ -8,7 +8,7 @@ useHead({ title: 'Approvals' })
 const supabase = useSupabaseClient()
 const toast = useToast()
 const { can, user, leads } = useCurrentUser()
-const seeMoney = computed(() => can('see_money'))
+const seeMoney = computed(() => can('field:amounts'))
 // A lead never reviews their own week; approve_time holders do (admins, Tom, Jen).
 const backstop = computed(() => can('approve_time'))
 

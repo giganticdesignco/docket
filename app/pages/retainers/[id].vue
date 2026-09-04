@@ -75,7 +75,7 @@ const grouped = (rows: Entry[]) => {
   }
   return [...g.values()].sort((a, b) => b.hours - a.hours)
 }
-const seeMoney = computed(() => useCurrentUser().can('see_money'))
+const seeMoney = computed(() => useCurrentUser().can('field:amounts'))
 </script>
 
 <template>

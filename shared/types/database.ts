@@ -1822,6 +1822,56 @@ export type Database = {
           },
         ]
       }
+      permission_overrides: {
+        Row: {
+          allowed: boolean
+          created_at: string
+          key: string
+          user_id: string
+        }
+        Insert: {
+          allowed: boolean
+          created_at?: string
+          key: string
+          user_id: string
+        }
+        Update: {
+          allowed?: boolean
+          created_at?: string
+          key?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permission_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "permission_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permission_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "permission_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       permissions: {
         Row: {
           key: string
