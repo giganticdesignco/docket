@@ -34,7 +34,7 @@ const __ad2 = useAsyncData('home-tasks', async () => {
   if (!user.value) return []
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, due_on, estimate_hours, project_id, projects(id, name, clients(name)), work_item_assignees!inner(user_id)')
+    .select('id, title, status, priority, due_on, estimate_hours, project_id, assignee_id, projects(id, name, clients(name)), work_item_assignees!inner(user_id)')
     .eq('work_item_assignees.user_id', user.value.sub)
     .order('due_on', { ascending: true, nullsFirst: false })
     .limit(200)
@@ -89,7 +89,7 @@ async function timerSaved() {
   await Promise.all([timer.load(), refreshPace()])
 }
 const { data: pace, refresh: refreshPace } = __ad1
-const { data: tasks } = __ad2
+const { data: tasks, refresh: refreshTasks } = __ad2
 const { data: recentIds } = __ad3
 
 const { data: projects } = await useAsyncData('home-projects', async () => {
@@ -104,7 +104,13 @@ const { data: projects } = await useAsyncData('home-projects', async () => {
 // skip it and no task appears twice.
 const { data: focusTasks } = __ad7
 const focusIds = computed(() => new Set((focusTasks.value ?? []).map(t => t.id)))
-const rest = computed(() => (tasks.value ?? []).filter(t => !focusIds.value.has(t.id)))
+// Up now: the buckets and "N open" are what you are up on. Tasks you are
+// on with nobody up get their own section with a Take it; tasks someone
+// else is up on appear nowhere on Home. My projects still reads every
+// task you are on, so a project stays reachable before your turn.
+const mineNow = computed(() => (tasks.value ?? []).filter(t => t.assignee_id === user.value?.sub))
+const unowned = computed(() => (tasks.value ?? []).filter(t => !t.assignee_id))
+const rest = computed(() => mineNow.value.filter(t => !focusIds.value.has(t.id)))
 const overdue = computed(() => rest.value.filter(t => t.due_on && t.due_on < today))
 const thisWeek = computed(() => rest.value.filter(t => t.due_on && t.due_on >= today && t.due_on <= week[6]!))
 const later = computed(() => rest.value.filter(t => !t.due_on || t.due_on > week[6]!))
@@ -118,7 +124,22 @@ const shown = computed(() => {
   let left = SHOW
   return buckets.value.map(b => { const items = b.items.slice(0, Math.max(left, 0)); left -= items.length; return { ...b, items, more: b.items.length - items.length } }).filter(b => b.items.length)
 })
-const openCount = computed(() => tasks.value?.length ?? 0)
+const openCount = computed(() => mineNow.value.length)
+const taking = ref<string | null>(null)
+async function takeIt(id: string) {
+  if (!user.value) return
+  taking.value = id
+  try {
+    const { error } = await supabase.rpc('hand_off', { p_item: id, p_to: user.value.sub })
+    if (error) throw error
+    await refreshTasks()
+    toast.add({ title: 'Yours now' })
+  } catch (e) {
+    toast.add({ title: 'Not handed off', description: (e as Error).message, color: 'error' })
+  } finally {
+    taking.value = null
+  }
+}
 const taskCountByProject = (id: string) => (tasks.value ?? []).filter(t => t.project_id === id).length
 
 const busy = ref(false)
@@ -211,7 +232,7 @@ const briefParts = computed(() => {
               <NuxtLink to="/tasks" class="ml-auto text-xs text-muted hover:underline">All tasks</NuxtLink>
             </div>
           </template>
-          <div v-if="shown.length || focusTasks?.length" class="divide-y divide-default text-sm">
+          <div v-if="shown.length || focusTasks?.length || unowned.length" class="divide-y divide-default text-sm">
             <div v-if="focusTasks?.length">
               <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Focus <span class="font-normal">{{ focusTasks.length }}</span></div>
               <ul class="divide-y divide-default">
@@ -242,8 +263,23 @@ const briefParts = computed(() => {
               </ul>
               <NuxtLink v-if="b.more" to="/tasks" class="block px-4 py-1.5 text-xs text-muted hover:underline">{{ b.more }} more</NuxtLink>
             </div>
+            <div v-if="unowned.length">
+              <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-warning">Nobody up <span class="font-normal">{{ unowned.length }}</span></div>
+              <ul class="divide-y divide-default">
+                <li v-for="t in unowned.slice(0, 3)" :key="t.id" class="flex items-center gap-3 px-4 py-2">
+                  <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" :title="ws.label(t.status)" />
+                  <div class="min-w-0 flex-1">
+                    <NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink>
+                    <div class="truncate text-xs text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }}</div>
+                  </div>
+                  <span class="text-xs tabular-nums" :class="t.due_on && t.due_on < today ? 'text-error' : 'text-muted'">{{ t.due_on ? shortDate(t.due_on) : '' }}</span>
+                  <UButton size="xs" variant="outline" icon="i-lucide-hand" :loading="taking === t.id" :disabled="!!taking" @click="takeIt(t.id)">Take it</UButton>
+                </li>
+              </ul>
+              <NuxtLink v-if="unowned.length > 3" to="/tasks?view=unowned" class="block px-4 py-1.5 text-xs text-muted hover:underline">See all {{ unowned.length }}</NuxtLink>
+            </div>
           </div>
-          <p v-else class="px-4 py-6 text-center text-sm text-muted">Nothing assigned to you. Enjoy it, or pick something up on <NuxtLink to="/planner" class="underline">Planner</NuxtLink>.</p>
+          <p v-else class="px-4 py-6 text-center text-sm text-muted">Nothing is on you right now. Enjoy it, or pick something up on <NuxtLink to="/planner" class="underline">Planner</NuxtLink>.</p>
         </UCard>
 
         <!-- My projects -->
