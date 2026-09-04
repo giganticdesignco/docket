@@ -2,9 +2,10 @@
 // Planner: people as rows, weekdays as columns, and a block for every
 // task on each day it is planned for. Drag a task from the left onto a
 // person's day to plan it there; drag a block to move it to another
-// day or person. An estimate spreads evenly across the weekdays of a
-// task's span and across its assignees. Meetings and time off sit in
-// the cell too, so the footer is honest about what is left.
+// day or person. A block sits in the row of whoever is up on the task,
+// and in the row of anyone with hours set for it; the estimate's
+// remainder goes to the person up. Meetings and time off sit in the
+// cell too, so the footer is honest about what is left.
 definePageMeta({ middleware: 'can', permission: 'see_capacity' })
 useHead({ title: 'Planner' })
 
@@ -36,7 +37,7 @@ const __ad1 = useAsyncData('planner-capacity', async () => {
 const __ad2 = useAsyncData('planner-tasks', async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, start_on, due_on, estimate_hours, is_milestone, project_id, projects(id, name, clients(name)), work_item_assignees(user_id)')
+    .select('id, title, status, priority, start_on, due_on, estimate_hours, is_milestone, project_id, assignee_id, projects(id, name, clients(name)), work_item_assignees(user_id)')
     .order('due_on', { ascending: true, nullsFirst: false })
     .limit(3000)
   if (error) throw error
@@ -116,15 +117,33 @@ function plannedDays(t: Task): string[] {
 const planKey = (tid: string, uid: string, d: string) => `${tid}|${uid}|${d}`
 const planMap = computed(() => new Map((plans.value ?? []).map(p => [planKey(p.work_item_id, p.user_id, p.day), p.hours])))
 const setHours = (t: Task, uid: string, d: string) => planMap.value.get(planKey(t.id, uid, d))
-// A person's hours on a task on a day: what they set, or an even share
-// of whatever is left of their part of the estimate across unset days.
+// Hours anyone has set on a task, and who has set hours on it.
+const plannedByTask = computed(() => {
+  const hours = new Map<string, number>()
+  const users = new Map<string, Set<string>>()
+  for (const p of plans.value ?? []) {
+    hours.set(p.work_item_id, (hours.get(p.work_item_id) ?? 0) + p.hours)
+    users.set(p.work_item_id, (users.get(p.work_item_id) ?? new Set()).add(p.user_id))
+  }
+  return { hours, users }
+})
+// A person's hours on a task on a day: what they set. The person up on
+// the task also books whatever is left of the estimate after everyone's
+// set hours, spread across their unset days. Anyone else books only
+// what was set for them.
 function hoursOn(t: Task, uid: string, d: string, ds: string[]) {
   const set = setHours(t, uid, d)
   if (set != null) return set
-  const share = t.estimate_hours ? t.estimate_hours / Math.max(t.work_item_assignees.length, 1) : 0
+  if (t.assignee_id !== uid) return 0
+  const left = Math.max(0, (t.estimate_hours ?? 0) - (plannedByTask.value.hours.get(t.id) ?? 0))
   const unset = ds.filter(x => setHours(t, uid, x) == null)
-  const taken = ds.reduce((sum, x) => sum + (setHours(t, uid, x) ?? 0), 0)
-  return unset.length ? Math.max(0, share - taken) / unset.length : 0
+  return unset.length ? left / unset.length : 0
+}
+// Whose rows a task shows in: the person up, plus anyone with hours set.
+const peopleOn = (t: Task) => {
+  const out = new Set<string>(plannedByTask.value.users.get(t.id) ?? [])
+  if (t.assignee_id) out.add(t.assignee_id)
+  return [...out]
 }
 const search = ref('')
 const projectId = ref('all')
@@ -139,7 +158,7 @@ const projectItems = computed(() => {
   for (const t of tasks.value ?? []) if (t.project_id && t.projects) m.set(t.project_id, `${t.projects.clients?.name ?? ''} / ${t.projects.name}`)
   return [{ label: 'All projects', value: 'all' }, ...[...m.entries()].map(([value, label]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label))]
 })
-type Block = { t: Task, hours: number, due: boolean, span: number, set: boolean }
+type Block = { t: Task, hours: number, due: boolean, span: number, set: boolean, theirs: boolean }
 const blocks = computed(() => {
   const m = new Map<string, Block[]>()
   for (const t of tasks.value ?? []) {
@@ -148,9 +167,9 @@ const blocks = computed(() => {
     const ds = plannedDays(t)
     for (const d of ds) {
       if (d < from.value || d > to.value) continue
-      for (const a of t.work_item_assignees) {
-        const k = key(a.user_id, d)
-        m.set(k, [...(m.get(k) ?? []), { t, hours: hoursOn(t, a.user_id, d, ds), due: d === due, span: ds.length, set: setHours(t, a.user_id, d) != null }])
+      for (const uid of peopleOn(t)) {
+        const k = key(uid, d)
+        m.set(k, [...(m.get(k) ?? []), { t, hours: hoursOn(t, uid, d, ds), due: d === due, span: ds.length, set: setHours(t, uid, d) != null, theirs: t.assignee_id === uid }])
       }
     }
   }
@@ -179,8 +198,9 @@ function dayFoot(p: Person, d: string) {
 const PALETTE = ['border-l-sky-500', 'border-l-violet-500', 'border-l-emerald-500', 'border-l-amber-500', 'border-l-rose-500', 'border-l-teal-500', 'border-l-indigo-500', 'border-l-orange-500']
 const projectColor = (id: string | null) => { let n = 0; for (const ch of id ?? '') n = (n * 31 + ch.charCodeAt(0)) >>> 0; return PALETTE[n % PALETTE.length] }
 
-// Needs a person: open tasks with nobody on them. Dated first.
-const unassigned = computed(() => (tasks.value ?? []).filter(t => !t.work_item_assignees.length && matches(t)).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999') || a.title.localeCompare(b.title)))
+// Nobody up: open tasks with nobody up, whether or not people are on
+// them. Dated first.
+const unassigned = computed(() => (tasks.value ?? []).filter(t => !t.assignee_id && matches(t)).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999') || a.title.localeCompare(b.title)))
 
 // ---------- drag to plan ----------
 const dragging = ref<{ task: Task, fromUser: string | null } | null>(null)
@@ -205,34 +225,27 @@ async function onDrop(uid: string, d: string) {
 const daysBetween = (a: string, b: string) => Math.round((parseDateString(b).getTime() - parseDateString(a).getTime()) / 86400000)
 const busy = ref<string | null>(null)
 // Plan a task on a person's day: the span keeps its length and starts
-// there; the person replaces whoever it was dragged from.
+// there, and that person is up on it. Whoever it was dragged from stays
+// on the task, so their plan hours are not cascade-deleted with them.
 const plansFor = (tid: string, uid: string) => (plans.value ?? []).filter(p => p.work_item_id === tid && p.user_id === uid)
 async function plan(t: Task, fromUser: string | null, uid: string, day: string) {
   const before = { start_on: t.start_on, due_on: t.due_on }
   const after = { start_on: day, due_on: t.due_on ? addDays(day, daysBetween(barStart(t), t.due_on)) : day }
   const sameDates = !!t.due_on && barStart(t) === day && t.due_on === after.due_on
-  const samePerson = fromUser === uid || (!fromUser && t.work_item_assignees.some(a => a.user_id === uid))
+  const samePerson = fromUser === uid || (!fromUser && t.assignee_id === uid)
   if (sameDates && samePerson) return
   // The set hours travel with the task: same offsets from its start, new person.
   const delta = t.due_on ? daysBetween(barStart(t), day) : 0
   const owner = fromUser ?? uid
+  const prevOwner = t.assignee_id
   const kept = plansFor(t.id, owner)
   const shifted = kept.map(r => ({ work_item_id: t.id, user_id: uid, day: addDays(r.day, delta), hours: r.hours }))
   busy.value = t.id
   try {
-    if (!sameDates) {
-      const { error } = await supabase.from('work_items').update(after).eq('id', t.id)
+    const patch = { ...(sameDates ? {} : after), ...(samePerson ? {} : { assignee_id: uid }) }
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from('work_items').update(patch).eq('id', t.id)
       if (error) throw error
-    }
-    if (!samePerson) {
-      if (fromUser) {
-        const { error } = await supabase.from('work_item_assignees').delete().eq('work_item_id', t.id).eq('user_id', fromUser)
-        if (error) throw error
-      }
-      if (!t.work_item_assignees.some(a => a.user_id === uid)) {
-        const { error } = await supabase.from('work_item_assignees').insert({ work_item_id: t.id, user_id: uid })
-        if (error) throw error
-      }
     }
     if (kept.length && (!sameDates || !samePerson)) {
       const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).eq('user_id', uid)
@@ -243,17 +256,10 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
     await refreshAll()
     const name = allPeople.value.find(p => p.id === uid)?.name ?? 'them'
     undo.offer(`${t.title}: ${name}, ${shortDate(day)}`, async () => {
-      if (!sameDates) {
-        const { error } = await supabase.from('work_items').update(before).eq('id', t.id)
+      const back = { ...(sameDates ? {} : before), ...(samePerson ? {} : { assignee_id: prevOwner }) }
+      if (Object.keys(back).length) {
+        const { error } = await supabase.from('work_items').update(back).eq('id', t.id)
         if (error) throw error
-      }
-      if (!samePerson) {
-        const del = await supabase.from('work_item_assignees').delete().eq('work_item_id', t.id).eq('user_id', uid)
-        if (del.error) throw del.error
-        if (fromUser) {
-          const ins = await supabase.from('work_item_assignees').insert({ work_item_id: t.id, user_id: fromUser })
-          if (ins.error) throw ins.error
-        }
       }
       if (kept.length) {
         const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).eq('user_id', uid)
@@ -351,16 +357,18 @@ async function commitEdit() {
     busy.value = null
   }
 }
-// Assign without touching dates, for a task that should keep them.
+// Put someone up on it without touching dates, for a task that should
+// keep them. The owner trigger adds them to the task.
 async function assignOnly(t: Task, uid: string) {
   busy.value = t.id
+  const prevOwner = t.assignee_id
   try {
-    const { error } = await supabase.from('work_item_assignees').insert({ work_item_id: t.id, user_id: uid })
+    const { error } = await supabase.from('work_items').update({ assignee_id: uid }).eq('id', t.id)
     if (error) throw error
     await refreshTasks()
     const name = allPeople.value.find(p => p.id === uid)?.name ?? 'them'
-    undo.offer(`${t.title} assigned to ${name}`, async () => {
-      const { error: back } = await supabase.from('work_item_assignees').delete().eq('work_item_id', t.id).eq('user_id', uid)
+    undo.offer(`${t.title}: ${name} is up`, async () => {
+      const { error: back } = await supabase.from('work_items').update({ assignee_id: prevOwner }).eq('id', t.id)
       if (back) throw back
     }, () => refreshTasks())
   } catch (e) {
@@ -377,7 +385,7 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Planner</h1>
-        <p class="text-sm text-muted">Who is doing what on which day. Drag a task onto a person's day to plan it there, or drag a block to move it. Estimates spread across the days of a task.</p>
+        <p class="text-sm text-muted">Who is doing what on which day. Drag a task onto a person's day to plan it there and put them up on it, or drag a block to move it. What is left of an estimate spreads across the days for the person up.</p>
       </div>
       <div class="ml-auto flex gap-2">
         <UButton to="/schedule" variant="outline" color="neutral" icon="i-lucide-gantt-chart">Schedule</UButton>
@@ -407,7 +415,8 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
         <UCard :ui="{ body: 'p-2 sm:p-2' }">
           <template #header>
             <div class="flex items-baseline gap-2">
-              <span class="font-semibold">Needs a person</span>
+              <span class="size-2.5 rounded-full bg-warning" />
+              <span class="font-semibold">Nobody up</span>
               <span class="text-xs text-muted">{{ unassigned.length }}</span>
             </div>
           </template>
@@ -420,7 +429,7 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
             >
               <div class="flex items-start gap-1">
                 <NuxtLink :to="`/tasks/${t.id}`" class="min-w-0 flex-1 truncate font-medium hover:underline" @click.stop>{{ t.title }}</NuxtLink>
-                <UDropdownMenu :items="assignMenu(t)"><UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-user-plus" :loading="busy === t.id" aria-label="Assign without changing dates" title="Assign without changing dates" /></UDropdownMenu>
+                <UDropdownMenu :items="assignMenu(t)"><UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-user-plus" :loading="busy === t.id" aria-label="Put someone up on it without changing dates" title="Put someone up on it without changing dates" /></UDropdownMenu>
               </div>
               <div class="truncate text-xs text-muted">{{ projectLabel(t) }}</div>
               <div class="mt-1 flex items-center gap-2 text-xs tabular-nums">
@@ -430,7 +439,7 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
               </div>
             </div>
           </div>
-          <p v-else class="px-2 py-6 text-center text-xs text-muted">Every open task has someone.</p>
+          <p v-else class="px-2 py-6 text-center text-xs text-muted">Someone is up on every open task.</p>
         </UCard>
       </div>
 
@@ -475,8 +484,9 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
                     </div>
                     <div
                       v-for="b in cellBlocks(p.id, d)" :key="b.t.id" :draggable="!resizing && !editing"
-                      class="relative cursor-grab rounded-md border border-default border-l-2 bg-default px-1.5 py-1 pr-2.5 text-xs hover:bg-elevated active:cursor-grabbing"
-                      :class="[projectColor(b.t.project_id), dragging?.task.id === b.t.id ? 'opacity-40' : '', resizing?.task.id === b.t.id ? 'border-primary bg-primary/10' : '']"
+                      class="relative cursor-grab rounded-md border border-l-2 bg-default px-1.5 py-1 pr-2.5 text-xs hover:bg-elevated active:cursor-grabbing"
+                      :class="[projectColor(b.t.project_id), b.theirs ? 'border-default' : 'border-dashed border-accented opacity-80', dragging?.task.id === b.t.id ? 'opacity-40' : '', resizing?.task.id === b.t.id ? 'border-primary bg-primary/10' : '']"
+                      :title="b.theirs ? undefined : 'Not their turn yet'"
                       @dragstart="onDragStart(b.t, p.id, $event)" @dragend="reset"
                     >
                       <span class="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md hover:bg-primary/30" title="Drag to change the due date" @pointerdown.stop.prevent="startResize(b.t, $event)" />
