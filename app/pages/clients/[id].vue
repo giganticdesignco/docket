@@ -161,17 +161,26 @@ const { data: budgets } = await useAsyncData('project-budgets', async () => {
 const burn = (projectId: string) => budgets.value?.find(b => b.project_id === projectId)
 const usedPct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : null)
 
-// Billing this year: Docket invoices plus Harvest history, sent or later.
+// Billing: Docket invoices plus Harvest history, sent or later, this year
+// and for the life of the account. Harvest 'closed' means written off, so
+// it counts as invoiced but never as outstanding.
 const year = todayString().slice(0, 4)
 const billing = computed(() => {
   const docket = (docketInvoices.value ?? []).filter(i => i.status !== 'draft' && i.status !== 'void')
   const harvest = (invoices.value ?? []).filter(i => i.state !== 'draft')
   const thisYear = <T extends { issue_date: string }>(rows: T[]) => rows.filter(r => r.issue_date >= `${year}-01-01`)
-  return {
-    invoiced: thisYear(docket).reduce((t, i) => t + i.total, 0) + thisYear(harvest).reduce((t, i) => t + i.amount, 0),
-    paid: thisYear(docket).reduce((t, i) => t + i.total - i.due_amount, 0) + thisYear(harvest).reduce((t, i) => t + i.amount - i.due_amount, 0),
-    outstanding: docket.filter(i => i.status === 'sent').reduce((t, i) => t + i.due_amount, 0) + harvest.filter(i => i.state === 'open').reduce((t, i) => t + i.due_amount, 0),
-  }
+  const sums = (d: typeof docket, h: typeof harvest) => ({
+    invoiced: d.reduce((t, i) => t + i.total, 0) + h.reduce((t, i) => t + i.amount, 0),
+    paid: d.reduce((t, i) => t + i.total - i.due_amount, 0) + h.reduce((t, i) => t + i.amount - i.due_amount, 0),
+    outstanding: d.filter(i => i.status === 'sent').reduce((t, i) => t + i.due_amount, 0)
+      + h.filter(i => i.state === 'open').reduce((t, i) => t + i.due_amount, 0),
+  })
+  return { year: sums(thisYear(docket), thisYear(harvest)), all: sums(docket, harvest) }
+})
+// The oldest invoice on file, so "all time" says what it covers.
+const firstInvoiceYear = computed(() => {
+  const dates = [...(docketInvoices.value ?? []).map(i => i.issue_date), ...(invoices.value ?? []).map(i => i.issue_date)].filter(Boolean).sort()
+  return dates[0]?.slice(0, 4) ?? null
 })
 
 const projectName = (projectId: string | null) => projects.value?.find(p => p.id === projectId)?.name ?? 'All projects'
@@ -259,12 +268,24 @@ const invoiceLabel = (inv: InvoiceLike) =>
     <UCard v-if="canBill" :ui="{ body: 'p-3 sm:p-4' }">
       <div class="flex items-baseline gap-3">
         <h2 class="font-semibold">Billing</h2>
-        <span class="text-xs text-muted">Docket and Harvest invoices together.</span>
+        <span class="text-xs text-muted">Docket and Harvest invoices together<template v-if="firstInvoiceYear">, back to {{ firstInvoiceYear }}</template>. Written off invoices count as invoiced, never as outstanding.</span>
       </div>
       <div class="mt-3 grid grid-cols-3 gap-4">
-        <div><div class="text-xs text-muted">Invoiced this year</div><div class="text-lg font-semibold tabular-nums">{{ money(billing.invoiced) }}</div></div>
-        <div><div class="text-xs text-muted">Paid this year</div><div class="text-lg font-semibold tabular-nums">{{ money(billing.paid) }}</div></div>
-        <div><div class="text-xs text-muted">Outstanding</div><div class="text-lg font-semibold tabular-nums" :class="billing.outstanding > 0 ? 'text-warning' : ''">{{ money(billing.outstanding) }}</div></div>
+        <div>
+          <div class="text-xs text-muted">Invoiced</div>
+          <div class="text-lg font-semibold tabular-nums">{{ money(billing.year.invoiced) }} <span class="text-xs font-normal text-muted">this year</span></div>
+          <div class="text-xs tabular-nums text-muted">{{ money(billing.all.invoiced) }} all time</div>
+        </div>
+        <div>
+          <div class="text-xs text-muted">Paid</div>
+          <div class="text-lg font-semibold tabular-nums">{{ money(billing.year.paid) }} <span class="text-xs font-normal text-muted">this year</span></div>
+          <div class="text-xs tabular-nums text-muted">{{ money(billing.all.paid) }} all time</div>
+        </div>
+        <div>
+          <div class="text-xs text-muted">Outstanding</div>
+          <div class="text-lg font-semibold tabular-nums" :class="billing.all.outstanding > 0 ? 'text-warning' : ''">{{ money(billing.all.outstanding) }}</div>
+          <div class="text-xs tabular-nums text-muted">{{ money(billing.year.outstanding) }} from this year</div>
+        </div>
       </div>
     </UCard>
 

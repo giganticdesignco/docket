@@ -188,6 +188,11 @@ sees hours.
   client has unbilled (billable time and expenses not yet on a batch or
   invoice), what was billed this year, and what is left of a running
   retainer. Turn them on with the gear.
+- **Billing on a client's page** shows what was invoiced and paid this
+  year with the lifetime figure under each, and what is outstanding
+  across every year. Docket and Harvest invoices count together. An
+  invoice written off in Harvest counts as invoiced but never as
+  outstanding.
 - **A client's page** shows the year's numbers, billing, contacts, the
   team on the account (project leads, people on open tasks, and anyone
   with time there in the last 90 days), its projects, its open tasks
