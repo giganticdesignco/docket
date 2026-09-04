@@ -128,11 +128,11 @@ export function docketTools(c: Caller): Tool[] {
     },
     {
       name: 'get_task',
-      description: 'A task with its description, status, dates, assignees, and comments.',
+      description: 'A task with its description, status, dates, who is up on it now, everyone on it, and comments.',
       input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
       run: async (i) => {
         const [{ data: t }, { data: comments }] = await Promise.all([
-          sb.from('work_items').select('id, title, description, status, priority, start_on, due_on, estimate_hours, client_decision, projects(name, clients(name)), work_item_assignees(profiles(full_name))').eq('id', String(i.id)).maybeSingle(),
+          sb.from('work_items').select('id, title, description, status, priority, start_on, due_on, estimate_hours, client_decision, assignee_id, up_now:profiles!work_items_assignee_id_fkey(full_name), projects(name, clients(name)), work_item_assignees(profiles(full_name))').eq('id', String(i.id)).maybeSingle(),
           sb.from('work_item_comments').select('body, author_name, visible_to_client, created_at, profiles!work_item_comments_author_id_fkey(full_name)').eq('work_item_id', String(i.id)).order('created_at').limit(40),
         ])
         return { task: t, comments }
@@ -140,9 +140,17 @@ export function docketTools(c: Caller): Tool[] {
     },
     {
       name: 'my_tasks',
-      description: 'Open tasks assigned to the person asking, with due dates and projects.',
+      description: 'Open tasks the person asking is up on right now, with due dates and projects. nobody_up counts the tasks they are on that nobody is up on.',
       input_schema: { type: 'object', properties: {} },
-      run: async () => (await sb.from('work_items').select('id, title, status, due_on, priority, projects(name, clients(name)), work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', c.userId).order('due_on', { ascending: true, nullsFirst: false }).limit(50)).data,
+      run: async () => {
+        const [{ data: statuses }, { data: mine }, { data: unowned }] = await Promise.all([
+          sb.from('work_statuses').select('key, is_done, is_paused'),
+          sb.from('work_items').select('id, title, status, due_on, priority, projects(name, clients(name))').eq('assignee_id', c.userId).order('due_on', { ascending: true, nullsFirst: false }).limit(80),
+          sb.from('work_items').select('id, status, work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', c.userId).is('assignee_id', null),
+        ])
+        const closed = new Set((statuses ?? []).filter(s => s.is_done || s.is_paused).map(s => s.key))
+        return { tasks: (mine ?? []).filter(w => !closed.has(w.status)).slice(0, 50), nobody_up: (unowned ?? []).filter(w => !closed.has(w.status)).length }
+      },
     },
     {
       name: 'quote',
