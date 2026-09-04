@@ -39,7 +39,7 @@ async function sync(userId?: string) {
     toast.add({ title: 'Calendar synced', description: `${r.blocks} busy ${r.blocks === 1 ? 'block' : 'blocks'} for the next eight weeks.`, color: 'success' })
     await refresh()
   } catch (e) {
-    toast.add({ title: 'Sync failed', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+    toast.add({ title: 'Sync failed', description: apiError(e), color: 'error' })
   } finally {
     busy.value = false
   }
@@ -54,7 +54,7 @@ async function disconnect() {
     busy.value = false
   }
 }
-const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'never')
+const stampOrNever = (iso: string | null) => (iso ? stamp(iso) : 'never')
 
 // The morning brief email, saved on the profile. Own row, so RLS allows it.
 const briefBusy = ref(false)
@@ -85,7 +85,7 @@ async function setBriefEmail(on: boolean) {
       </template>
       <div v-if="mine" class="space-y-3 text-sm">
         <p>Connected as <strong>{{ mine.google_email }}</strong>. Busy time for the next eight weeks syncs every night and shows on Planner and Schedule as busy time.</p>
-        <p class="text-xs text-muted">Last synced {{ stamp(mine.last_synced_at) }}.<span v-if="mine.last_error" class="text-error"> Last error: {{ mine.last_error }}</span></p>
+        <p class="text-xs text-muted">Last synced {{ stampOrNever(mine.last_synced_at) }}.<span v-if="mine.last_error" class="text-error"> Last error: {{ mine.last_error }}</span></p>
         <div class="flex gap-2">
           <UButton size="sm" icon="i-lucide-refresh-cw" :loading="busy" @click="sync()">Sync now</UButton>
           <UButton size="sm" variant="ghost" color="neutral" :disabled="busy" @click="disconnect">Disconnect</UButton>
@@ -104,7 +104,7 @@ async function setBriefEmail(on: boolean) {
       <ul v-if="others.length" class="divide-y divide-default text-sm">
         <li v-for="c in others" :key="c.user_id" class="flex items-center gap-3 py-2">
           <span class="min-w-0 flex-1"><span class="font-medium">{{ nameOf(c.user_id) }}</span> <span class="text-muted">{{ c.google_email }}</span></span>
-          <span class="text-xs" :class="c.last_error ? 'text-error' : 'text-muted'">{{ c.last_error ? c.last_error : `synced ${stamp(c.last_synced_at)}` }}</span>
+          <span class="text-xs" :class="c.last_error ? 'text-error' : 'text-muted'">{{ c.last_error ? c.last_error : `synced ${stampOrNever(c.last_synced_at)}` }}</span>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-refresh-cw" :loading="busy" @click="sync(c.user_id)">Sync</UButton>
         </li>
       </ul>

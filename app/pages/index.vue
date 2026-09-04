@@ -152,7 +152,6 @@ async function stopTimer() {
 const firstName = computed(() => (profile.value?.full_name ?? '').split(' ')[0] ?? '')
 const hour = new Date().getHours()
 const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-const dotClass = (color?: string) => ({ primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }[color ?? ''] ?? 'bg-accented')
 const runningTask = computed(() => tasks.value?.find(t => t.id === timer.running.value?.work_item_id))
 // The brief names tasks, projects, clients, and quotes as [name](/path) links.
 const briefParts = computed(() => {
@@ -239,7 +238,7 @@ const briefParts = computed(() => {
               <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Focus <span class="font-normal">{{ focusTasks.length }}</span></div>
               <ul class="divide-y divide-default">
                 <li v-for="t in focusTasks.slice(0, 7)" :key="t.id" class="flex items-center gap-3 px-4 py-2">
-                  <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" :title="ws.label(t.status)" />
+                  <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(t.status)" :title="ws.label(t.status)" />
                   <div class="min-w-0 flex-1">
                     <NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink>
                     <div class="truncate text-xs text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }}</div>
@@ -254,7 +253,7 @@ const briefParts = computed(() => {
               <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider" :class="b.key === 'overdue' ? 'text-error' : 'text-dimmed'">{{ b.label }} <span class="font-normal">{{ b.items.length + b.more }}</span></div>
               <ul class="divide-y divide-default">
                 <li v-for="t in b.items" :key="t.id" class="flex items-center gap-3 px-4 py-2">
-                  <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" :title="ws.label(t.status)" />
+                  <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(t.status)" :title="ws.label(t.status)" />
                   <div class="min-w-0 flex-1">
                     <NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink>
                     <div class="truncate text-xs text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }}</div>
@@ -269,7 +268,7 @@ const briefParts = computed(() => {
               <div class="bg-elevated/40 px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-warning">Nobody up <span class="font-normal">{{ unowned.length }}</span></div>
               <ul class="divide-y divide-default">
                 <li v-for="t in unowned.slice(0, 3)" :key="t.id" class="flex items-center gap-3 px-4 py-2">
-                  <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" :title="ws.label(t.status)" />
+                  <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(t.status)" :title="ws.label(t.status)" />
                   <div class="min-w-0 flex-1">
                     <NuxtLink :to="`/tasks/${t.id}`" class="font-medium hover:underline">{{ t.title }}</NuxtLink>
                     <div class="truncate text-xs text-muted">{{ t.projects?.clients?.name }} / {{ t.projects?.name }}</div>

@@ -69,7 +69,6 @@ async function saveSettings() {
   if (error) toast.add({ title: 'Could not save', description: error.message, color: 'error' })
   else toast.add({ title: 'Pricing settings saved', color: 'success' })
 }
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const perSqFt = (m: Row) => money(m.cost / (m.width_in * m.length_in) * 144)
 </script>
 

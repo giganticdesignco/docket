@@ -37,8 +37,7 @@ async function act(kind: 'accept' | 'decline') {
     doc.value = await $fetch<QuoteDoc>(`/api/q/${token}/${kind}`, { method: 'POST', body })
     toast.add({ title: kind === 'accept' ? 'Accepted. Thank you!' : 'Declined', description: `${doc.value.company.name} has been notified.`, color: 'success' })
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    toast.add({ title: 'That did not go through', description: err.data?.statusMessage ?? err.message, color: 'error' })
+    toast.add({ title: 'That did not go through', description: apiError(e), color: 'error' })
     await refresh()
   } finally {
     busy.value = null

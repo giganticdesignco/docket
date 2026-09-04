@@ -18,8 +18,7 @@ const { data: all } = await useAsyncData(`retainer-${id}-chain`, async () => {
   return data
 }, fresh)
 
-// The same chain key retainer_status() groups by.
-const chainKey = (r: Period) => `${r.client_id}|${r.project_id ?? ''}|${r.name.toLowerCase()}`
+const chainKey = retainerChainKey
 const seed = computed(() => all.value?.find(r => r.retainer_id === id) ?? null)
 if (!seed.value) throw createError({ statusCode: 404, statusMessage: 'Retainer not found' })
 const periods = computed(() => (all.value ?? []).filter(r => chainKey(r) === chainKey(seed.value!)).sort((a, b) => b.period_start.localeCompare(a.period_start)))
@@ -45,11 +44,9 @@ const { data: project } = await useAsyncData(`retainer-${id}-project`, async () 
 useHead({ title: () => seed.value?.name ?? 'Retainer' })
 useAssistantScreen(() => ({ client: client.value?.name, retainer: seed.value?.name }))
 
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const qty = (r: Period, n: number) => (r.basis === 'hours' ? formatHours(n) : money(n))
-const pct = (r: Period) => (r.available > 0 ? Math.round(r.used / r.available * 100) : 0)
-const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
-const periodStatus = (r: Period) => (r.period_end < today ? 'ended' : r.period_start > today ? 'upcoming' : 'current')
+const qty = retainerQty
+const pct = retainerPct
+const periodState = (r: Period) => periodStatus(r, today)
 
 // ---------- drill-down ----------
 const open = ref<string | null>(null)
@@ -99,7 +96,7 @@ const seeMoney = computed(() => useCurrentUser().can('field:amounts'))
       <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-4">
         <div><dt class="text-muted">Periods</dt><dd>{{ periods.length }}</dd></div>
         <div><dt class="text-muted">Since</dt><dd>{{ shortDate(startedOn) }}</dd></div>
-        <div><dt class="text-muted">{{ periodStatus(current) === 'current' ? 'This period' : 'Latest period' }}</dt><dd class="tabular-nums"><strong>{{ qty(current, current.used) }}</strong> <span class="text-muted">of {{ qty(current, current.available) }}</span></dd></div>
+        <div><dt class="text-muted">{{ periodState(current) === 'current' ? 'This period' : 'Latest period' }}</dt><dd class="tabular-nums"><strong>{{ qty(current, current.used) }}</strong> <span class="text-muted">of {{ qty(current, current.available) }}</span></dd></div>
         <div><dt class="text-muted">Left</dt><dd class="tabular-nums" :class="current.remaining < 0 ? 'text-error' : ''">{{ current.remaining < 0 ? qty(current, -current.remaining) + ' over' : qty(current, current.remaining) }}</dd></div>
       </dl>
       <UProgress :model-value="Math.min(pct(current), 100)" :color="burnColor(pct(current))" size="sm" class="mt-3" />
@@ -136,7 +133,7 @@ const seeMoney = computed(() => useCurrentUser().can('field:amounts'))
               <td class="px-2 py-2 text-right tabular-nums text-muted">{{ r.carried_in > 0 ? qty(r, r.carried_in) : '' }}</td>
               <td class="px-2 py-2 text-right tabular-nums">{{ qty(r, r.used) }}</td>
               <td class="px-2 py-2 text-right tabular-nums" :class="r.remaining < 0 ? 'text-error' : ''">{{ r.remaining < 0 ? qty(r, -r.remaining) + ' over' : qty(r, r.remaining) }}</td>
-              <td class="px-4 py-2"><UBadge :color="periodStatus(r) === 'current' ? 'success' : periodStatus(r) === 'upcoming' ? 'info' : 'neutral'" variant="subtle" size="sm">{{ periodStatus(r) }}</UBadge></td>
+              <td class="px-4 py-2"><UBadge :color="periodState(r) === 'current' ? 'success' : periodState(r) === 'upcoming' ? 'info' : 'neutral'" variant="subtle" size="sm">{{ periodState(r) }}</UBadge></td>
             </tr>
             <tr v-if="open === r.retainer_id" class="border-b border-default">
               <td colspan="6" class="bg-elevated/20 px-4 py-3">

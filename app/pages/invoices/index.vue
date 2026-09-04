@@ -50,14 +50,7 @@ const harvestHidden = computed(() => harvestAll.value ? 0 : Math.max(0, (harvest
 async function loadHistory() {
   loadingHistory.value = true
   try {
-    const out: HarvestRow[] = []
-    for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('harvest_invoices').select(HARVEST_COLS).order('issue_date', { ascending: false }).range(from, from + 999)
-      if (error) throw error
-      out.push(...(data ?? []))
-      if (!data || data.length < 1000) break
-    }
-    harvestAll.value = out
+    harvestAll.value = await selectAll<HarvestRow>(supabase.from('harvest_invoices').select(HARVEST_COLS).order('issue_date', { ascending: false }))
   } catch (e) {
     toast.add({ title: 'Could not load the Harvest history', description: (e as Error).message, color: 'error' })
   } finally {
@@ -80,7 +73,7 @@ const filters: { value: Filter, label: string }[] = [
   { value: 'overdue', label: 'Overdue' }, { value: 'paid', label: 'Paid' }, { value: 'void', label: 'Void' },
 ]
 const today = todayString()
-const isOverdue = (i: Pick<Row, 'status' | 'due_date'>) => i.status === 'sent' && i.due_date < today
+const isOverdue = (i: Pick<Row, 'status' | 'due_date'>) => invoiceOverdue(i, today)
 // Drafts float to the top of "All" so work in progress is never hidden.
 const rank: Record<string, number> = { draft: 0, sent: 1, paid: 2, void: 3, written_off: 3 }
 const search = ref('')
@@ -114,13 +107,7 @@ const outstanding = computed(() => (invoices.value ?? []).filter(i => i.status =
 const overdue = computed(() => (invoices.value ?? []).filter(isOverdue).reduce((s, i) => s + i.due_amount, 0))
 const drafts = computed(() => (invoices.value ?? []).filter(i => i.status === 'draft').length)
 
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const badge = (i: Pick<Row, 'status' | 'due_date'>): { label: string, color: 'neutral' | 'warning' | 'success' | 'error' } =>
-  isOverdue(i) ? { label: 'overdue', color: 'error' }
-  : i.status === 'sent' ? { label: 'sent', color: 'warning' }
-  : i.status === 'paid' ? { label: 'paid', color: 'success' }
-  : i.status === 'written_off' ? { label: 'written off', color: 'neutral' }
-  : { label: i.status, color: 'neutral' }
+const badge = (i: Pick<Row, 'status' | 'due_date'>) => invoiceBadge(i, today)
 
 const creating = ref(false)
 const newClientId = ref<string | undefined>()

@@ -100,16 +100,6 @@ const columns = ref<CsvColumn[]>([])
 const running = ref(false)
 const ran = ref(false)
 
-// PostgREST caps a response at 1000 rows; page through.
-async function selectAll<T>(query: { range: (a: number, b: number) => PromiseLike<{ data: T[] | null, error: { message: string } | null }> }) {
-  const out: T[] = []
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await query.range(offset, offset + 999)
-    if (error) throw error
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) return out
-  }
-}
 
 async function run() {
   running.value = true
@@ -213,7 +203,6 @@ const totals = computed(() => {
   return t
 })
 
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 function show(c: CsvColumn, v: unknown) {
   if (v == null || v === '') return ''
   if (c.kind === 'hours') return Number(v).toFixed(2)

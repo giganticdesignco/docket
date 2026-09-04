@@ -53,7 +53,6 @@ const groups = computed(() => {
   }))
 })
 const total = computed(() => groups.value.reduce((s, p) => s + p.weeks.reduce((w, x) => w + x.hours, 0), 0))
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const open = ref(new Set<string>())
 const toggle = (k: string) => { if (open.value.has(k)) open.value.delete(k); else open.value.add(k) }
 

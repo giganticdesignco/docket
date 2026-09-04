@@ -67,3 +67,9 @@ export function parseHours(input: string): number | null {
 export function hoursSince(iso: string, now: number): number {
   return Math.max(0, now - new Date(iso).getTime()) / 3_600_000
 }
+
+// A machine timestamp for people: "Sep 4, 2:15 PM". Documents that
+// live for years (invoices, quotes, reviews) add the year.
+export function stamp(iso: string, opts: { year?: boolean } = {}): string {
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', ...(opts.year ? { year: 'numeric' } : {}), hour: 'numeric', minute: '2-digit' })
+}

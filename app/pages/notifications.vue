@@ -68,7 +68,6 @@ async function clearRead() {
   await supabase.from('notifications').delete().not('read_at', 'is', null)
   refresh()
 }
-const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 </script>
 
 <template>

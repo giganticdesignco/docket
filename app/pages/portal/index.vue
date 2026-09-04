@@ -36,7 +36,6 @@ const { data } = await useAsyncData(`portal-${clientId.value}`, async () => {
 }, fresh)
 
 const today = todayString()
-const money = (n: number) => `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const openQuotes = computed(() => (data.value?.quotes ?? []).filter(q => q.status === 'sent'))
 const dueInvoices = computed(() => (data.value?.invoices ?? []).filter(i => i.status === 'sent'))
 const dueTotal = computed(() => dueInvoices.value.reduce((t, i) => t + i.due_amount, 0) + (data.value?.harvest ?? []).filter(h => h.state === 'open').reduce((t, h) => t + h.due_amount, 0))
@@ -53,7 +52,6 @@ const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n)
 const pct = (r: RetainerRow) => (r.available > 0 ? Math.round(r.used / r.available * 100) : 0)
 const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
 const ws = await useWorkStatuses()
-const dotClass = (color?: string) => ({ primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }[color ?? ''] ?? 'bg-accented')
 // Tasks on projects marked visible, grouped by project. Open work is
 // listed; finished tasks are a count so a long-running project stays
 // readable.
@@ -68,18 +66,8 @@ const taskGroups = computed(() => {
   return [...groups.values()]
 })
 
-const quoteBadge = (q: { status: string, valid_until: string | null }) =>
-  q.status === 'sent' && q.valid_until && q.valid_until < today ? { label: 'Expired', color: 'neutral' as const }
-  : q.status === 'sent' ? { label: 'Awaiting your decision', color: 'warning' as const }
-  : q.status === 'accepted' ? { label: 'Accepted', color: 'success' as const }
-  : q.status === 'declined' ? { label: 'Declined', color: 'neutral' as const }
-  : { label: q.status, color: 'neutral' as const }
-const invoiceBadge = (i: { status?: string, state?: string, due_date: string | null }) => {
-  const st = i.status ?? i.state
-  if (st === 'paid') return { label: 'Paid', color: 'success' as const }
-  if (st === 'closed') return { label: 'Closed', color: 'neutral' as const }
-  return i.due_date && i.due_date < today ? { label: 'Overdue', color: 'error' as const } : { label: 'Due', color: 'warning' as const }
-}
+const clientQuoteBadge = (q: { status: string, valid_until: string | null }) => quoteBadge(q, today, 'client')
+const clientInvoiceBadge = (i: { status?: string, state?: string, due_date: string | null }) => invoiceBadge(i, today, 'client')
 </script>
 
 <template>
@@ -167,7 +155,7 @@ const invoiceBadge = (i: { status?: string, state?: string, due_date: string | n
             <div class="border-b border-default px-4 py-2 text-sm font-semibold">{{ g.name }} <span class="font-normal text-muted">{{ g.items.length }} open<template v-if="g.done">, {{ g.done }} done</template></span></div>
             <ul v-if="g.items.length" class="divide-y divide-default text-sm">
               <li v-for="t in g.items" :key="t.id" class="flex items-center gap-3 px-4 py-2">
-                <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(t.status))" />
+                <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(t.status)" />
                 <span class="min-w-0 flex-1 truncate">{{ t.title }}</span>
                 <span v-if="t.due_on" class="text-xs tabular-nums text-muted">{{ shortDate(t.due_on) }}</span>
                 <UBadge :color="ws.color(t.status)" variant="subtle" size="sm">{{ ws.label(t.status) }}</UBadge>
@@ -186,7 +174,7 @@ const invoiceBadge = (i: { status?: string, state?: string, due_date: string | n
                   <a :href="`/q/${q.public_token}`" class="font-medium hover:underline">{{ q.number }} {{ q.title }}</a>
                   <div class="text-xs text-muted">{{ money(q.subtotal) }}<template v-if="q.valid_until && q.status === 'sent'"> · valid until {{ shortDate(q.valid_until) }}</template></div>
                 </div>
-                <UBadge :color="quoteBadge(q).color" variant="subtle" size="sm">{{ quoteBadge(q).label }}</UBadge>
+                <UBadge :color="clientQuoteBadge(q).color" variant="subtle" size="sm">{{ clientQuoteBadge(q).label }}</UBadge>
                 <UButton :to="`/q/${q.public_token}`" external size="xs" variant="outline" color="neutral">{{ q.status === 'sent' ? 'Review' : 'Open' }}</UButton>
               </li>
             </ul>
@@ -203,7 +191,7 @@ const invoiceBadge = (i: { status?: string, state?: string, due_date: string | n
                   <a :href="`/i/${i.public_token}`" class="font-medium hover:underline">Invoice {{ i.number }}<template v-if="i.subject"> · {{ i.subject }}</template></a>
                   <div class="text-xs text-muted">{{ shortDate(i.issue_date) }} · {{ money(i.total) }}<template v-if="i.status === 'sent'"> · {{ money(i.due_amount) }} due {{ shortDate(i.due_date) }}</template></div>
                 </div>
-                <UBadge :color="invoiceBadge(i).color" variant="subtle" size="sm">{{ invoiceBadge(i).label }}</UBadge>
+                <UBadge :color="clientInvoiceBadge(i).color" variant="subtle" size="sm">{{ clientInvoiceBadge(i).label }}</UBadge>
                 <UButton :to="`/i/${i.public_token}`" external size="xs" variant="outline" color="neutral">{{ i.status === 'sent' ? 'View and pay' : 'Open' }}</UButton>
               </li>
               <li v-for="h in data.harvest" :key="h.id" class="flex items-center gap-3 px-4 py-3">
@@ -211,7 +199,7 @@ const invoiceBadge = (i: { status?: string, state?: string, due_date: string | n
                   <div class="font-medium">Invoice {{ h.number }}<template v-if="h.subject"> · {{ h.subject }}</template></div>
                   <div class="text-xs text-muted">{{ shortDate(h.issue_date) }} · {{ money(h.amount) }}<template v-if="h.state === 'open' && h.due_date"> · {{ money(h.due_amount) }} due {{ shortDate(h.due_date) }}</template></div>
                 </div>
-                <UBadge :color="invoiceBadge(h).color" variant="subtle" size="sm">{{ invoiceBadge(h).label }}</UBadge>
+                <UBadge :color="clientInvoiceBadge(h).color" variant="subtle" size="sm">{{ clientInvoiceBadge(h).label }}</UBadge>
               </li>
             </ul>
             <p v-else class="px-4 py-6 text-center text-sm text-muted">No invoices yet.</p>

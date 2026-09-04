@@ -257,7 +257,6 @@ async function toggleMilestone(i: Item) {
 
 const printPage = () => window.print()
 const step = (dir: -1 | 1) => { from.value = addDays(from.value, dir * 7 * Math.max(1, Math.floor(WEEKS[zoom.value] / 2))) }
-const initials = (n: string) => n.split(' ').map(w => w[0]).join('').slice(0, 2)
 const statusBar: Record<string, string> = { primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }
 const barClass = (i: Item) => statusBar[ws.color(i.status) ?? ''] ?? 'bg-accented'
 const monthLabel = (d: string) => parseDateString(d).toLocaleDateString('en-US', { month: 'short' })

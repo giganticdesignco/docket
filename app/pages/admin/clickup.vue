@@ -30,8 +30,7 @@ async function run() {
     toast.add({ title: dryRun.value ? 'Dry run finished' : 'Import finished', color: 'success' })
     await refresh()
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    error.value = err.data?.statusMessage ?? err.message ?? 'Unknown error'
+    error.value = apiError(e)
   } finally {
     running.value = false
   }

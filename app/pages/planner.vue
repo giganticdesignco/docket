@@ -197,7 +197,6 @@ const rangePct = (p: Person) => (rangeAvailable(p) > 0 ? Math.round(rangePlanned
 const pctColor = (n: number) => (n > 100 ? 'text-error' : n > 85 ? 'text-warning' : 'text-muted')
 const h = (n: number) => formatHours(n)
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const rangeLabel = computed(() => `${shortDate(from.value)} to ${shortDate(to.value)}`)
 function dayFoot(p: Person, d: string) {
   const a = availableOn(p, d)

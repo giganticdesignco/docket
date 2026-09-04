@@ -135,7 +135,7 @@ async function send(text = input.value) {
       if (r.acted) refreshNuxtData()
     }
   } catch (e) {
-    messages.value.push({ role: 'assistant', content: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message })
+    messages.value.push({ role: 'assistant', content: apiError(e) })
   } finally {
     busy.value = false
     scrollDown()

@@ -40,7 +40,7 @@ const remember = () => {
 }
 
 const date = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+const stampYear = (iso: string) => stamp(iso, { year: true })
 const size = (n: number | null) => (n == null ? '' : n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`)
 const statusText = (s: string) => (s === 'client_review' ? 'Waiting for your review' : s === 'completed' ? 'Completed' : `With ${doc.value?.company.name}`)
 
@@ -62,8 +62,7 @@ async function send(kind: 'comment' | 'approved' | 'changes_requested') {
     body.value = ''
     toast.add({ title: kind === 'comment' ? 'Comment posted' : kind === 'approved' ? 'Approved. Thank you!' : 'Changes requested', description: `${doc.value.company.name} has been notified.`, color: 'success' })
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    toast.add({ title: 'That did not go through', description: err.data?.statusMessage ?? err.message, color: 'error' })
+    toast.add({ title: 'That did not go through', description: apiError(e), color: 'error' })
     await refresh()
   } finally {
     busy.value = null
@@ -87,7 +86,7 @@ async function send(kind: 'comment' | 'approved' | 'changes_requested') {
         </div>
 
         <div v-if="doc.task.client_decision" class="mt-4 rounded-md px-4 py-3 text-sm" :class="doc.task.client_decision === 'approved' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
-          {{ doc.task.client_decision === 'approved' ? 'Approved' : 'Changes requested' }} by {{ doc.task.client_decision_by }}<span v-if="doc.task.client_decision_at">, {{ stamp(doc.task.client_decision_at) }}</span>
+          {{ doc.task.client_decision === 'approved' ? 'Approved' : 'Changes requested' }} by {{ doc.task.client_decision_by }}<span v-if="doc.task.client_decision_at">, {{ stampYear(doc.task.client_decision_at) }}</span>
         </div>
 
         <p v-if="doc.task.description" class="mt-5 whitespace-pre-line text-[15px] leading-relaxed">{{ doc.task.description }}</p>
@@ -111,7 +110,7 @@ async function send(kind: 'comment' | 'approved' | 'changes_requested') {
             <div class="text-xs text-gray-500">
               <span class="font-medium text-gray-900">{{ c.author }}</span>
               <span v-if="!c.is_client"> &middot; {{ doc.company.name }}</span>
-              &middot; {{ stamp(c.created_at) }}
+              &middot; {{ stampYear(c.created_at) }}
             </div>
             <p class="mt-0.5 whitespace-pre-line">{{ c.body }}</p>
           </li>

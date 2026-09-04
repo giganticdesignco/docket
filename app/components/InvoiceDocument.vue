@@ -14,7 +14,6 @@ const marginTotals = computed(() => {
   return { cost: rows.reduce((s, m) => s + (m.costAmount ?? 0), 0), margin: rows.reduce((s, m) => s + (m.marginAmount ?? 0), 0), partial: rows.length < props.doc.lines.filter(l => l.kind === 'service').length }
 })
 
-const money = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const date = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 const qty = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 const hours = (n: number) => formatHours(n)

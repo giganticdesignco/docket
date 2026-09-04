@@ -239,11 +239,9 @@ const rows = computed(() => report.value?.rows ?? [])
 
 // ---------- rollup strip ----------
 
-const money = (n: number) => `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 // h:mm like the rest of the app, with a thousands separator since a
 // year of everyone's time runs to five figures.
 const hoursText = (h: number) => formatHours(h).replace(/^(\d+)/, m => Number(m).toLocaleString())
-const money0 = (n: number) => `$${Math.round(Number(n)).toLocaleString()}`
 type Stat = { label: string, value: string, then: number, now: number }
 const stats = computed<Stat[]>(() => {
   const now = report.value?.now

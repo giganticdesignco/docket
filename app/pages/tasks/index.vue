@@ -274,10 +274,8 @@ const parentTitle = (i: { parent_id: string | null }) => (i.parent_id ? items.va
 // group; then the indent and the elbow say it all and the "in ..." note
 // is only needed when the parent is somewhere else.
 const underParent = (i: Item, g: Group) => !!i.parent_id && g.items.some(x => x.id === i.parent_id)
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const priorityIcon = (p: string) => (p === 'urgent' ? 'i-lucide-flame' : p === 'high' ? 'i-lucide-flag' : p === 'low' ? 'i-lucide-arrow-down' : 'i-lucide-minus')
 const priorityClass = (p: string) => (p === 'urgent' ? 'text-error' : p === 'high' ? 'text-warning' : 'text-dimmed')
-const dotClass = (color?: string) => ({ primary: 'bg-primary', info: 'bg-info', success: 'bg-success', warning: 'bg-warning', error: 'bg-error' }[color ?? ''] ?? 'bg-accented')
 
 // ---------- in-place edits ----------
 
@@ -691,7 +689,7 @@ function created(id: string) {
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             <NuxtLink v-for="i in p.items" :key="i.id" :to="`/tasks/${i.id}`" class="flex min-h-28 flex-col rounded-lg border border-default bg-default p-3 text-sm transition-colors hover:border-primary hover:bg-elevated/40">
               <div class="flex items-start gap-2">
-                <span class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" />
+                <span class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="ws.dot(i.status)" :title="ws.label(i.status)" />
                 <span class="line-clamp-2 font-medium">{{ i.title }}</span>
               </div>
               <div v-if="i.parent_id" class="mt-1 truncate text-xs text-dimmed"><UIcon name="i-lucide-corner-down-right" class="inline-block size-3 align-[-2px]" /> {{ parentTitle(i) }}</div>
@@ -717,7 +715,7 @@ function created(id: string) {
       <div class="flex items-center">
         <button type="button" class="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm" @click="toggle(g.key)">
           <UIcon :name="isCollapsed(g.key) ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-4 text-dimmed" />
-          <span v-if="focusMode || groupBy !== 'project' || g.key === 'unowned' || g.key === 'waiting'" class="size-2.5 rounded-full" :class="dotClass(g.color)" />
+          <span v-if="focusMode || groupBy !== 'project' || g.key === 'unowned' || g.key === 'waiting'" class="size-2.5 rounded-full" :class="ws.dotFor(g.color)" />
           <span class="font-semibold">{{ g.label }}</span>
           <span v-if="g.sublabel" class="text-muted">/ {{ g.sublabel }}</span>
           <span class="text-muted">{{ g.items.length }}</span>
@@ -749,7 +747,7 @@ function created(id: string) {
               </button>
             </td>
             <td class="w-6 px-1 py-1.5">
-              <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
+              <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="ws.dot(i.status)" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
             </td>
             <td class="min-w-0 px-2 py-1.5">
               <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1.5 inline-block size-4 align-[-3px] text-muted" :title="`Subtask of ${parentTitle(i)}`" />
@@ -789,7 +787,7 @@ function created(id: string) {
         <ul v-if="suggestions.length" class="divide-y divide-default">
           <li v-for="sug in suggestions" :key="sug.id">
             <button type="button" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm hover:bg-elevated" @click="addFromBox(sug)">
-              <span class="size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(sug.status))" />
+              <span class="size-2.5 shrink-0 rounded-full" :class="ws.dot(sug.status)" />
               <span class="min-w-0 flex-1 truncate">{{ sug.title }}</span>
               <span class="truncate text-xs text-muted">{{ projectLabel(sug) }}</span>
             </button>
@@ -832,7 +830,7 @@ function created(id: string) {
         <div class="absolute w-52 rounded-md border border-default bg-default p-1 shadow-lg" :style="{ left: `${menu.x}px`, top: `${menu.y}px` }" @click.stop>
           <template v-if="menu.kind === 'status'">
             <button v-for="s in ws.active.value" :key="s.key" type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated" @click="pick(s.key)">
-              <span class="size-2.5 rounded-full" :class="dotClass(s.color)" />
+              <span class="size-2.5 rounded-full" :class="ws.dotFor(s.color)" />
               <span class="flex-1">{{ s.label }}</span>
               <UIcon v-if="s.key === menu.item.status" name="i-lucide-check" class="size-4 text-muted" />
             </button>

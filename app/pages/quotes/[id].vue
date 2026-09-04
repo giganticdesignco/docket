@@ -74,15 +74,9 @@ const marginLines = computed(() => (margins.value ?? []).length)
 
 const editable = computed(() => quote.value?.status === 'draft' || quote.value?.status === 'sent')
 const today = todayString()
-const badge = computed((): { label: string, color: 'neutral' | 'info' | 'success' | 'error' } => {
-  const q = quote.value
-  if (!q) return { label: '', color: 'neutral' }
-  if (q.status === 'sent' && q.valid_until && q.valid_until < today) return { label: 'expired', color: 'error' }
-  return q.status === 'sent' ? { label: 'sent', color: 'info' } : q.status === 'accepted' ? { label: 'accepted', color: 'success' } : q.status === 'expired' ? { label: 'expired', color: 'error' } : { label: q.status, color: 'neutral' }
-})
+const badge = computed((): Badge => (quote.value ? quoteBadge(quote.value, today) : { label: '', color: 'neutral' }))
 const publicLink = computed(() => `${origin}/q/${quote.value?.public_token}`)
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+const stampYear = (iso: string) => stamp(iso, { year: true })
 
 // ---------- editor ----------
 
@@ -147,7 +141,7 @@ async function draftIntro() {
     const r = await $fetch<{ text: string }>('/api/ai/draft', { method: 'POST', body: { kind: 'quote_intro', quoteId: id, current: form.intro, instruction: form.intro ? 'Improve the current text; keep its facts.' : undefined } })
     form.intro = r.text
   } catch (e) {
-    toast.add({ title: 'Could not draft', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+    toast.add({ title: 'Could not draft', description: apiError(e), color: 'error' })
   } finally {
     drafting.value = null
   }
@@ -162,7 +156,7 @@ async function draftLinesFromBrief() {
     briefOpen.value = false
     toast.add({ title: `${r.lines.length} lines proposed`, description: 'Edit them, then save the quote.', color: 'success' })
   } catch (e) {
-    toast.add({ title: 'Could not draft lines', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+    toast.add({ title: 'Could not draft lines', description: apiError(e), color: 'error' })
   } finally {
     drafting.value = null
   }
@@ -297,8 +291,7 @@ async function send() {
     toast.add({ title: 'Quote sent', description: `To ${res.to.join(', ')}`, color: 'success' })
     await refreshAll()
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    toast.add({ title: 'Not sent', description: err.data?.statusMessage ?? err.message, color: 'error' })
+    toast.add({ title: 'Not sent', description: apiError(e), color: 'error' })
   } finally {
     sending.value = false
   }
@@ -366,10 +359,10 @@ async function deleteQuote() {
     </div>
 
     <p class="text-sm text-muted">
-      <span v-if="quote.sent_at">Sent {{ stamp(quote.sent_at) }}. </span>
-      <span v-if="quote.status === 'accepted'">Accepted by {{ quote.accepted_by }}<span v-if="quote.accepted_email"> ({{ quote.accepted_email }})</span>, {{ stamp(quote.accepted_at!) }}.
+      <span v-if="quote.sent_at">Sent {{ stampYear(quote.sent_at) }}. </span>
+      <span v-if="quote.status === 'accepted'">Accepted by {{ quote.accepted_by }}<span v-if="quote.accepted_email"> ({{ quote.accepted_email }})</span>, {{ stampYear(quote.accepted_at!) }}.
         <NuxtLink v-if="quote.projects" :to="`/projects/${quote.projects.id}`" class="underline">Open the project</NuxtLink>.</span>
-      <span v-if="quote.status === 'declined'">Declined<span v-if="quote.declined_by"> by {{ quote.declined_by }}</span>, {{ stamp(quote.declined_at!) }}.<span v-if="quote.decline_reason"> "{{ quote.decline_reason }}"</span></span>
+      <span v-if="quote.status === 'declined'">Declined<span v-if="quote.declined_by"> by {{ quote.declined_by }}</span>, {{ stampYear(quote.declined_at!) }}.<span v-if="quote.decline_reason"> "{{ quote.decline_reason }}"</span></span>
     </p>
 
     <template v-if="editable">

@@ -127,7 +127,6 @@ async function addToQuote(target = quoteId.value) {
   }
 }
 
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const money5 = (n: number) => `$${n.toFixed(5)}`
 const num = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })
 const layerLabel = (l: Layer) => LAYERS.find(x => x.key === l)!.label

@@ -32,8 +32,7 @@ async function addPerson() {
     addState.role = 'staff'
     refresh()
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    toast.add({ title: 'Could not add person', description: err.data?.statusMessage ?? err.message, color: 'error' })
+    toast.add({ title: 'Could not add person', description: apiError(e), color: 'error' })
   } finally {
     addSaving.value = false
   }
@@ -80,7 +79,6 @@ const cols = await useColumns<Person>('people', [
   { key: 'status', label: 'Status', sort: p => (p.is_active ? 0 : 1) },
 ])
 const rows = computed(() => cols.sorted((profiles.value ?? []).filter(p => showInactive.value || p.is_active)))
-const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 
 function done() {
   editing.value = null

@@ -26,9 +26,11 @@ export async function useWorkStatuses() {
   // The dot beside a status, anywhere it is shown as text or picked.
   const DOT: Record<string, string> = { primary: 'bg-primary', secondary: 'bg-secondary', success: 'bg-success', info: 'bg-info', warning: 'bg-warning', error: 'bg-error', neutral: 'bg-accented' }
   const dot = (key: string) => DOT[color(key)] ?? 'bg-accented'
+  // The same dot for a color that is not a status, like a group's.
+  const dotFor = (c?: string | null) => DOT[c ?? ''] ?? 'bg-accented'
   const isDone = (key: string) => !!byKey.value.get(key)?.is_done
   const isPaused = (key: string) => !!byKey.value.get(key)?.is_paused
   const clientReviewKey = computed(() => active.value.find(s => s.is_client_review)?.key ?? null)
 
-  return { statuses, active, items, byKey, label, color, dot, isDone, isPaused, clientReviewKey, reload }
+  return { statuses, active, items, byKey, label, color, dot, dotFor, isDone, isPaused, clientReviewKey, reload }
 }

@@ -62,17 +62,10 @@ async function refreshAll() {
 }
 
 const isDraft = computed(() => invoice.value?.status === 'draft')
-const isOverdue = computed(() => invoice.value?.status === 'sent' && invoice.value.due_date < todayString())
-const badge = computed((): { label: string, color: 'neutral' | 'warning' | 'success' | 'error' } => {
-  const st = invoice.value?.status
-  return isOverdue.value ? { label: 'overdue', color: 'error' }
-    : st === 'sent' ? { label: 'sent', color: 'warning' }
-    : st === 'paid' ? { label: 'paid', color: 'success' }
-    : { label: st ?? '', color: 'neutral' }
-})
+const isOverdue = computed(() => !!invoice.value && invoiceOverdue(invoice.value))
+const badge = computed((): Badge => (invoice.value ? invoiceBadge(invoice.value) : { label: '', color: 'neutral' }))
 const publicLink = computed(() => `${origin}/i/${invoice.value?.public_token}`)
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+const stampYear = (iso: string) => stamp(iso, { year: true })
 
 // ---------- draft editor ----------
 
@@ -189,8 +182,7 @@ async function send() {
     toast.add({ title: sendKind.value === 'reminder' ? 'Reminder sent' : 'Invoice sent', description: `To ${res.to.join(', ')}`, color: 'success' })
     await refreshAll()
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    toast.add({ title: 'Not sent', description: err.data?.statusMessage ?? err.message, color: 'error' })
+    toast.add({ title: 'Not sent', description: apiError(e), color: 'error' })
   } finally {
     sending.value = false
   }
@@ -298,9 +290,9 @@ async function voidInvoice() {
 
     <p class="text-sm text-muted">
       <span v-if="invoice.billing_batches">From batch <NuxtLink :to="`/billing/${invoice.billing_batches.id}`" class="underline">{{ shortDate(invoice.billing_batches.period_start) }} to {{ shortDate(invoice.billing_batches.period_end) }}</NuxtLink>. </span>
-      <span v-if="invoice.sent_at">Sent {{ stamp(invoice.sent_at) }}<span v-if="invoice.sent_to?.length"> to {{ invoice.sent_to.join(', ') }}</span>. </span>
-      <span v-if="invoice.last_reminded_at">Last reminder {{ stamp(invoice.last_reminded_at) }}. </span>
-      <span v-if="invoice.paid_at">Paid {{ stamp(invoice.paid_at) }}. </span>
+      <span v-if="invoice.sent_at">Sent {{ stampYear(invoice.sent_at) }}<span v-if="invoice.sent_to?.length"> to {{ invoice.sent_to.join(', ') }}</span>. </span>
+      <span v-if="invoice.last_reminded_at">Last reminder {{ stampYear(invoice.last_reminded_at) }}. </span>
+      <span v-if="invoice.paid_at">Paid {{ stampYear(invoice.paid_at) }}. </span>
       <span v-if="invoice.status === 'void'">Void.</span>
     </p>
 

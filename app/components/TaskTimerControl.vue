@@ -10,7 +10,6 @@ const props = withDefaults(defineProps<{
 }>(), { compact: false })
 const emit = defineEmits<{ changed: [] }>()
 
-const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const timer = useTimer()
 const toast = useToast()

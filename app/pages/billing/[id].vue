@@ -57,7 +57,6 @@ useHead({ title: () => (batch.value ? `Batch for ${batch.value.clients?.name ?? 
 const hours = computed(() => (time.value ?? []).reduce((s, r) => s + (r.hours ?? 0), 0))
 const timeAmount = computed(() => (time.value ?? []).reduce((s, r) => s + (r.amount ?? 0), 0))
 const expenseAmount = computed(() => (expenses.value ?? []).reduce((s, r) => s + r.amount, 0))
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const statusColor: Record<string, 'neutral' | 'warning' | 'success' | 'error'> = {
   draft: 'neutral', pushing: 'warning', pushed: 'success', failed: 'error', void: 'neutral', invoiced: 'success',
 }

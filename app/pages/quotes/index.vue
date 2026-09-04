@@ -48,17 +48,9 @@ const cols = await useColumns<Row>('quotes', [
 const rows = computed(() => cols.sorted((quotes.value ?? []).filter(q => filter.value === 'all' || q.status === filter.value)))
 const outstanding = computed(() => (quotes.value ?? []).filter(q => q.status === 'sent').reduce((s, q) => s + q.subtotal, 0))
 const won = computed(() => (quotes.value ?? []).filter(q => q.status === 'accepted' && q.accepted_at && q.accepted_at.slice(0, 4) === today.slice(0, 4)).reduce((s, q) => s + q.subtotal, 0))
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const badge = (q: Row): { label: string, color: 'neutral' | 'warning' | 'success' | 'error' | 'info' } =>
-  q.status === 'sent' && q.valid_until && q.valid_until < today ? { label: 'expired', color: 'error' }
-  : q.status === 'sent' ? { label: 'sent', color: 'info' }
-  : q.status === 'accepted' ? { label: 'accepted', color: 'success' }
-  : q.status === 'declined' ? { label: 'declined', color: 'neutral' }
-  : q.status === 'expired' ? { label: 'expired', color: 'error' }
-  : { label: 'draft', color: 'neutral' }
+const badge = (q: Row) => quoteBadge(q, today)
 
 // Who wrote it, as initials, the way tasks show assignees.
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const owner = (q: Row) => q.profiles?.full_name ?? ''
 
 // A sent quote nobody has answered in five days wants a nudge. Past its

@@ -56,7 +56,6 @@ const { data: moneyById } = __ad3
 const { data: retainers } = __ad4
 const { data: teams } = __ad5
 const team = (id: string) => teams.value?.get(id) ?? []
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const unbilled = (id: string) => moneyById.value?.get(id)?.unbilled ?? null
 const billed = (id: string) => moneyById.value?.get(id)?.billed_year ?? null
 const billedAll = (id: string) => moneyById.value?.get(id)?.billed_all ?? null
@@ -69,7 +68,6 @@ const retainerLeft = (id: string) => {
   const dollars = rs.filter(r => r.basis !== 'hours').reduce((s, r) => s + r.remaining, 0)
   return { hours, dollars, hasHours: rs.some(r => r.basis === 'hours'), hasDollars: rs.some(r => r.basis !== 'hours') }
 }
-const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`)
 const retainerText = (id: string) => {
   const r = retainerLeft(id)
   if (!r) return ''

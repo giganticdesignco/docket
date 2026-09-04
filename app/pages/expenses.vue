@@ -63,7 +63,6 @@ const cols = await useColumns<Row>('expenses', [
 // The Person column only means something when the list shows everyone.
 const visibleCols = computed(() => cols.visible.filter(c => c.key !== 'person' || everyone.value))
 const rows = computed(() => cols.sorted(expenses.value ?? []))
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 function saved() {
   creating.value = false

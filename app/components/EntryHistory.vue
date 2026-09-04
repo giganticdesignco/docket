@@ -34,7 +34,7 @@ const kind = (c: Change) => {
 }
 const VERB: Record<string, string> = { insert: 'created it', update: 'changed it', deleted: 'deleted it', restored: 'put it back', delete: 'deleted it' }
 const show = (v: unknown) => (v === null || v === undefined || v === '' ? 'empty' : typeof v === 'boolean' ? (v ? 'yes' : 'no') : String(v).length > 60 ? `${String(v).slice(0, 60)}...` : String(v))
-const when = (s: string) => new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+const when = stamp
 
 const restoring = ref<string | null>(null)
 async function restore(c: Change) {

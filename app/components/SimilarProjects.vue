@@ -60,7 +60,6 @@ const typicalAmount = computed(() => {
 })
 const shown = computed(() => matches.value.slice(0, 5))
 const more = ref(false)
-const money = (n: number) => `$${Math.round(n).toLocaleString()}`
 const span = (r: Row) => {
   if (!r.first_on) return ''
   const f = new Date(r.first_on), l = r.last_on ? new Date(r.last_on) : f
@@ -81,7 +80,7 @@ const range = computed(() => {
       <div class="min-w-0 flex-1">
         <div class="font-medium">Similar completed projects</div>
         <div class="text-xs text-muted">
-          Typically <span class="font-medium text-default">{{ formatHours(typicalHours ?? 0) }}</span><template v-if="typicalAmount"> and <span class="font-medium text-default">{{ money(typicalAmount) }}</span></template>,
+          Typically <span class="font-medium text-default">{{ formatHours(typicalHours ?? 0) }}</span><template v-if="typicalAmount"> and <span class="font-medium text-default">{{ money0(typicalAmount) }}</span></template>,
           the median of {{ matches.length }}<template v-if="range"> (from {{ range.lo }} to {{ range.hi }})</template>.
         </div>
       </div>
@@ -98,7 +97,7 @@ const range = computed(() => {
             <div class="truncate text-muted">{{ m.client_name }}<template v-if="span(m)"> &middot; {{ span(m) }}</template></div>
           </td>
           <td class="w-16 whitespace-nowrap py-1 pl-2 text-right align-top tabular-nums">{{ formatHours(m.hours) }}</td>
-          <td class="w-20 whitespace-nowrap py-1 pl-3 text-right align-top tabular-nums text-muted">{{ m.amount ? money(m.amount) : '' }}</td>
+          <td class="w-20 whitespace-nowrap py-1 pl-3 text-right align-top tabular-nums text-muted">{{ m.amount ? money0(m.amount) : '' }}</td>
         </tr>
       </tbody>
     </table>

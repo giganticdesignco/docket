@@ -162,7 +162,6 @@ async function projectCreated(p: Tables<'projects'>) {
   else toast.add({ title: 'Project added', description: `${p.name} is in the picker now.`, color: 'success', duration: 3000 })
 }
 
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 </script>
 
 <template>

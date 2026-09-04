@@ -2635,3 +2635,28 @@ history button loads the rest in about a second, the person view of
 the Schedule shows capacity titles, the Planner menu lists 16 people,
 a project page renders every card. Not exercised: the report's
 show-more row (no run returned more than 500 rows) and a bulk hand-off.
+
+## 2026-09-04: code review, screens tranche 3 (shared helpers)
+
+Nine structure findings, each a helper that had been copied into many
+files and had started to drift. New in `app/utils`: `format.ts` with
+`money` (two places, en-US, minus before the dollar, blank for null),
+`money0`, `initials` and `apiError`; `selectAll.ts` for paging past
+PostgREST's thousand-row cap, with a ceiling; `retainer.ts` with the
+chain key, quantity, percent, burn color and period status the
+Retainer and client pages share; `invoice.ts` with `invoiceBadge`,
+`quoteBadge`, `invoiceStatus` and `invoiceOverdue`, one reading of
+status for staff and one for the portal. `stamp()` joined
+`utils/time.ts`; documents pass `{ year: true }`. `useWorkStatuses`
+gained `dotFor(color)` for group dots, and the three local `dotClass`
+copies went. Twenty-five local `money` definitions, nine `initials`,
+eight `stamp`, sixteen `$fetch` error unwraps and two `selectAll`
+copies are gone; `money5` on the estimator stays, being its own thing.
+Two dead declarations removed (a type on the client page, a client in
+TaskTimerControl). Visible change: the Clients list now prints cents
+like every other screen, and a negative amount reads "-$12.00"
+everywhere.
+
+Verified in Chrome: Invoices, Clients, a client page, a Retainer page,
+Quotes, Tasks, Notifications, Account, Feedback and Projects all render
+with the shared formats; typecheck clean.

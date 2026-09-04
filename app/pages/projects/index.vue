@@ -67,7 +67,6 @@ const taskStats = computed(() => {
   return m
 })
 const nameOf = (id: string) => people.value?.find(p => p.id === id)?.full_name ?? ''
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const departmentOptions = computed(() => [
   { label: 'All departments', value: undefined },
   ...(departments.value ?? []).map(d => ({ label: d.name, value: d.id })),
@@ -116,7 +115,6 @@ const clientOptions = computed(() => [
 ])
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
-const money = (n: number | null) => (n == null ? '' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 // Harvest budgets are either hours or dollars per project, rarely both.
 const budget = (p: { budget_hours: number | null, budget_amount: number | null }) =>
   p.budget_hours != null ? `${p.budget_hours.toLocaleString()} h` : p.budget_amount != null ? money(p.budget_amount) : ''

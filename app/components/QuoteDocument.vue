@@ -5,7 +5,6 @@ import type { QuoteDoc, SitemapNode } from '~~/shared/types/quote'
 // Plain HTML on a white sheet, like the invoice.
 const props = defineProps<{ doc: QuoteDoc }>()
 
-const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const date = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 const stampDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 const totalHours = computed(() => props.doc.lines.reduce((s, l) => s + (l.hours ?? 0), 0))

@@ -44,16 +44,6 @@ const { data: projects } = __ad2
 const { data: categories } = __ad3
 const { data: people } = __ad4
 
-// PostgREST caps a response at 1000 rows; a busy client-month can pass that.
-async function selectAll<T>(query: { range: (from: number, to: number) => PromiseLike<{ data: T[] | null, error: { message: string } | null }> }): Promise<T[]> {
-  const out: T[] = []
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await query.range(offset, offset + 999)
-    if (error) throw error
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) return out
-  }
-}
 
 const ready = computed(() => !!clientId.value && from.value <= to.value)
 
@@ -117,7 +107,6 @@ const hours = computed(() => pickedTimeRows.value.reduce((s, r) => s + (r.hours 
 const timeAmount = computed(() => pickedTimeRows.value.reduce((s, r) => s + (r.amount ?? 0), 0))
 const expenseAmount = computed(() => pickedExpenseRows.value.reduce((s, r) => s + (r.amount ?? 0), 0))
 const noRate = computed(() => pickedTimeRows.value.filter(r => (r.hours ?? 0) > 0 && !(r.amount ?? 0)).length)
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const creating = ref(false)
 async function create() {

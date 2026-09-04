@@ -107,7 +107,6 @@ await Promise.all([__ad8, __ad9])
 const { data: openTasks } = __ad8
 const { data: recentTime } = __ad9
 const nameOf = (uid: string) => people.value?.find(p => p.id === uid)?.full_name ?? ''
-const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 // The team on the account: project leads, people on open tasks, and
 // anyone who logged time here in the last 90 days.
 const team = computed(() => {
@@ -121,8 +120,7 @@ const team = computed(() => {
 const TASKS_SHOWN = 25
 
 // ---------- one team member, in a drawer ----------
-type TeamMember = ReturnType<typeof team.value.at> extends infer T ? NonNullable<T> : never
-const member = ref<{ id: string, name: string, leads: string[], tasks: number, hours: number } | null>(null)
+const member = ref<NonNullable<typeof team.value>[number] | null>(null)
 // Their open tasks for this client, from the rows already loaded.
 const memberTasks = computed(() => (openTasks.value ?? []).filter(t => t.work_item_assignees.some(a => a.user_id === member.value?.id)))
 // Their time on this client, by project, fetched when the drawer opens.
@@ -170,7 +168,7 @@ async function sendInvite(email = invite.email, fullName = invite.fullName) {
     invite.email = ''
     await refreshContacts()
   } catch (e) {
-    toast.add({ title: 'Could not invite', description: (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? (e as Error).message, color: 'error' })
+    toast.add({ title: 'Could not invite', description: apiError(e), color: 'error' })
   } finally {
     inviteBusy.value = false
   }
@@ -248,18 +246,15 @@ const projectCols = await useColumns<ProjectRow>('client-projects', [
 const projectRows = computed(() => projectCols.sorted(projects.value ?? []))
 
 const projectName = (projectId: string | null) => projects.value?.find(p => p.id === projectId)?.name ?? 'All projects'
-const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n) : money(n))
-const pct = (r: RetainerRow) => (r.available > 0 ? Math.round(r.used / r.available * 100) : 0)
-const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
-const periodStatus = (r: RetainerRow) => (r.period_end < todayString() ? 'ended' : r.period_start > todayString() ? 'upcoming' : 'current')
+const qty = retainerQty
+const pct = retainerPct
+const status = (r: RetainerRow) => periodStatus(r, todayString())
 // Periods that chain (same client, project, and name) shown as one
-// contract: the current period, or the latest, up front. Same key
-// retainer_status() uses.
+// contract: the current period, or the latest, up front.
 const contracts = computed(() => {
   const by = new Map<string, RetainerRow[]>()
   for (const r of retainers.value ?? []) {
-    const key = `${r.client_id}|${r.project_id ?? ''}|${r.name.toLowerCase()}`
+    const key = retainerChainKey(r)
     by.set(key, [...(by.get(key) ?? []), r])
   }
   const today = todayString()
@@ -298,16 +293,9 @@ async function confirmDeleteRetainer() {
 }
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
-// Harvest uses open/paid/closed, Docket uses draft/sent/paid/void; both get
-// an "overdue" badge when open past the due date.
 type InvoiceLike = { state?: string, status?: string, due_date: string | null }
-const isOpen = (inv: InvoiceLike) => (inv.state ?? inv.status) === 'open' || (inv.state ?? inv.status) === 'sent'
-const invoiceColor = (inv: InvoiceLike) => {
-  const st = inv.state ?? inv.status
-  return st === 'paid' ? 'success' : isOpen(inv) ? (inv.due_date && inv.due_date < todayString() ? 'error' : 'warning') : 'neutral'
-}
-const invoiceLabel = (inv: InvoiceLike) =>
-  isOpen(inv) && inv.due_date && inv.due_date < todayString() ? 'overdue' : (inv.state ?? inv.status ?? '')
+const invoiceColor = (inv: InvoiceLike) => invoiceBadge(inv).color
+const invoiceLabel = (inv: InvoiceLike) => invoiceBadge(inv).label
 </script>
 
 <template>
@@ -477,7 +465,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
               <NuxtLink :to="`/retainers/${c.shown.retainer_id}`" class="font-medium hover:underline">{{ c.shown.name }}</NuxtLink>
               <span class="text-muted">&middot; {{ projectName(c.shown.project_id) }}</span>
               <div class="text-muted">
-                {{ shortDate(c.shown.period_start) }} to {{ shortDate(c.shown.period_end) }}, {{ periodStatus(c.shown) }}
+                {{ shortDate(c.shown.period_start) }} to {{ shortDate(c.shown.period_end) }}, {{ status(c.shown) }}
                 <span v-if="c.periods.length > 1"> &middot; {{ c.periods.length }} periods since {{ shortDate(c.periods[c.periods.length - 1]!.period_start) }}</span>
               </div>
             </div>

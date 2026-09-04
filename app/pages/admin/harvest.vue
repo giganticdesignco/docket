@@ -107,8 +107,7 @@ async function run(steps: Step[]) {
     }
     toast.add({ title: stopRequested.value ? 'Stopped' : dryRun.value ? 'Dry run finished' : 'Import finished', color: 'success' })
   } catch (e) {
-    const err = e as { data?: { statusMessage?: string }, message?: string }
-    const message = err.data?.statusMessage ?? err.message ?? 'Unknown error'
+    const message = apiError(e)
     // Keep the failure in the log so it is still visible after the toast goes.
     log.value.unshift({ month: progress.value.current, mode, dryRun: dryRun.value, fetched: 0, skippedRunning: 0, error: message })
     toast.add({ title: `Import stopped at ${progress.value.current}`, description: message, color: 'error' })
@@ -147,7 +146,6 @@ const receiptErrors = computed(() => log.value.flatMap(r => r.receiptErrors ?? [
 const unlinkedClients = computed(() => [...new Set(log.value.flatMap(r => r.unlinkedClients ?? []))])
 const stateSummary = (by: Record<string, number>) => ['open', 'paid', 'closed', 'draft'].filter(k => by[k]).map(k => `${by[k]} ${k}`).join(', ')
 const num = (n: number | null | undefined) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })
-const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 </script>
 
 <template>
@@ -191,7 +189,7 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
                 <td class="px-2 py-1 text-right tabular-nums">{{ num(y.row_count) }}</td>
                 <td class="px-2 py-1 text-right tabular-nums">{{ num(y.hours) }}</td>
                 <td class="px-2 py-1 text-right tabular-nums">{{ num(y.billable_hours) }}</td>
-                <td class="px-2 py-1 text-right tabular-nums">{{ money(y.amount) }}</td>
+                <td class="px-2 py-1 text-right tabular-nums">{{ money(y.amount ?? 0) }}</td>
               </tr>
               <tr v-if="!yearly?.length">
                 <td colspan="5" class="px-2 py-4 text-center text-muted">Nothing imported yet.</td>
@@ -315,7 +313,7 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
                 <template v-else>{{ r.created.tasks }} tasks, {{ r.created.project_tasks }} assignments</template>
               </span>
               <span v-if="r.mode === 'expenses' && r.receipts" class="text-muted"> {{ r.receipts }} receipts{{ r.dryRun ? ' to copy' : ' copied' }}</span>
-              <span v-if="r.mode === 'invoices' && r.byState">{{ stateSummary(r.byState) }}, {{ money(r.openAmount) }} outstanding</span>
+              <span v-if="r.mode === 'invoices' && r.byState">{{ stateSummary(r.byState) }}, {{ money(r.openAmount ?? 0) }} outstanding</span>
               <span v-if="r.relinkError" class="text-warning"> Archive relink skipped: {{ r.relinkError }}</span>
             </td>
           </tr>

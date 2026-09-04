@@ -148,14 +148,9 @@ const share = (h: number, rows: { hours: number }[]) => {
 }
 
 const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.label ?? v
-const money = (n: number | null) => (n == null ? 'Not set' : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`)
 const pct = (used: number, total: number | null) => (total && total > 0 ? Math.round(used / total * 100) : 0)
-const burnColor = (p: number) => (p >= 100 ? 'error' : p >= 80 ? 'warning' : 'primary')
-const invoiceColor = (inv: { status: string, due_date: string | null }) =>
-  inv.status === 'paid' ? 'success' : inv.status === 'sent' ? (inv.due_date && inv.due_date < todayString() ? 'error' : 'warning') : 'neutral'
-const invoiceLabel = (inv: { status: string, due_date: string | null }) =>
-  inv.status === 'sent' && inv.due_date && inv.due_date < todayString() ? 'overdue' : inv.status
-const quoteColor = (status: string) => (status === 'accepted' ? 'success' : status === 'sent' ? 'info' : 'neutral')
+const invoiceColor = (inv: { status: string, due_date: string | null }) => invoiceBadge(inv).color
+const invoiceLabel = (inv: { status: string, due_date: string | null }) => invoiceBadge(inv).label
 
 // Inline time entry: the small clock button on a task, or the project
 // page's own row, opens this drawer with the task prefilled.
@@ -200,9 +195,9 @@ async function copyFolder() {
       <dl class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
         <div><dt class="text-muted">Job code</dt><dd>{{ project.code || 'None' }}</dd></div>
         <div><dt class="text-muted">Billing</dt><dd>{{ billingLabel(project.billing_method) }}</dd></div>
-        <div v-if="seeRates"><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) }}</dd></div>
+        <div v-if="seeRates"><dt class="text-muted">Hourly rate</dt><dd>{{ money(project.hourly_rate) || 'Not set' }}</dd></div>
         <div><dt class="text-muted">Budget hours</dt><dd>{{ project.budget_hours ?? 'No budget' }}</dd></div>
-        <div v-if="seeBudgets"><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) }}</dd></div>
+        <div v-if="seeBudgets"><dt class="text-muted">Budget amount</dt><dd>{{ money(project.budget_amount) || 'Not set' }}</dd></div>
         <div><dt class="text-muted">Lead</dt><dd>{{ project.profiles?.full_name ?? 'Unassigned' }}</dd></div>
       </dl>
     </UCard>
@@ -270,7 +265,7 @@ async function copyFolder() {
             <NuxtLink :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
             <span class="min-w-0 flex-1 truncate">{{ q.title }}</span>
             <span v-if="seeAmounts" class="tabular-nums">{{ money(q.subtotal) }}</span>
-            <UBadge :color="quoteColor(q.status)" variant="subtle" size="sm">{{ q.status }}</UBadge>
+            <UBadge :color="quoteBadge(q).color" variant="subtle" size="sm">{{ quoteBadge(q).label }}</UBadge>
           </li>
         </ul>
         <p v-else class="px-4 py-6 text-center text-sm text-muted">No quotes for this project.</p>

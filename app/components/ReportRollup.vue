@@ -51,7 +51,6 @@ const { data } = await useAsyncData(`rollup-${key.value}`, async () => {
   return { now, then }
 }, { ...fresh, watch: [key] })
 
-const money0 = (n: number) => `$${Math.round(Number(n)).toLocaleString()}`
 const hoursText = (h: number) => formatHours(h).replace(/^(\d+)/, m => Number(m).toLocaleString())
 type Stat = { label: string, value: string, now: number, then: number | null }
 const stats = computed<Stat[]>(() => {
