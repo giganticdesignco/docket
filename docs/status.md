@@ -2325,3 +2325,11 @@ default branch moved with it) and locally. Vercel deploys the
 default branch, so pushes to `main` are production from here on; if
 Vercel's Git settings named the old branch explicitly, the Production
 Branch field needs `main`.
+
+## Feedback: its own icon (2026-09-04)
+
+Luke wanted the reporter visible, not only behind the shortcut. The
+rail has a speech-bubble icon between the bell and Help (and the
+mobile menu a matching row), and the floating button beside the
+Assistant is now a labeled "Report" pill. Cmd+Shift+F and the help
+menu entry stay.

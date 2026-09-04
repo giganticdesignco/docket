@@ -27,8 +27,9 @@ keyboard shortcuts alone.
   "Reset view" on a screen puts the defaults back.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
-- **Found a bug, or want something?** Press `Cmd+Shift+F` on any
-  screen, or use the small round button beside the Assistant. Click
+- **Found a bug, or want something?** Click the speech-bubble icon in
+  the rail, the Report pill beside the Assistant, or press
+  `Cmd+Shift+F` on any screen. Click
   the thing that is wrong, or drag a box around an area, say whether
   it is a bug or an idea, and send. The report keeps the screen and
   what you picked, so whoever fixes it can find the spot. Reports land
