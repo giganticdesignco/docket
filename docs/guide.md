@@ -100,6 +100,14 @@ sees hours.
   onto another group to move it. Click a status or priority to change it
   in place; with several rows selected (click the checkboxes, or `x` on
   the keyboard) one change applies to all of them.
+- **Drag to arrange.** Drop a row between two others to put it there.
+  That order is yours alone, like the Focus list; nobody else's list
+  moves. Drop a row onto the middle of another task and it becomes a
+  subtask of that task, moving into that task's project if it was
+  somewhere else; that part everyone sees, with Undo for thirty
+  seconds. Drop a subtask between top-level rows to make it a task of
+  its own again. Subtasks sit under their parent when both are in the
+  same group.
 - **Cards** (the grid icon) show a card per client; open one to see its
   tasks as cards.
 - **Focus** is your own short list. Click the star on a row, or Add to

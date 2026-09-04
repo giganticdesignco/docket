@@ -4123,3 +4123,24 @@ begin
 end $$;
 create trigger feedback_done_stamp before update on feedback
   for each row execute function public.feedback_done_stamp();
+
+-- ============================================================
+-- PERSONAL TASK ORDER
+-- Dragging a row on /tasks puts it where you dropped it, for you only.
+-- One row per task a person has placed; tasks with no row follow in
+-- due-date order after the placed ones. Project moves and nesting are
+-- facts about the task and live on work_items for everyone.
+-- ============================================================
+
+create table work_item_order (
+  user_id      uuid not null references profiles(id) on delete cascade,
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  position     int not null,
+  primary key (user_id, work_item_id)
+);
+create index work_item_order_user on work_item_order (user_id, position);
+
+alter table work_item_order enable row level security;
+create policy own_order on work_item_order for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));

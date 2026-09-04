@@ -3493,6 +3493,60 @@ export type Database = {
           },
         ]
       }
+      work_item_order: {
+        Row: {
+          position: number
+          user_id: string
+          work_item_id: string
+        }
+        Insert: {
+          position: number
+          user_id: string
+          work_item_id: string
+        }
+        Update: {
+          position?: number
+          user_id?: string
+          work_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_item_order_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_order_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_order_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_order_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_order_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       work_item_plans: {
         Row: {
           day: string

@@ -89,8 +89,19 @@ const __ad5 = useAsyncData('focus-items', async () => {
   const found = new Map((data ?? []).map(d => [d.id, d]))
   return { rows: fids.map(id => found.get(id)).filter(Boolean) as NonNullable<typeof data>, stale: fids.filter(id => !found.has(id)) }
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
+// Where you have put rows: your own order, one position per task you
+// have dragged. Tasks without one follow in due-date order.
+const __ad6 = useAsyncData('task-order', async () => {
+  if (!user.value) return []
+  const { data, error } = await supabase.from('work_item_order').select('work_item_id, position').eq('user_id', user.value.sub)
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
 const { data: items, refresh } = __ad1
+const { data: orderRows } = __ad6
+const orderMap = ref(new Map<string, number>())
+watch(orderRows, rows => { orderMap.value = new Map((rows ?? []).map(r => [r.work_item_id, r.position])) }, { immediate: true })
 const { data: projects } = __ad2
 const { data: people } = __ad3
 const { data: unsorted } = __ad4
@@ -140,6 +151,7 @@ const groups = computed<Group[]>(() => {
   const out = grouped(mine.value)
   if (unowned.value.length) out.push({ key: 'unowned', label: 'Nobody up', color: 'warning', items: unowned.value })
   if (waiting.value.length) out.push({ key: 'waiting', label: 'Waiting on someone else', items: waiting.value })
+  for (const g of out) g.items = arrange(g.items)
   return out
 })
 function grouped(list: Item[]): Group[] {
@@ -238,6 +250,21 @@ function sortKeys(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', sortKeys))
 onBeforeUnmount(() => window.removeEventListener('keydown', sortKeys))
 
+// A group's rows in your order, placed ones first, then subtasks tucked
+// under their parent when the parent is in the same group.
+function arrange(list: Item[]): Item[] {
+  const pos = (i: Item) => orderMap.value.get(i.id) ?? Number.POSITIVE_INFINITY
+  const sorted = [...list].sort((a, b) => pos(a) - pos(b))
+  const ids = new Set(sorted.map(i => i.id))
+  const kids = new Map<string, Item[]>()
+  for (const i of sorted) if (i.parent_id && ids.has(i.parent_id)) kids.set(i.parent_id, [...(kids.get(i.parent_id) ?? []), i])
+  const out: Item[] = []
+  for (const i of sorted) {
+    if (i.parent_id && ids.has(i.parent_id)) continue
+    out.push(i, ...(kids.get(i.id) ?? []))
+  }
+  return out
+}
 const toggle = (key: string) => {
   if (onlyUnowned.value) { collapsed.value = new Set(groups.value.filter(g => g.key !== 'unowned').map(g => g.key)); onlyUnowned.value = false }
   collapsed.value.has(key) ? collapsed.value.delete(key) : collapsed.value.add(key)
@@ -289,7 +316,7 @@ async function pick(value: string) {
 }
 // Undo for bulk changes writes each row's old values back.
 const undo = useUndo()
-async function putBack(rows: { id: string, status?: string, priority?: Item['priority'], due_on?: string | null, project_id?: string }[]) {
+async function putBack(rows: { id: string, status?: string, priority?: Item['priority'], due_on?: string | null, project_id?: string, parent_id?: string | null }[]) {
   for (const r of rows) {
     const { id, ...values } = r
     const { error } = await supabase.from('work_items').update(values).eq('id', id)
@@ -368,6 +395,15 @@ function onDragStart(i: Item, e: DragEvent) {
   e.dataTransfer?.setData('text/plain', i.id)
   if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
+// What landing in a group means for the task, by grouping. Returns the
+// values to write, or nothing when it is already there.
+function groupPatch(i: Item, g: Group): { status?: string, project_id?: string, due_on?: string | null } | null {
+  if (g.key === 'unowned' || g.key === 'waiting') return null
+  if (groupBy.value === 'status') return i.status !== g.key ? { status: g.key } : null
+  if (groupBy.value === 'project') return i.project_id !== g.key ? { project_id: g.key } : null
+  const due = g.key === 'none' ? null : g.key === 'week' ? addDays(thisMonday, 4) : g.key === 'later' ? addDays(thisMonday, 7) : undefined
+  return due !== undefined && due !== i.due_on ? { due_on: due } : null
+}
 async function onDrop(g: Group) {
   if (focusMode.value) return
   const i = dragging.value
@@ -375,52 +411,92 @@ async function onDrop(g: Group) {
   over.value = null
   if (!i) return
   const was = { id: i.id, status: i.status, project_id: i.project_id, due_on: i.due_on }
-  let moved = false
-  if (groupBy.value === 'status') {
-    if (i.status !== g.key) { await patch(i, { status: g.key }); moved = true }
-  } else if (groupBy.value === 'project') {
-    if (i.project_id !== g.key) { await patch(i, { project_id: g.key }); moved = true }
-  } else {
-    const due = g.key === 'none' ? null : g.key === 'week' ? addDays(thisMonday, 4) : g.key === 'later' ? addDays(thisMonday, 7) : undefined
-    if (due !== undefined && due !== i.due_on) { await patch(i, { due_on: due }); moved = true }
-  }
-  if (moved) undo.offer(`Moved ${i.title}`, () => putBack([was]), refreshAll)
+  const values = groupPatch(i, g)
+  if (!values) return
+  await patch(i, values)
+  undo.offer(`Moved ${i.title}`, () => putBack([was]), refreshAll)
 }
 
-// ---------- drag to reorder, focus mode only ----------
-// The group container is itself a drop target, so these stop propagation
-// only when Focus is on; in List mode they do nothing and group drops
-// keep working.
-const dropAt = ref<{ id: string, after: boolean } | null>(null)
+// ---------- drag onto rows: reorder, nest, un-nest ----------
+// Between two rows puts the task there, in your order only, and makes
+// it a subtask of whatever its new neighbor is a subtask of (or a task
+// of its own between top-level rows). Onto a row's middle nests it
+// under that row, moving it into that row's project first if it must.
+// Nesting and project moves are the task's own facts, so everyone sees
+// them; the order is yours. The group container is itself a drop
+// target, so these stop propagation.
+const dropAt = ref<{ id: string, mode: 'before' | 'after' | 'onto' } | null>(null)
 function onRowDragOver(i: Item, e: DragEvent) {
-  if (!focusMode.value || !dragging.value || dragging.value.id === i.id) return
+  if (!dragging.value || dragging.value.id === i.id) return
   e.preventDefault(); e.stopPropagation()
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  dropAt.value = { id: i.id, after: e.clientY - r.top > r.height / 2 }
+  const y = (e.clientY - r.top) / r.height
+  if (focusMode.value) { dropAt.value = { id: i.id, mode: y > 0.5 ? 'after' : 'before' }; return }
+  dropAt.value = { id: i.id, mode: y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'onto' }
 }
+const hasChildren = (id: string) => (items.value ?? []).some(x => x.parent_id === id)
 async function onRowDrop(e: DragEvent) {
-  if (!focusMode.value) return
   e.preventDefault(); e.stopPropagation()
   const from = dragging.value, at = dropAt.value
   dragging.value = null; dropAt.value = null; over.value = null
   if (!from || !at || at.id === from.id) return
-  const shown = groups.value.find(g => g.key === 'focus')?.items.map(i => i.id) ?? []
-  const next = shown.filter(id => id !== from.id)
-  const idx = next.indexOf(at.id)
-  if (idx < 0) return
-  next.splice(idx + (at.after ? 1 : 0), 0, from.id)
-  // Everything else on the list, finished and stale rows included, keeps
-  // its relative order after the open ones, so 1..n stays dense.
-  const rest = focusList.ids.value.filter(id => !next.includes(id))
-  try { await focusList.reorder([...next, ...rest]); await refreshFocus() }
-  catch (err) { toast.add({ title: 'Order not saved', description: (err as Error).message, color: 'error' }); await refreshFocus() }
+  if (focusMode.value) {
+    const shown = groups.value.find(g => g.key === 'focus')?.items.map(i => i.id) ?? []
+    const next = shown.filter(id => id !== from.id)
+    const idx = next.indexOf(at.id)
+    if (idx < 0) return
+    next.splice(idx + (at.mode === 'after' ? 1 : 0), 0, from.id)
+    // Everything else on the list, finished and stale rows included, keeps
+    // its relative order after the open ones, so 1..n stays dense.
+    const rest = focusList.ids.value.filter(id => !next.includes(id))
+    try { await focusList.reorder([...next, ...rest]); await refreshFocus() }
+    catch (err) { toast.add({ title: 'Order not saved', description: (err as Error).message, color: 'error' }); await refreshFocus() }
+    return
+  }
+  const target = (items.value ?? []).find(x => x.id === at.id)
+  const g = groups.value.find(x => x.items.some(i => i.id === at.id))
+  if (!target || !g) return
+  const was = { id: from.id, status: from.status, project_id: from.project_id, due_on: from.due_on, parent_id: from.parent_id }
+  const values: { status?: string, project_id?: string, due_on?: string | null, parent_id?: string | null } = { ...(groupPatch(from, g) ?? {}) }
+  if (at.mode === 'onto') {
+    if (target.parent_id) return fail('Subtasks go one level deep. Drop it beside the other subtasks instead.')
+    if (hasChildren(from.id)) return fail('A task with subtasks cannot become a subtask.')
+    if (target.parent_id === from.id) return
+    values.parent_id = target.id
+    if (target.project_id !== from.project_id) values.project_id = target.project_id
+  } else if (target.parent_id !== from.parent_id) {
+    // Follow the neighbor: into its parent, or out to the top level.
+    if (!target.parent_id) values.parent_id = null
+    else if (!hasChildren(from.id) && (target.project_id === from.project_id || !values.project_id)) { values.parent_id = target.parent_id; if (target.project_id !== from.project_id) values.project_id = target.project_id }
+  }
+  if (Object.keys(values).length) {
+    const { error } = await supabase.from('work_items').update(values).eq('id', from.id)
+    if (error) return fail(error.message)
+  }
+  // Your order: the target group's rows with the task where you dropped it.
+  const ids = g.items.map(i => i.id).filter(id => id !== from.id)
+  const idx = ids.indexOf(at.id)
+  ids.splice(idx + (at.mode === 'before' ? 0 : 1), 0, from.id)
+  await saveOrder(ids)
+  await refreshAll()
+  if (Object.keys(values).length) undo.offer(values.parent_id !== undefined ? (values.parent_id ? `${from.title} is now a subtask of ${target.title}` : `${from.title} is a task of its own again`) : `Moved ${from.title}`, () => putBack([was]), refreshAll)
+}
+const fail = (message: string) => { toast.add({ title: 'Not moved', description: message, color: 'error' }) }
+async function saveOrder(ids: string[]) {
+  if (!user.value) return
+  const rows = ids.map((work_item_id, i) => ({ user_id: user.value!.sub, work_item_id, position: i + 1 }))
+  const next = new Map(orderMap.value)
+  for (const r of rows) next.set(r.work_item_id, r.position)
+  orderMap.value = next
+  const { error } = await supabase.from('work_item_order').upsert(rows, { onConflict: 'user_id,work_item_id' })
+  if (error) toast.add({ title: 'Order not saved', description: error.message, color: 'error' })
 }
 // Inline, because the focused row and the drop line both set box-shadow
 // at the same specificity and class order does not decide which wins.
 function rowStyle(i: Item) {
   const parts: string[] = []
   if (focused.value === i.id) parts.push('inset 2px 0 0 0 var(--ui-primary)')
-  if (dropAt.value?.id === i.id) parts.push(dropAt.value.after ? 'inset 0 -2px 0 0 var(--ui-primary)' : 'inset 0 2px 0 0 var(--ui-primary)')
+  if (dropAt.value?.id === i.id) parts.push(dropAt.value.mode === 'after' ? 'inset 0 -2px 0 0 var(--ui-primary)' : dropAt.value.mode === 'before' ? 'inset 0 2px 0 0 var(--ui-primary)' : 'inset 0 0 0 2px var(--ui-primary)')
   return parts.length ? { boxShadow: parts.join(', ') } : undefined
 }
 
@@ -550,7 +626,7 @@ function created(id: string) {
     <div class="flex flex-wrap items-center gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Tasks</h1>
-        <p class="text-sm text-muted">{{ focusMode ? 'The short list you keep for yourself, in the order you mean to work it. Drag a row to move it. Only you see it.' : `${everyone ? 'Everything across the team.' : 'What is on your plate.'} Drag a row onto another group to move it.` }}</p>
+        <p class="text-sm text-muted">{{ focusMode ? 'The short list you keep for yourself, in the order you mean to work it. Drag a row to move it. Only you see it.' : `${everyone ? 'Everything across the team.' : 'What is on your plate.'} Drag a row to put it where you want it, onto another task to make it a subtask, or onto another group to move it.` }}</p>
       </div>
       <div class="ml-auto flex flex-wrap items-center gap-3">
         <UInput v-if="!focusMode" v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
@@ -635,7 +711,7 @@ function created(id: string) {
           <tr
             v-for="(i, idx) in g.items" :key="i.id" :draggable="!focusMode || !ws.isDone(i.status)" :data-task="i.id" :data-tour="idx === 0 && g === groups[0] ? 'row' : undefined"
             class="border-b border-default last:border-0 hover:bg-elevated/60"
-            :class="[dragging?.id === i.id ? 'opacity-40' : g.key === 'waiting' ? 'opacity-60' : '', focused === i.id ? 'bg-elevated/60' : '', selected.has(i.id) ? 'bg-primary/5' : '']"
+            :class="[dragging?.id === i.id ? 'opacity-40' : g.key === 'waiting' ? 'opacity-60' : '', focused === i.id ? 'bg-elevated/60' : '', selected.has(i.id) ? 'bg-primary/5' : '', dropAt?.id === i.id && dropAt.mode === 'onto' ? 'bg-primary/10' : '']"
             :style="rowStyle(i)"
             @dragstart="onDragStart(i, $event)" @dragend="dragging = null; over = null; dropAt = null" @dragover="onRowDragOver(i, $event)" @drop="onRowDrop($event)" @click="focused = i.id;"
           >

@@ -2297,3 +2297,22 @@ when. RLS: the team reads all, files as themselves, edits their own;
 list. Guide updated in Getting around and Settings. Verified in
 Chrome: picked an element on a task page, sent an Idea, read it back
 through /api/mcp, saw it on the admin page, closed it, deleted it.
+
+## Task list: drag to arrange, nest and un-nest (2026-09-04)
+
+Luke's call: order is personal, nesting and project moves are shared.
+A new `work_item_order (user_id, work_item_id, position)` table
+(migration `work_item_order`, own rows only) holds where each person
+has put a row; inside every group, placed rows come first in that
+order and the rest follow by due date, and subtasks tuck under their
+parent when both are in the group. On `/tasks`, dropping a row in the
+top or bottom quarter of another puts it there (and, when the neighbor
+is a subtask, makes it a subtask of the same parent; when the neighbor
+is top-level, a task of its own). Dropping onto the middle of a row
+nests it under that task, moving it into that task's project first
+when needed. One level deep: a task with subtasks cannot be nested and
+nothing nests under a subtask. Dropping between rows in another group
+also applies that group's move (status, project, or due). Nesting and
+moves offer Undo. Verified with three simulated drags: reorder within
+a group, nest, un-nest; the test order rows and the task were put
+back. Guide updated.
