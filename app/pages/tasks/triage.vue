@@ -167,12 +167,14 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
 
 <template>
   <div class="space-y-4">
-    <div class="flex flex-wrap items-start gap-3">
-      <UButton to="/tasks" icon="i-lucide-arrow-left" variant="ghost" color="neutral" size="sm" class="mt-1" aria-label="Back to Tasks" title="Back to Tasks" />
-      <div>
-        <h1 class="text-2xl font-semibold">Unsorted tasks <span class="text-base font-normal text-muted">{{ openItems.length }}</span></h1>
-        <p class="text-sm text-muted">Tasks the ClickUp import could not tie to a project sit in each client's General project. Drag a task onto one of the client's projects, or tick several and drop them together.</p>
-      </div>
+    <div class="flex items-center gap-2 text-sm">
+      <NuxtLink to="/tasks" class="text-muted hover:text-highlighted">Tasks</NuxtLink>
+      <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed" />
+      <span>Unsorted</span>
+    </div>
+    <div>
+      <h1 class="text-2xl font-semibold">Unsorted tasks <span class="text-base font-normal text-muted">{{ openItems.length }}</span></h1>
+      <p class="text-sm text-muted">Tasks the ClickUp import could not tie to a project sit in each client's General project. Drag a task onto one of the client's projects, or tick several and drop them together.</p>
     </div>
     <div class="flex flex-wrap items-center gap-3">
       <USelectMenu v-model="clientFilter" :items="clientOptions" value-key="value" size="sm" class="w-56" placeholder="All clients" />
