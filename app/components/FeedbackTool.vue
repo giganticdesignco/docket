@@ -139,7 +139,7 @@ const KIND_ITEMS: { value: 'bug' | 'change' | 'idea', label: string, icon: strin
     <button
       v-show="!picking && !assistantOpen"
       type="button"
-      class="fixed bottom-6 right-20 z-40 flex h-10 items-center gap-2 rounded-full border border-default bg-default px-3 text-sm text-muted shadow-md transition hover:text-highlighted hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 print:hidden"
+      class="fixed bottom-6 right-20 z-40 hidden h-10 items-center gap-2 rounded-full xl:flex border border-default bg-default px-3 text-sm text-muted shadow-md transition hover:text-highlighted hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 print:hidden"
       title="Send feedback: a bug, a change, or an idea (Cmd+Shift+F)"
       aria-label="Send feedback"
       @click="picking = true"

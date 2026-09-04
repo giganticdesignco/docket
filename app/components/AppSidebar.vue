@@ -43,6 +43,7 @@ const sections = computed<Section[]>(() => {
 const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
 const showSettings = computed(() => can('screen:settings') && (can('manage_settings') || can('manage_people')))
 const searchOpen = useState('search-open', () => false)
+const assistantOpen = useState('assistant-open', () => false)
 const sheetOpen = useState('shortcut-sheet-open', () => false)
 const tour = useTour()
 const helpItems = computed(() => [[
@@ -125,6 +126,10 @@ function logoClick(e: MouseEvent) {
         <UIcon name="i-lucide-message-square-warning" class="size-5 shrink-0" />
         <span class="hidden truncate group-hover:inline">Send feedback</span>
       </button>
+      <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Assistant (Cmd+J)" @click="assistantOpen = true;">
+        <UIcon name="i-lucide-sparkles" class="size-5 shrink-0" />
+        <span class="hidden truncate group-hover:inline">Assistant</span>
+      </button>
       <UDropdownMenu :items="helpItems" :content="{ side: 'right', align: 'end' }">
         <button type="button" data-tour="help" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Help">
           <UIcon name="i-lucide-circle-help" class="size-5 shrink-0" />
@@ -168,6 +173,9 @@ function logoClick(e: MouseEvent) {
         <NuxtLink to="/notifications" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active('/notifications') ? 'bg-elevated text-highlighted' : 'text-muted'">
           <UIcon name="i-lucide-bell" class="size-5" />Notifications
         </NuxtLink>
+        <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-left text-sm text-muted" @click="assistantOpen = true; mobileOpen = false;">
+          <UIcon name="i-lucide-sparkles" class="size-5" />Assistant
+        </button>
         <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-left text-sm text-muted" @click="feedbackPick = true;">
           <UIcon name="i-lucide-message-square-warning" class="size-5" />Send feedback
         </button>

@@ -28,8 +28,9 @@ keyboard shortcuts alone.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
 - **A sketch while you wait.** When a page takes more than a beat to
-  load, a gray outline of a page stands in (heading, tiles, a table)
-  until the real one arrives. The very first load shows the same
+  load, a gray outline in the shape of that page stands in (the
+  timesheet's week strip, the Planner's grid, a task's two columns, a
+  report's stat cards and chart) until the real one arrives. The very first load shows the same
   sketch before the app itself is up. It follows your light or dark
   choice.
 - **One row of actions on a page.** A quote, invoice, batch, project,

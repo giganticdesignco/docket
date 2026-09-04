@@ -2853,3 +2853,23 @@ Verified in Chrome: the sketch appears 262 ms after pushing to Reports
 and goes when the page lands (about 2.4 s later); a cold load of
 /tasks shows the static sketch in light, matching Luke's setting,
 where it had followed the system's dark before the script.
+
+## 2026-09-04: a skeleton per kind of page, and the corner buttons out of the way
+
+Luke asked whether each view could have its own skeleton, and noted the
+Feedback pill and the Assistant button sat on a page's own buttons
+when the window narrowed. `PageSkeleton` now draws twelve shapes,
+picked from the route: Home, the task list, a task, the timesheet, a
+client or project or retainer page, the Planner grid, the Schedule
+bars, Reports (filters, five stats, a chart, a table), a quote or
+invoice or batch, the Estimator, a settings page, and the plain list
+for the rest. It reads the router's current route, since Nuxt's
+useRoute() waits for the page to land and would name the page being
+left. The floating Feedback pill and Assistant button now show only
+from xl (1280px) up; below that the rail carries both (Assistant is
+new there, beside Send feedback) and the mobile menu has an Assistant
+entry.
+
+Verified in Chrome at 1100px wide: a task page's Comment button is
+clear, the rail has the sparkles; at 1600px the task-shaped and
+report-shaped sketches show on the way to those pages.
