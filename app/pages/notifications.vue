@@ -12,10 +12,12 @@ const toast = useToast()
 
 const KINDS = [
   { kind: 'assigned', label: 'Assigned to a task' },
+  { kind: 'turn', label: 'A task handed to you' },
   { kind: 'mentioned', label: 'Mentioned in a comment' },
   { kind: 'comment', label: 'Comment on a task you are on, made, or follow' },
   { kind: 'status', label: 'Status change on a task you are on or follow' },
   { kind: 'due', label: 'Task due tomorrow, today, or overdue' },
+  { kind: 'unowned', label: 'Nobody is up on a task you are on' },
   { kind: 'client_comment', label: 'Client commented' },
   { kind: 'client_decision', label: 'Client approved or requested changes' },
   { kind: 'quote_decision', label: 'Quote accepted or declined' },
@@ -25,7 +27,7 @@ const KINDS = [
   { kind: 'time_rejected', label: 'Timesheet entries sent back' },
   { kind: 'time_submitted', label: 'Someone you review submitted a week' },
 ]
-const EMAIL_DEFAULT = (kind: string) => (['comment', 'status', 'due'].includes(kind) ? 'off' : 'instant')
+const EMAIL_DEFAULT = (kind: string) => (['comment', 'status', 'due', 'unowned'].includes(kind) ? 'off' : 'instant')
 const EMAIL_OPTIONS = [{ label: 'Never', value: 'off' }, { label: 'As it happens', value: 'instant' }, { label: 'Daily digest', value: 'daily' }]
 
 const __ad1 = useAsyncData('notifications-all', async () => {
