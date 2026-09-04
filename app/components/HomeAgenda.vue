@@ -20,12 +20,14 @@ const { data, status } = await useAsyncData('home-agenda', async () => {
   const endIso = new Date(`${addDays(to.value, 1)}T00:00:00`).toISOString()
   const [busy, due, conn] = await Promise.all([
     supabase.from('calendar_busy').select('id, starts_at, ends_at, hours').eq('user_id', user.value.sub).gte('starts_at', startIso).lt('starts_at', endIso).order('starts_at'),
-    supabase.from('work_items').select('id, title, status, due_on, is_milestone, projects(name, clients(name)), work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', user.value.sub).gte('due_on', from.value).lte('due_on', to.value).order('due_on'),
+    supabase.from('work_items').select('id, title, status, due_on, is_milestone, assignee_id, projects(name, clients(name)), work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', user.value.sub).gte('due_on', from.value).lte('due_on', to.value).order('due_on'),
     supabase.from('calendar_connections').select('user_id').eq('user_id', user.value.sub).maybeSingle(),
   ])
   return {
     busy: busy.data ?? [],
-    due: (due.data ?? []).filter(w => !ws.isDone(w.status)),
+    // Up now: a task someone else is up on is theirs to worry about today;
+    // one with nobody up stays, tagged, so it is not forgotten.
+    due: (due.data ?? []).filter(w => !ws.isDone(w.status) && (!w.assignee_id || w.assignee_id === user.value?.sub)),
     connected: !!conn.data,
   }
 }, { ...fresh, server: false, watch: [() => props.range] })
@@ -66,9 +68,10 @@ const busyHours = (d: { busy: { hours: number }[] }) => d.busy.reduce((s, b) => 
             <span class="tabular-nums">{{ clock(b.starts_at) }} to {{ clock(b.ends_at) }}</span>
             <span class="text-muted">Busy</span>
           </li>
-          <li v-for="w in d.due" :key="w.id" class="flex items-center gap-2 px-2 py-1">
-            <UIcon :name="w.is_milestone ? 'i-lucide-flag' : 'i-lucide-circle-dot'" class="size-3.5 shrink-0" :class="w.due_on! < today ? 'text-error' : 'text-primary'" />
+          <li v-for="w in d.due" :key="w.id" class="flex items-center gap-2 px-2 py-1" :class="w.assignee_id ? '' : 'opacity-70'">
+            <UIcon :name="w.is_milestone ? 'i-lucide-flag' : 'i-lucide-circle-dot'" class="size-3.5 shrink-0" :class="w.due_on! < today ? 'text-error' : w.assignee_id ? 'text-primary' : 'text-warning'" />
             <NuxtLink :to="`/tasks/${w.id}`" class="min-w-0 flex-1 truncate hover:underline">{{ w.title }}</NuxtLink>
+            <UBadge v-if="!w.assignee_id" color="warning" variant="subtle" size="sm">Nobody up</UBadge>
             <span class="shrink-0 truncate text-xs text-muted">{{ w.projects?.clients?.name }}</span>
             <span class="shrink-0 text-xs text-muted">due</span>
           </li>
