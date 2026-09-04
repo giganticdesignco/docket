@@ -4070,7 +4070,7 @@ $$;
 
 -- ============================================================
 -- FEEDBACK
--- Bugs and ideas from the team, pinned to the screen they were on:
+-- Bugs, changes and ideas from the team, pinned to the screen they were on:
 -- the page, the element they picked (a short CSS path and its text) or
 -- the area they drew, and the viewport. Read on /admin/feedback and
 -- through the MCP list_feedback tool, so a Claude session can work
@@ -4081,7 +4081,7 @@ $$;
 create table feedback (
   id           uuid primary key default gen_random_uuid(),
   created_by   uuid not null references profiles(id) on delete cascade,
-  kind         text not null check (kind in ('bug', 'idea')),
+  kind         text not null check (kind in ('bug', 'change', 'idea')),
   body         text not null,
   path         text not null,
   page_title   text,

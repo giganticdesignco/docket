@@ -2333,3 +2333,11 @@ rail has a speech-bubble icon between the bell and Help (and the
 mobile menu a matching row), and the floating button beside the
 Assistant is now a labeled "Report" pill. Cmd+Shift+F and the help
 menu entry stay.
+
+## Feedback: a Change kind, and the kind sticks (2026-09-04)
+
+Between Bug and Idea there is now Change: it works as built, make it
+different (migration `feedback_kind_change` widens the check). The
+picker opens on whatever kind you last sent, kept per person in
+`user_views` under `feedback`. Admin badge, MCP description and guide
+updated.

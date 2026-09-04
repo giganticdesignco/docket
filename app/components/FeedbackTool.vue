@@ -17,7 +17,9 @@ const hover = ref<Box | null>(null)
 const chosen = ref<Box | null>(null)
 const target = ref<HTMLElement | null>(null)
 const drawing = ref<{ x: number, y: number } | null>(null)
-const form = reactive({ kind: 'bug' as 'bug' | 'idea', body: '' })
+// The kind sticks to whatever you last sent, per person.
+const view = await useViewState('feedback', { kind: 'bug' as 'bug' | 'change' | 'idea' })
+const form = reactive({ kind: view.kind, body: '' })
 const sending = ref(false)
 
 const isOurs = (el: Element | null) => !!el?.closest('[data-feedback-tool]')
@@ -116,7 +118,8 @@ async function send() {
       viewport: `${window.innerWidth}x${window.innerHeight}`,
     })
     if (error) throw error
-    toast.add({ title: form.kind === 'bug' ? 'Bug reported' : 'Idea sent', description: 'Thanks. It is on the Feedback page in Settings.', color: 'success', duration: 3000 })
+    view.kind = form.kind
+    toast.add({ title: form.kind === 'bug' ? 'Bug reported' : form.kind === 'change' ? 'Change sent' : 'Idea sent', description: 'Thanks. It is on the Feedback page in Settings.', color: 'success', duration: 3000 })
     cancel()
   } catch (e) {
     toast.add({ title: 'Not sent', description: (e as Error).message, color: 'error' })
@@ -149,10 +152,11 @@ async function send() {
         <div v-if="chosen" class="pointer-events-none fixed rounded border-2 border-primary bg-primary/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" :style="{ left: `${chosen.x}px`, top: `${chosen.y}px`, width: `${chosen.w}px`, height: `${chosen.h}px` }" />
         <div v-if="chosen" class="fixed z-10 w-90 rounded-lg border border-default bg-default p-3 shadow-xl" :style="formStyle" @pointerdown.stop @pointerup.stop @pointermove.stop>
           <div class="mb-2 flex gap-1 rounded-md bg-elevated p-0.5">
-            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'bug' ? 'solid' : 'ghost'" :color="form.kind === 'bug' ? 'error' : 'neutral'" icon="i-lucide-bug" @click="form.kind = 'bug';">Bug</UButton>
-            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'idea' ? 'solid' : 'ghost'" :color="form.kind === 'idea' ? 'primary' : 'neutral'" icon="i-lucide-lightbulb" @click="form.kind = 'idea';">Idea</UButton>
+            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'bug' ? 'solid' : 'ghost'" :color="form.kind === 'bug' ? 'error' : 'neutral'" icon="i-lucide-bug" title="It does something it should not" @click="form.kind = 'bug';">Bug</UButton>
+            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'change' ? 'solid' : 'ghost'" :color="form.kind === 'change' ? 'warning' : 'neutral'" icon="i-lucide-pencil-ruler" title="It works, make it different" @click="form.kind = 'change';">Change</UButton>
+            <UButton size="xs" class="flex-1 justify-center" :variant="form.kind === 'idea' ? 'solid' : 'ghost'" :color="form.kind === 'idea' ? 'primary' : 'neutral'" icon="i-lucide-lightbulb" title="Something new" @click="form.kind = 'idea';">Idea</UButton>
           </div>
-          <UTextarea v-model="form.body" :rows="3" autofocus class="w-full" :placeholder="form.kind === 'bug' ? 'What went wrong, and what you expected' : 'What would help here'" @keydown.meta.enter.prevent="send" @keydown.ctrl.enter.prevent="send" />
+          <UTextarea v-model="form.body" :rows="3" autofocus class="w-full" :placeholder="form.kind === 'bug' ? 'What went wrong, and what you expected' : form.kind === 'change' ? 'What should be different here' : 'What would help here'" @keydown.meta.enter.prevent="send" @keydown.ctrl.enter.prevent="send" />
           <div class="mt-2 flex items-center gap-2">
             <span v-if="target" class="min-w-0 flex-1 truncate text-xs text-muted" :title="target.innerText?.trim()">{{ target.tagName.toLowerCase() }}<template v-if="target.innerText?.trim()">: {{ target.innerText.trim().slice(0, 40) }}</template></span>
             <span v-else class="flex-1 text-xs text-muted">An area of the page</span>

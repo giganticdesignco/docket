@@ -31,7 +31,8 @@ keyboard shortcuts alone.
   the rail, the Report pill beside the Assistant, or press
   `Cmd+Shift+F` on any screen. Click
   the thing that is wrong, or drag a box around an area, say whether
-  it is a bug or an idea, and send. The report keeps the screen and
+  it is a bug (it does something it should not), a change (it works,
+  make it different) or an idea (something new), and send. The report keeps the screen and
   what you picked, so whoever fixes it can find the spot. Reports land
   on the Feedback page in Settings, and Claude reads the open list
   through the connector.
@@ -537,7 +538,7 @@ rates, department), the permissions matrix, departments (with their
 lead), project templates, page templates for sitemaps, task statuses,
 task types, expense categories, invoice settings (numbering, terms,
 tax, notes, the project folder roots), estimator materials and
-pricing, imports, and Feedback: the bugs and ideas the team sent from
+pricing, imports, and Feedback: the bugs, changes and ideas the team sent from
 inside Docket, with Done to close them.
 
 ## Keyboard shortcuts

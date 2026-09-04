@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Tables } from '~~/shared/types/database'
 
-// Bugs and ideas the team sent from inside the app, each pinned to the
+// Bugs, changes and ideas the team sent from inside the app, pinned to the
 // screen it came from. Open ones first; Done keeps the history.
 definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Feedback' })
@@ -44,7 +44,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Feedback <span class="text-base font-normal text-muted">{{ openCount }} open</span></h1>
-        <p class="text-sm text-muted">Bugs and ideas sent from inside Docket with the round button, or Cmd+Shift+F. Each one says which screen and what was picked. Claude reads the open list through the connector.</p>
+        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the round button, or Cmd+Shift+F. Each one says which screen and what was picked. Claude reads the open list through the connector.</p>
       </div>
       <USwitch v-model="showDone" label="Show done" size="sm" class="ml-auto" />
     </div>
@@ -52,7 +52,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <ul v-if="shown.length" class="divide-y divide-default text-sm">
         <li v-for="r in shown" :key="r.id" class="flex items-start gap-3 px-4 py-3" :class="r.status === 'done' ? 'opacity-60' : ''">
-          <UBadge :color="r.kind === 'bug' ? 'error' : 'primary'" variant="subtle" size="sm" class="mt-0.5 w-12 justify-center">{{ r.kind === 'bug' ? 'Bug' : 'Idea' }}</UBadge>
+          <UBadge :color="r.kind === 'bug' ? 'error' : r.kind === 'change' ? 'warning' : 'primary'" variant="subtle" size="sm" class="mt-0.5 w-16 justify-center">{{ r.kind === 'bug' ? 'Bug' : r.kind === 'change' ? 'Change' : 'Idea' }}</UBadge>
           <div class="min-w-0 flex-1">
             <p class="whitespace-pre-line">{{ r.body }}</p>
             <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">

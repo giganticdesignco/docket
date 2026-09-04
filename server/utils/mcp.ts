@@ -237,7 +237,7 @@ export function writeTools(c: Caller, origin: string): Tool[] {
     },
     {
       name: 'list_feedback',
-      description: 'Bugs and ideas the team reported from inside Docket, each with the page it came from, the element picked (a CSS path and its text) or the area drawn, and who sent it. Open ones by default; status "done" or "all" for the rest.',
+      description: 'Bugs, changes and ideas the team reported from inside Docket (kind bug: it does something wrong; change: it works, make it different; idea: something new), each with the page it came from, the element picked (a CSS path and its text) or the area drawn, and who sent it. Open ones by default; status "done" or "all" for the rest.',
       input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'done', 'all'] }, limit: { type: 'number' } } },
       run: async (i) => {
         let q = sb.from('feedback').select('id, kind, body, path, page_title, selector, element_text, rect, viewport, status, created_at, done_at, by:profiles!feedback_created_by_fkey(full_name)').order('created_at', { ascending: false }).limit(Math.min(num(i.limit) ?? 100, 500))
