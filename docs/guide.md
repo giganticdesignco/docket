@@ -196,7 +196,8 @@ sees hours.
   outstanding.
 - **A client's page** shows the year's numbers, billing, contacts, the
   team on the account (project leads, people on open tasks, and anyone
-  with time there in the last 90 days), its projects, its open tasks
+  with time there in the last 90 days; click one for what they do for
+  this client), its projects, its open tasks
   across those projects, retainers, quotes, and invoices.
 
 - **Tables you can arrange.** On the Projects, Clients, Quotes,

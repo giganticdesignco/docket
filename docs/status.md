@@ -1996,3 +1996,13 @@ invoiced, paid and outstanding from `billingTiles`, with one line of
 copy under them explaining which figures are this year and which are
 lifetime. Contacts and Team moved into a two column row, since both are
 short.
+
+## Team member drawer on the client page (2026-09-04)
+
+Clicking someone in the Team card opens an AppDrawer: open tasks, hours
+in the last 90 days, hours this year with the lifetime figure, the
+projects they lead, their open tasks for this client (from rows already
+loaded), and their hours broken down by project. The hours query is
+lazy (`immediate: false` plus a watch on the selected member) and runs
+under RLS, so someone without see_all_time sees only their own rows and
+the empty state says so.

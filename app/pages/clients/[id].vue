@@ -119,6 +119,34 @@ const team = computed(() => {
 })
 const TASKS_SHOWN = 25
 
+// ---------- one team member, in a drawer ----------
+type TeamMember = ReturnType<typeof team.value.at> extends infer T ? NonNullable<T> : never
+const member = ref<{ id: string, name: string, leads: string[], tasks: number, hours: number } | null>(null)
+// Their open tasks for this client, from the rows already loaded.
+const memberTasks = computed(() => (openTasks.value ?? []).filter(t => t.work_item_assignees.some(a => a.user_id === member.value?.id)))
+// Their time on this client, by project, fetched when the drawer opens.
+// Under RLS a person without see_all_time gets only their own rows, so
+// this can legitimately come back empty for someone else.
+const { data: memberTime, status: memberTimeStatus } = await useAsyncData('client-member-time', async () => {
+  if (!member.value || !projectIds.value.length) return null
+  const { data, error } = await supabase.from('time_entries')
+    .select('hours, spent_on, project_id')
+    .eq('user_id', member.value.id).in('project_id', projectIds.value).limit(5000)
+  if (error) throw error
+  const byProject = new Map<string, number>()
+  let total = 0, thisYear = 0
+  for (const e of data ?? []) {
+    byProject.set(e.project_id, (byProject.get(e.project_id) ?? 0) + e.hours)
+    total += e.hours
+    if (e.spent_on >= `${year}-01-01`) thisYear += e.hours
+  }
+  return {
+    total, thisYear,
+    projects: [...byProject.entries()].map(([pid, hours]) => ({ pid, name: projectName(pid), hours })).sort((a, b) => b.hours - a.hours),
+  }
+}, { ...fresh, watch: [member], immediate: false })
+watch(member, (m) => { if (m) refreshNuxtData('client-member-time') })
+
 useHead({ title: () => client.value?.name ?? 'Client' })
 useAssistantScreen(() => ({ client: client.value?.name }))
 
@@ -333,7 +361,8 @@ const invoiceLabel = (inv: InvoiceLike) =>
         <p class="text-sm text-muted">Who works with this client: project leads, people on open tasks, and anyone with time here in the last 90 days.</p>
         <UCard class="h-full" :ui="{ body: 'p-3 sm:p-4' }">
           <ul v-if="team.length" class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
-            <li v-for="m in team" :key="m.id" class="flex items-center gap-2">
+            <li v-for="m in team" :key="m.id">
+              <button type="button" class="flex items-center gap-2 rounded-md p-1 -m-1 text-left transition-colors hover:bg-elevated" :title="`What ${m.name} does for this client`" @click="member = m;">
               <span class="grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
               <div>
                 <div class="font-medium">{{ m.name }}</div>
@@ -345,6 +374,7 @@ const invoiceLabel = (inv: InvoiceLike) =>
                   <span v-if="m.hours" class="tabular-nums">{{ formatHours(m.hours) }} in 90 days</span>
                 </div>
               </div>
+              </button>
             </li>
           </ul>
           <p v-else class="text-sm text-muted">Nobody yet. People show up here once they lead a project, take a task, or log time for this client.</p>
@@ -556,6 +586,60 @@ const invoiceLabel = (inv: InvoiceLike) =>
         <p v-else class="px-4 py-6 text-center text-sm text-muted">No Harvest invoices on file for this client. Import them from Admin, Harvest import.</p>
       </UCard>
     </template>
+
+    <AppDrawer :open="!!member" :title="member?.name ?? ''" :description="`What they do for ${client.name}`" @update:open="(v) => { if (!v) member = null }">
+      <template #body>
+        <div v-if="member" class="space-y-6">
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <div class="text-xs text-muted">Open tasks</div>
+              <div class="text-lg font-semibold tabular-nums">{{ member.tasks }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-muted">Last 90 days</div>
+              <div class="text-lg font-semibold tabular-nums">{{ formatHours(member.hours) }}</div>
+            </div>
+            <div>
+              <div class="text-xs text-muted">This year</div>
+              <div class="text-lg font-semibold tabular-nums">{{ memberTime ? formatHours(memberTime.thisYear) : '' }}</div>
+              <div v-if="memberTime" class="text-xs tabular-nums text-muted">{{ formatHours(memberTime.total) }} all time</div>
+            </div>
+          </div>
+
+          <div v-if="member.leads.length">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-dimmed">Leads</h3>
+            <ul class="mt-1 space-y-0.5 text-sm">
+              <li v-for="n in member.leads" :key="n">{{ n }}</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-dimmed">Open tasks <span class="font-normal">{{ memberTasks.length }}</span></h3>
+            <ul v-if="memberTasks.length" class="mt-1 divide-y divide-default text-sm">
+              <li v-for="t in memberTasks" :key="t.id" class="flex items-center gap-2 py-1.5">
+                <span class="size-2 shrink-0 rounded-full" :class="ws.dot(t.status)" :title="ws.label(t.status)" />
+                <NuxtLink :to="`/tasks/${t.id}`" class="min-w-0 flex-[2] truncate hover:underline" @click="member = null">{{ t.title }}</NuxtLink>
+                <span class="max-w-28 shrink truncate text-xs text-muted">{{ t.projects?.name }}</span>
+                <span class="w-14 shrink-0 text-right text-xs tabular-nums" :class="t.due_on && t.due_on < todayString() ? 'text-error' : 'text-muted'">{{ t.due_on ? shortDate(t.due_on) : '' }}</span>
+              </li>
+            </ul>
+            <p v-else class="mt-1 text-sm text-muted">Nothing open for this client.</p>
+          </div>
+
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-dimmed">Hours by project</h3>
+            <p v-if="memberTimeStatus === 'pending'" class="mt-1 text-sm text-muted">Loading</p>
+            <ul v-else-if="memberTime?.projects.length" class="mt-1 divide-y divide-default text-sm">
+              <li v-for="r in memberTime.projects" :key="r.pid" class="flex items-center gap-3 py-1.5">
+                <NuxtLink :to="`/projects/${r.pid}`" class="min-w-0 flex-1 truncate hover:underline" @click="member = null">{{ r.name }}</NuxtLink>
+                <span class="shrink-0 tabular-nums">{{ formatHours(r.hours) }}</span>
+              </li>
+            </ul>
+            <p v-else class="mt-1 text-sm text-muted">No time logged on this client{{ can('see_all_time') ? '' : ', or none you can see' }}.</p>
+          </div>
+        </div>
+      </template>
+    </AppDrawer>
 
     <AppDrawer v-model:open="creatingRetainer" title="New retainer">
       <template #body>
