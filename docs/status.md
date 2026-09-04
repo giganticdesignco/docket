@@ -2759,3 +2759,35 @@ the timer control, More holds Delete. Guide has a line on it.
 Verified in Chrome on a marked test quote, test invoice and test batch
 (all deleted after), a task, a project and a client page: the rows
 render as described and the More menus list the right items.
+
+## 2026-09-04: money off the base tables (review finding 8f3fdbd6)
+
+The last approved review finding: see_money was enforced only in
+views and RPCs, so a person without it could read rates straight off
+the tables by direct query. Two migrations. `money_columns_gated_views`
+made `resolve_rate` and the rate trigger definer, gave `time_detail`
+an owner-run definition with the time entry read rule inside it
+(`time_entry_readable()`), and added `profile_rates`, `project_rates`
+and `project_task_rates`, owner-run views that keep each table's row
+rule and return null without see_money. The app switched to
+`PROFILE_COLS`, `PROJECT_COLS` and `TIME_ENTRY_COLS`
+(`app/utils/columns.ts`) and to the rate views, including the
+returning columns after a project or time entry save. After that
+deployed, `money_columns_gated_grants` revoked SELECT on profiles,
+projects, project_tasks and time_entries from authenticated and anon
+and granted it back per column without default_rate, cost_rate,
+hourly_rate, rate_snapshot and cost_snapshot. Invoice lines were left
+out: RLS already limits them to manage_invoices holders and the
+client on the invoice. Rule and gotcha (a new column on those tables
+needs its own grant) are in CLAUDE.md and docs/permissions.md.
+
+Verified: impersonating a staff user by SQL in rolled-back
+transactions, all nine reads of the revoked columns (each column and
+`*` on each table) come back permission denied, the granted columns
+and the three rate views read, a time entry inserts with its rate
+frozen, and with see_money off the views return null where with it on
+they return the rate. In Chrome after the revoke: People, a project,
+its settings, Time (a timer started and stopped through the form,
+then purged), Home, Tasks, Planner, a client, Projects, Expenses,
+Approvals, Reports, Schedule, New batch, Invoices and a Retainer page,
+no errors. No approved feedback rows remain.
