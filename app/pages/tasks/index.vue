@@ -630,7 +630,7 @@ function created(id: string) {
         <UButton v-if="g.key === 'unowned'" size="xs" variant="outline" color="neutral" icon="i-lucide-list-checks" class="mr-2" title="Go through these one at a time" @click="openSort">Sort these</UButton>
       </div>
 
-      <table v-if="!isCollapsed(g.key) && g.items.length" class="w-full border-t border-default text-sm">
+      <table v-if="!isCollapsed(g.key) && g.items.length" class="w-full table-fixed border-t border-default text-sm">
         <tbody>
           <tr
             v-for="(i, idx) in g.items" :key="i.id" :draggable="!focusMode || !ws.isDone(i.status)" :data-task="i.id" :data-tour="idx === 0 && g === groups[0] ? 'row' : undefined"
@@ -664,7 +664,7 @@ function created(id: string) {
               <span v-if="g.key === 'waiting' && i.up" class="ml-2 text-xs text-muted">{{ i.up.full_name }} is up</span>
               <UButton v-if="g.key === 'unowned'" size="xs" variant="outline" icon="i-lucide-hand" class="ml-2 align-middle" :disabled="handingOff" @click.stop="takeIt(i)">Take it</UButton>
             </td>
-            <td class="hidden px-2 py-1.5 sm:table-cell">
+            <td class="hidden w-40 px-2 py-1.5 sm:table-cell">
               <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="peopleTitle(i) || 'Assign'" @click="openMenu(i, 'assignees', $event)">
                 <template v-if="i.work_item_assignees.length">
                   <span v-if="!i.assignee_id" class="grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" title="Nobody is up" />
