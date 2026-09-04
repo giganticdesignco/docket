@@ -27,6 +27,13 @@ keyboard shortcuts alone.
   "Reset view" on a screen puts the defaults back.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
+- **Found a bug, or want something?** Press `Cmd+Shift+F` on any
+  screen, or use the small round button beside the Assistant. Click
+  the thing that is wrong, or drag a box around an area, say whether
+  it is a bug or an idea, and send. The report keeps the screen and
+  what you picked, so whoever fixes it can find the spot. Reports land
+  on the Feedback page in Settings, and Claude reads the open list
+  through the connector.
 
 ## Home and the morning brief
 
@@ -521,7 +528,8 @@ rates, department), the permissions matrix, departments (with their
 lead), project templates, page templates for sitemaps, task statuses,
 task types, expense categories, invoice settings (numbering, terms,
 tax, notes, the project folder roots), estimator materials and
-pricing, and imports.
+pricing, imports, and Feedback: the bugs and ideas the team sent from
+inside Docket, with Done to close them.
 
 ## Keyboard shortcuts
 

@@ -53,7 +53,9 @@ const helpItems = computed(() => [[
   { label: 'User guide', icon: 'i-lucide-book-open', to: '/help' },
   { label: 'Tour: Getting around', icon: 'i-lucide-compass', onSelect: () => tour.start('around') },
   { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', kbds: ['?'], onSelect: () => { sheetOpen.value = true } },
+  { label: 'Report a bug or an idea', icon: 'i-lucide-message-square-warning', kbds: ['meta', 'shift', 'f'], onSelect: () => { feedbackPick.value = true } },
 ]])
+const feedbackPick = useState('feedback-pick', () => false)
 
 const active = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
 

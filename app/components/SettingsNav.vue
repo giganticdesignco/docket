@@ -21,6 +21,7 @@ const sections = computed(() => [
       ]
     : [] },
   { label: 'Data', links: can('manage_settings') ? [{ label: 'Imports', to: '/admin/imports', also: ['/admin/harvest', '/admin/clickup'] }] : [] },
+  { label: 'Docket', links: can('manage_settings') ? [{ label: 'Feedback', to: '/admin/feedback' }] : [] },
 ])
 </script>
 

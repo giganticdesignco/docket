@@ -29,6 +29,7 @@ useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
     <AppShortcuts v-if="staff" />
     <AssistantDrawer v-if="staff" />
     <AssistantButton v-if="staff" />
+    <FeedbackTool v-if="staff" />
     <!-- Settings has a second sidebar beside the rail, so the page moves over to make room. -->
     <SettingsNav v-if="staff && inSettings" />
     <div v-if="staff" class="app-shell transition-[padding] duration-200" :class="[inSettings ? 'md:pl-[calc(3.5rem+14rem)]' : 'md:pl-14', assistantOpen ? 'lg:pr-[26rem]' : '']">

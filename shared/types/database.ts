@@ -810,6 +810,114 @@ export type Database = {
           },
         ]
       }
+      feedback: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string
+          done_at: string | null
+          done_by: string | null
+          element_text: string | null
+          id: string
+          kind: string
+          page_title: string | null
+          path: string
+          rect: Json | null
+          selector: string | null
+          status: string
+          viewport: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by: string
+          done_at?: string | null
+          done_by?: string | null
+          element_text?: string | null
+          id?: string
+          kind: string
+          page_title?: string | null
+          path: string
+          rect?: Json | null
+          selector?: string | null
+          status?: string
+          viewport?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string
+          done_at?: string | null
+          done_by?: string | null
+          element_text?: string | null
+          id?: string
+          kind?: string
+          page_title?: string | null
+          path?: string
+          rect?: Json | null
+          selector?: string | null
+          status?: string
+          viewport?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "feedback_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "feedback_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "feedback_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "feedback_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "feedback_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       google_tokens: {
         Row: {
           connected_at: string

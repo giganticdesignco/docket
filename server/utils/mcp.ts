@@ -236,6 +236,31 @@ export function writeTools(c: Caller, origin: string): Tool[] {
       },
     },
     {
+      name: 'list_feedback',
+      description: 'Bugs and ideas the team reported from inside Docket, each with the page it came from, the element picked (a CSS path and its text) or the area drawn, and who sent it. Open ones by default; status "done" or "all" for the rest.',
+      input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'done', 'all'] }, limit: { type: 'number' } } },
+      run: async (i) => {
+        let q = sb.from('feedback').select('id, kind, body, path, page_title, selector, element_text, rect, viewport, status, created_at, done_at, by:profiles!feedback_created_by_fkey(full_name)').order('created_at', { ascending: false }).limit(Math.min(num(i.limit) ?? 100, 500))
+        const status = str(i.status) ?? 'open'
+        if (status !== 'all') q = q.eq('status', status)
+        const { data, error } = await q
+        if (error) throw new Error(error.message)
+        return (data ?? []).map(r => ({ ...r, by: r.by?.full_name, url: `${origin}${r.path}` }))
+      },
+    },
+    {
+      name: 'resolve_feedback',
+      description: 'Mark a feedback item done (or reopen it with done: false) once it is fixed or built. Only people who manage settings can.',
+      input_schema: { type: 'object', properties: { id: { type: 'string' }, done: { type: 'boolean' } }, required: ['id'] },
+      run: async (i) => {
+        const status = i.done === false ? 'open' : 'done'
+        const { data, error } = await sb.from('feedback').update({ status }).eq('id', String(i.id)).select('id, status').maybeSingle()
+        if (error) throw new Error(error.message)
+        if (!data) throw new Error('Not found, or not yours to close')
+        return data
+      },
+    },
+    {
       name: 'add_comment',
       description: 'Comment on a task as the caller. visible_to_client shows it on the client portal; default false.',
       input_schema: { type: 'object', properties: { task_id: { type: 'string' }, body: { type: 'string' }, visible_to_client: { type: 'boolean' } }, required: ['task_id', 'body'] },

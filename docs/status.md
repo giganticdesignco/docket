@@ -2275,3 +2275,25 @@ selection in its client; an unticked row drags itself. The Move
 selected picker and Undo stay. Rows use one fixed column grid so the
 faces, dates and statuses line up. Verified by dragging a task onto a
 project (moved, toast, Undo offered) and moving it back.
+
+## Feedback from inside the app (2026-09-04)
+
+Luke asked for a way to select an element or an area on any screen and
+leave a bug or an idea, and for Claude to be able to read the list.
+`Cmd+Shift+F`, the help menu, or the small round button beside the
+Assistant starts pick mode: hover outlines the element under the
+pointer, click picks it, or drag draws an area; Esc stops. A small
+form anchored to the pick asks Bug or Idea and what is wrong or
+wanted. The row (`feedback` table, migration `feedback`) keeps the
+page path and title, a short CSS path to the element and its text, the
+rectangle in page pixels, and the viewport. No screenshots.
+
+`/admin/feedback` (Settings, under Docket) lists open items with
+Done, Reopen, Show done and delete; a trigger stamps who closed it and
+when. RLS: the team reads all, files as themselves, edits their own;
+`manage_settings` closes any; clients never see it. MCP gains
+`list_feedback` (open by default, or done or all) and
+`resolve_feedback`, and the Assistant gets both through the same tool
+list. Guide updated in Getting around and Settings. Verified in
+Chrome: picked an element on a task page, sent an Idea, read it back
+through /api/mcp, saw it on the admin page, closed it, deleted it.

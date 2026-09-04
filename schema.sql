@@ -4067,3 +4067,59 @@ language sql stable set search_path = '' as $$
   where f.work_item_id = p_item
     and (pr.role = 'admin' or exists (select 1 from public.permissions p where p.role = pr.role and p.key = 'see_all_tasks'));
 $$;
+
+-- ============================================================
+-- FEEDBACK
+-- Bugs and ideas from the team, pinned to the screen they were on:
+-- the page, the element they picked (a short CSS path and its text) or
+-- the area they drew, and the viewport. Read on /admin/feedback and
+-- through the MCP list_feedback tool, so a Claude session can work
+-- straight off the open list. No screenshots: the page and element are
+-- enough to find it, and the app is not public.
+-- ============================================================
+
+create table feedback (
+  id           uuid primary key default gen_random_uuid(),
+  created_by   uuid not null references profiles(id) on delete cascade,
+  kind         text not null check (kind in ('bug', 'idea')),
+  body         text not null,
+  path         text not null,
+  page_title   text,
+  selector     text,
+  element_text text,
+  rect         jsonb,
+  viewport     text,
+  status       text not null default 'open' check (status in ('open', 'done')),
+  done_by      uuid references profiles(id) on delete set null,
+  done_at      timestamptz,
+  created_at   timestamptz not null default now()
+);
+create index feedback_status on feedback (status, created_at desc);
+
+alter table feedback enable row level security;
+
+-- The whole team reads it; clients never do.
+create policy team_select on feedback for select to authenticated
+  using (not (select public.is_client()));
+-- You file as yourself.
+create policy own_insert on feedback for insert to authenticated
+  with check (created_by = (select auth.uid()) and not (select public.is_client()));
+-- You can edit your own; people who manage settings can close or reopen any.
+create policy own_or_settings_update on feedback for update to authenticated
+  using (created_by = (select auth.uid()) or (select public.has_permission('manage_settings')))
+  with check (created_by = (select auth.uid()) or (select public.has_permission('manage_settings')));
+create policy own_or_settings_delete on feedback for delete to authenticated
+  using (created_by = (select auth.uid()) or (select public.has_permission('manage_settings')));
+
+-- Closing stamps who and when; reopening clears both.
+create or replace function public.feedback_done_stamp() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status is distinct from old.status then
+    new.done_by := case when new.status = 'done' then auth.uid() end;
+    new.done_at := case when new.status = 'done' then now() end;
+  end if;
+  return new;
+end $$;
+create trigger feedback_done_stamp before update on feedback
+  for each row execute function public.feedback_done_stamp();
