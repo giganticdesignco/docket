@@ -2209,3 +2209,26 @@ applies to people with no saved view state, because `user_views` keeps
 whatever folds you had. Verified by taking a task from the drawer with
 `1`, handing it back to Nobody from the row menu, handing one to Hannah
 to see the waiting group, and handing it back.
+
+## Following, and Up now items 7 to 9 (2026-09-04)
+
+**Following** (section 9 of `docs/up-now.md`) shipped in four commits.
+`work_item_followers` with own-row RLS, a third branch in
+`task_people()` so followers get comment, client comment, status and
+client decision bells and nothing else; a Following row on the task
+page with Follow and Unfollow; two Notifications labels; the guide.
+You can only follow what you can already see, and since staff already
+carry `see_all_tasks`, that is everyone on the team. Verified in Chrome
+and with SQL.
+
+**Home** (item 7): "N open" and the dated buckets are what you are up
+on; a Nobody up section shows three with Take it and a See all link to
+`/tasks?view=unowned`; tasks someone else is up on are not on Home; My
+projects still counts every task you are on. **Agenda** (item 8):
+drops tasks someone else is up on, tags an unowned due task Nobody up.
+**Timer popover** (item 9): your tasks, then a Nobody up group; empty
+copy "Nothing is on you right now." All verified in Chrome, test
+changes reverted.
+
+Also: the task list's faces column now lines up across groups
+(`table-fixed` and a fixed-width faces cell).

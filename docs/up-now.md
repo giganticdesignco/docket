@@ -36,8 +36,12 @@ Shipped:
   guide section. Verified in Chrome on Luke's own list.
 - **Section 3 item 6**, the tour copy.
 
-Not started: section 9 (Following, F1 to F4) which comes next, then
-section 3 items 7 through 18. Two notes from item 5: done tasks stay in
+- **Section 9, Following, F1 to F4**, all shipped: migration applied,
+  task page row, notification labels, guide.
+- **Section 3 items 7, 8, 9**: Home, the agenda, the timer popover.
+
+Not started: section 3 items 10 through 18. Next is item 10, the new
+task form. Two notes from item 5: done tasks stay in
 the ordinary groups whoever is up, so Completed reads as before; and
 `waiting` is folded by default only for people with no saved fold
 state, since `user_views` keeps the folds you had. The `turn` bell
@@ -639,9 +643,14 @@ Effort: half a day for Stage 1, four days for Stage 2.
 
 ### Where this stands (2026-09-04)
 
-F1 shipped 2026-09-04: migration `following` applied through the
-Supabase MCP, mirrored at the end of `schema.sql`, types regenerated.
-Nothing in the UI reads it yet. Next: F2, the task page row.
+All four shipped 2026-09-04. Migration `following` applied through the
+Supabase MCP and mirrored at the end of `schema.sql`; the task page
+row, the two notification labels and the guide followed. Verified:
+Follow and Unfollow as Luke on a task he is not on, the follower row
+visible and dimmed, RLS refusing a row for someone else, and
+`task_people` including the follower only while the row exists. One
+finding: staff already hold `see_all_tasks`, so Follow is useful to
+everyone on the team, not only admins as the note above assumed.
 
 ### What it is
 
