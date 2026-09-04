@@ -2035,3 +2035,36 @@ work_items directly as security definer, so it has to filter itself.
 
 The 1,107 existing junk notifications are still in the table, unread.
 Left alone pending Luke's call.
+
+## Email delivery: only Luke, on purpose for now (2026-09-04)
+
+Chasing the notification flood turned up that Docket cannot email
+anyone but Luke. The sender is still Resend's shared test address
+`onboarding@resend.dev`, so Resend answers 403 for every other
+recipient: "You can only send testing emails to your own email
+address". Luke's own copy lands in spam, since the test domain has no
+SPF or DKIM for giganticdesign.com.
+
+Measured in `net._http_response`: 35 attempts, 0 succeeded. 29 were the
+403, 6 were 429 rate limits, because `run_notification_emails()` fires
+one request per person in a tight loop and Resend allows 10 a second.
+So no bell digest or due reminder has ever been delivered to anyone,
+including Luke. The morning brief does arrive, because it goes through
+`sendEmail()` on the Nuxt server rather than pg_net from Postgres.
+
+**Luke's call on 2026-09-04: leave it. Sending only to himself is
+safer while the app is in development.** Do not treat this as a bug to
+fix. Before the team actually uses Docket, verify a domain at
+resend.com/domains (`docket.giganticdesign.com`) and set the
+`resend_from` vault secret; that clears the 403s and the spam
+placement together.
+
+Two code problems remain, and matter MORE while delivery is
+deliberately limited, because right now nothing surfaces a failure:
+- `run_notification_emails()` sets `email = 'sent'` immediately after
+  handing the request to pg_net, without reading the response. The
+  column claimed 1,107 successes against 0 actual sends. Anything
+  reasoning from that column is wrong.
+- The same loop needs spacing, or a burst larger than 10 people keeps
+  tripping the rate limit.
+Neither is built; Luke has not asked for them.
