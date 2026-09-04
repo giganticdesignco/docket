@@ -45,7 +45,7 @@ const ws = await useWorkStatuses()
 const __ad1 = useAsyncData('schedule-items', async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, start_on, due_on, estimate_hours, is_milestone, project_id, projects(id, name, clients(name)), work_item_assignees(user_id, profiles(full_name))')
+    .select('id, title, status, priority, start_on, due_on, estimate_hours, is_milestone, project_id, assignee_id, projects(id, name, clients(name)), work_item_assignees(user_id, profiles(full_name))')
     .order('due_on', { ascending: true, nullsFirst: false })
     .limit(2000)
   if (error) throw error
@@ -61,8 +61,20 @@ const __ad3 = useAsyncData('schedule-people', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3])
+// Who has hours set on which task, for the person view.
+const __ad4 = useAsyncData('schedule-plans', async () => {
+  const { data, error } = await supabase.from('work_item_plans').select('work_item_id, user_id').limit(10000)
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4])
 const { data: items, refresh } = __ad1
+const { data: planRows } = __ad4
+const plannedUsers = computed(() => {
+  const m = new Map<string, Set<string>>()
+  for (const p of planRows.value ?? []) m.set(p.work_item_id, (m.get(p.work_item_id) ?? new Set()).add(p.user_id))
+  return m
+})
 const { data: deps, refresh: refreshDeps } = __ad2
 const { data: people } = __ad3
 const capacityKey = computed(() => `${from.value}-${to.value}`)
@@ -74,7 +86,10 @@ const { data: capacity } = await useAsyncData('schedule-capacity', async () => {
 }, { ...fresh, watch: [capacityKey] })
 
 type Item = NonNullable<typeof items.value>[number]
-const open = computed(() => (items.value ?? []).filter(i => !ws.isDone(i.status) && (everyone.value || i.work_item_assignees.some(a => a.user_id === user.value?.sub))))
+// Up now: with Everyone off, what you are up on plus what has nobody up
+// that you are on. A task someone else is up on is theirs for now.
+const me = computed(() => user.value?.sub)
+const open = computed(() => (items.value ?? []).filter(i => !ws.isDone(i.status) && (everyone.value || i.assignee_id === me.value || (!i.assignee_id && i.work_item_assignees.some(a => a.user_id === me.value)))))
 const scheduled = computed(() => open.value.filter(i => i.due_on))
 const unscheduled = computed(() => open.value.filter(i => !i.due_on))
 // A bar runs from start_on (or due_on for a one-day task) to due_on.
@@ -105,10 +120,14 @@ const groups = computed<Group[]>(() => {
   }
   const m = new Map<string, Group>()
   for (const p of people.value ?? []) m.set(p.id, { key: p.id, label: p.full_name, items: [], userId: p.id })
-  const nobody: Group = { key: 'nobody', label: 'Unassigned', items: [] }
+  // A bar sits in the row of whoever is up, and in the row of anyone with
+  // hours set on it. Nobody up catches the rest, people on them or not.
+  const nobody: Group = { key: 'nobody', label: 'Nobody up', items: [] }
   for (const i of rows) {
-    if (!i.work_item_assignees.length) nobody.items.push(i)
-    for (const a of i.work_item_assignees) m.get(a.user_id)?.items.push(i)
+    const uids = new Set<string>(plannedUsers.value.get(i.id) ?? [])
+    if (i.assignee_id) uids.add(i.assignee_id)
+    if (!i.assignee_id) nobody.items.push(i)
+    for (const uid of uids) m.get(uid)?.items.push(i)
   }
   const out = [...m.values()].filter(g => g.items.length || everyone.value)
   if (nobody.items.length) out.push(nobody)
@@ -342,7 +361,8 @@ const tipStyle = computed(() => tip.value ? { left: `${Math.min(tip.value.x + 12
               <div
                 v-for="i in g.items" :key="i.id"
                 class="absolute flex h-5 items-center rounded text-[11px] text-white shadow-sm select-none"
-                :class="[barClass(i), i.is_milestone ? 'rotate-45 !w-4 !h-4 rounded-sm' : '', drag?.item.id === i.id ? 'opacity-80 ring-2 ring-primary' : 'cursor-grab']"
+                :class="[barClass(i), i.is_milestone ? 'rotate-45 !w-4 !h-4 rounded-sm' : '', drag?.item.id === i.id ? 'opacity-80 ring-2 ring-primary' : 'cursor-grab', g.userId && i.assignee_id && i.assignee_id !== g.userId ? 'opacity-50' : '']"
+                :title="g.userId && i.assignee_id && i.assignee_id !== g.userId ? 'Not their turn yet' : undefined"
                 :style="{ top: `${itemY.get(`${g.key}:${i.id}`)! + 4}px`, ...barStyle(i), ...dragResize(i), transform: `translateX(${dragOffset(i)}px)${i.is_milestone ? ' rotate(45deg)' : ''}` }"
                 @mouseenter="tipBar(i, $event)" @mousemove="tipMove" @mouseleave="hideTip"
                 @pointerdown="hideTip(); onPointerDown(i, 'move', $event)" @dblclick="toggleMilestone(i)"
