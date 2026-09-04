@@ -760,11 +760,16 @@ function created(id: string) {
             </button>
             <div class="my-1 border-t border-default" />
             <div class="max-h-72 overflow-y-auto">
-              <button v-for="p in people ?? []" :key="p.id" type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-elevated" @click="toggleAssignee(p.id)">
-                <span class="grid size-5 place-items-center rounded-full text-[10px] font-medium" :class="menu.item.assignee_id === p.id ? 'bg-primary text-inverted' : 'bg-elevated'">{{ initials(p.full_name) }}</span>
-                <span class="flex-1">{{ p.full_name }}<span v-if="menu.item.assignee_id === p.id" class="ml-1 text-xs text-muted">up now</span></span>
-                <UIcon v-if="menu.item.work_item_assignees.some(a => a.user_id === p.id)" name="i-lucide-check" class="size-4 text-primary" />
-              </button>
+              <div v-for="p in people ?? []" :key="p.id" class="group flex items-center rounded hover:bg-elevated">
+                <button type="button" class="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm" :title="menu.item.work_item_assignees.some(a => a.user_id === p.id) ? 'Take them off it' : 'Put them on it'" @click="toggleAssignee(p.id)">
+                  <span class="grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-medium" :class="menu.item.assignee_id === p.id ? 'bg-primary text-inverted' : 'bg-elevated'">{{ initials(p.full_name) }}</span>
+                  <span class="min-w-0 flex-1 truncate">{{ p.full_name }}<span v-if="menu.item.assignee_id === p.id" class="ml-1 text-xs text-muted">up now</span></span>
+                  <UIcon v-if="menu.item.work_item_assignees.some(a => a.user_id === p.id)" name="i-lucide-check" class="size-4 shrink-0 text-primary" />
+                </button>
+                <button v-if="menu.item.assignee_id !== p.id" type="button" class="mr-1 grid size-6 shrink-0 place-items-center rounded text-dimmed opacity-0 hover:bg-accented hover:text-highlighted focus:opacity-100 group-hover:opacity-100" :title="`Hand it to ${p.full_name.split(' ')[0]}`" :aria-label="`Hand it to ${p.full_name}`" @click="handOffFromMenu(p.id)">
+                  <UIcon name="i-lucide-hand" class="size-3.5" />
+                </button>
+              </div>
             </div>
           </template>
         </div>
