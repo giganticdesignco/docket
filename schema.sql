@@ -4144,3 +4144,59 @@ alter table work_item_order enable row level security;
 create policy own_order on work_item_order for all to authenticated
   using (user_id = (select auth.uid()))
   with check (user_id = (select auth.uid()));
+
+-- ============================================================
+-- RETAINER TERMS
+-- A retainer period knows its term (monthly, quarterly, yearly, or a
+-- custom span) and whether it renews. A nightly job opens the next
+-- period when the current one ends, carrying the allotment and the
+-- rollover rule, so a retainer keeps going until someone turns
+-- renewal off. Only the newest period in a chain carries renews.
+-- ============================================================
+
+alter table retainers
+  add column term   text not null default 'custom' check (term in ('custom', 'monthly', 'quarterly', 'yearly')),
+  add column renews boolean not null default false;
+
+create or replace function public.renew_retainers() returns int
+language plpgsql security definer set search_path = '' as $$
+declare
+  r record;
+  v_n int := 0;
+  v_today date := (now() at time zone 'America/Chicago')::date;
+  v_start date;
+  v_end date;
+begin
+  for r in
+    select x.* from public.retainers x
+    where x.renews and x.term <> 'custom' and x.period_end < v_today
+      and not exists (
+        select 1 from public.retainers y
+        where y.client_id = x.client_id and y.project_id is not distinct from x.project_id
+          and lower(y.name) = lower(x.name) and y.period_start > x.period_end)
+  loop
+    v_start := r.period_end + 1;
+    -- Catch up if the job has not run for a while: one period at a time
+    -- until the newest one contains today.
+    loop
+      v_end := case r.term
+        when 'monthly' then (v_start + interval '1 month')::date - 1
+        when 'quarterly' then (v_start + interval '3 months')::date - 1
+        else (v_start + interval '1 year')::date - 1 end;
+      insert into public.retainers (client_id, project_id, name, basis, period_start, period_end, allotted, rollover, rollover_cap, term, renews)
+      values (r.client_id, r.project_id, r.name, r.basis, v_start, v_end, r.allotted, r.rollover, r.rollover_cap, r.term, v_end >= v_today);
+      v_n := v_n + 1;
+      exit when v_end >= v_today;
+      v_start := v_end + 1;
+    end loop;
+    update public.retainers set renews = false where id = r.id;
+  end loop;
+  return v_n;
+end $$;
+revoke execute on function public.renew_retainers() from public, anon;
+
+do $$ begin
+  perform cron.schedule('docket-renew-retainers', '20 6 * * *', 'select public.renew_retainers()');
+exception when others then
+  raise notice 'pg_cron not available here, retainer renewal not scheduled: %', sqlerrm;
+end $$;

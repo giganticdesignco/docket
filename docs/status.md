@@ -2398,3 +2398,31 @@ still describing pre Up now behavior and is rewritten. The floating
 pill and the rail and help entries now say Feedback and Send feedback
 rather than Report, since Docket has a Reports section and the tool
 takes changes and ideas too.
+
+## Retainers: terms, renewal, and the switch off monthly jobs (2026-09-04)
+
+Luke asked whether a job per month was the right way to keep running
+retainers. It was a Harvest habit: every "Retainer (m/yy)" project came
+from Harvest, which only budgets per project, and the `retainers`
+table was empty. Migrations `retainer_terms` and
+`retainer_renew_newest_only`: a retainer has a term (monthly,
+quarterly, yearly, or custom) and a renews flag; `renew_retainers()`
+runs nightly (pg_cron, 6:20 UTC) and opens the next period when the
+current one ends, catching up several at once if it has to, with only
+the newest period carrying renews. The form has Term and Renews and
+fills the end date from the start; the retainer page shows the term.
+
+Data: read from the monthly jobs, whose dollar budgets were constant
+per client. One "Retainer" project (billing method retainer) per
+client and a September period, monthly and renewing, for Anderson-
+Weber ($3,500), CheckAlt ($6,250), ful. Health ($6,250), iink Corp
+($3,150) and Webster Bank ($15,000); a 2026 yearly period for Meadows
+Golf Club ($13,000). CINC/TresRE, Wendling Quarries and ONCI had ended
+and got nothing. Rollover is off (Luke: unused technically does not
+carry, but is allowed sometimes, so it is a per-retainer switch), and
+burn counts only the Retainer project's time (Luke: only tasks
+assigned to the retainer). The two tasks sitting in monthly jobs moved
+into the new projects. The old monthly jobs are untouched; the current
+ones stay active because the Harvest sync still maps Harvest time to
+them until Harvest is cancelled, and that time will not count toward
+the new retainer burn.

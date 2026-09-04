@@ -304,10 +304,16 @@ and the morning brief.
   current period's burn, and a table of every period. Open a period to
   see the entries behind it, grouped by project for a client-wide
   retainer. Periods from before the cutover only have a total.
-- **Retainers** are a monthly (or any period) allotment of hours or
-  dollars for a client, optionally rolling over unused amounts with a
-  cap. The client page and the portal show the burn for the current
-  period.
+- **Retainers** are an allotment of hours or dollars for a client, or
+  for one of its projects, per period. Pick a term, monthly, quarterly,
+  or yearly, and the end date follows the start; with Renews on, the
+  next period opens on its own the night the current one ends, so a
+  retainer runs until someone turns renewal off. Custom dates are there
+  for a one-off. Rollover is off unless you turn it on for that
+  retainer, with an optional cap. The client page and the portal show
+  the burn for the current period. The studio's ongoing retainers live
+  on one "Retainer" project per client, and the burn counts only time
+  on that project, so put retainer tasks there.
 - **Visible to client** on a project shows all of its tasks on the
   client's portal, read only, without sharing each one.
 

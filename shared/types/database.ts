@@ -2583,8 +2583,10 @@ export type Database = {
           period_end: string
           period_start: string
           project_id: string | null
+          renews: boolean
           rollover: boolean
           rollover_cap: number | null
+          term: string
         }
         Insert: {
           allotted: number
@@ -2596,8 +2598,10 @@ export type Database = {
           period_end: string
           period_start: string
           project_id?: string | null
+          renews?: boolean
           rollover?: boolean
           rollover_cap?: number | null
+          term?: string
         }
         Update: {
           allotted?: number
@@ -2609,8 +2613,10 @@ export type Database = {
           period_end?: string
           period_start?: string
           project_id?: string | null
+          renews?: boolean
           rollover?: boolean
           rollover_cap?: number | null
+          term?: string
         }
         Relationships: [
           {
@@ -4391,6 +4397,7 @@ export type Database = {
         Returns: number
       }
       relink_harvest_archive: { Args: never; Returns: number }
+      renew_retainers: { Args: never; Returns: number }
       report_expenses: {
         Args: {
           p_billable?: boolean

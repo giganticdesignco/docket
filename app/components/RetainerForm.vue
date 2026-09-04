@@ -5,8 +5,10 @@ import type { Tables } from '~~/shared/types/database'
 type Retainer = Tables<'retainers'>
 
 // Create or edit a retainer: a budget of hours or dollars for one period on
-// a client, or on one of its projects. Admin only. Leftover rolls into the
-// next contiguous period when rollover is on.
+// a client, or on one of its projects. Admin only. A term (monthly,
+// quarterly, yearly) sets the end date from the start and, with Renews on,
+// a nightly job opens the next period when this one ends. Leftover rolls
+// into the next contiguous period when rollover is on.
 const props = defineProps<{
   retainer?: Retainer
   clientId: string
@@ -27,7 +29,27 @@ const state = reactive({
   allotted: (props.retainer ? String(props.retainer.allotted) : '') as string | number,
   rollover: props.retainer?.rollover ?? false,
   rollover_cap: (props.retainer?.rollover_cap == null ? '' : String(props.retainer.rollover_cap)) as string | number,
+  term: (props.retainer?.term ?? 'monthly') as 'custom' | 'monthly' | 'quarterly' | 'yearly',
+  renews: props.retainer?.renews ?? !props.retainer,
 })
+const termOptions = [
+  { label: 'Monthly', value: 'monthly' },
+  { label: 'Quarterly', value: 'quarterly' },
+  { label: 'Yearly', value: 'yearly' },
+  { label: 'Custom dates', value: 'custom' },
+]
+// The end date follows the term: a month, a quarter, or a year from the
+// start, minus a day. Custom leaves both dates to you.
+function endFor(start: string, term: string): string {
+  const d = parseDateString(start)
+  const months = term === 'monthly' ? 1 : term === 'quarterly' ? 3 : 12
+  const e = new Date(d.getFullYear(), d.getMonth() + months, d.getDate() - 1)
+  return toDateString(e)
+}
+watch(() => [state.term, state.period_start], () => {
+  if (state.term !== 'custom' && /^\d{4}-\d{2}-\d{2}$/.test(state.period_start)) state.period_end = endFor(state.period_start, state.term)
+  if (state.term === 'custom') state.renews = false
+}, { immediate: !props.retainer })
 const saving = ref(false)
 
 // Reka UI menu items refuse an empty-string value, hence the sentinel.
@@ -75,6 +97,8 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
     allotted: num(state.allotted)!,
     rollover: state.rollover,
     rollover_cap: state.rollover ? num(state.rollover_cap) : null,
+    term: state.term,
+    renews: state.term !== 'custom' && state.renews,
   }
   const query = props.retainer
     ? supabase.from('retainers').update(values).eq('id', props.retainer.id)
@@ -102,12 +126,20 @@ async function onSubmit(_e: FormSubmitEvent<typeof state>) {
         <USelect v-model="state.basis" :items="basisOptions" class="w-full" />
       </UFormField>
     </div>
+    <div class="grid grid-cols-2 items-end gap-4">
+      <UFormField label="Term" name="term">
+        <USelect v-model="state.term" :items="termOptions" class="w-full" />
+      </UFormField>
+      <UFormField name="renews" class="pb-2">
+        <USwitch v-model="state.renews" :disabled="state.term === 'custom'" label="Renews on its own when the period ends" />
+      </UFormField>
+    </div>
     <div class="grid grid-cols-3 gap-4">
       <UFormField label="From" name="period_start" required>
         <UInput v-model="state.period_start" type="date" class="w-full" />
       </UFormField>
       <UFormField label="To" name="period_end" required>
-        <UInput v-model="state.period_end" type="date" class="w-full" />
+        <UInput v-model="state.period_end" type="date" class="w-full" :disabled="state.term !== 'custom'" />
       </UFormField>
       <UFormField :label="state.basis === 'hours' ? 'Hours' : 'Amount'" name="allotted" required>
         <UInput v-model="state.allotted" type="number" step="0.01" min="0" class="w-full" :icon="state.basis === 'amount' ? 'i-lucide-dollar-sign' : undefined" />

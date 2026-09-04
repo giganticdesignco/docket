@@ -28,6 +28,11 @@ const current = computed(() => periods.value.find(p => p.period_start <= today &
 const status = computed(() => (periods.value.some(p => p.period_start <= today && p.period_end >= today) ? 'current' : periods.value[0]!.period_end < today ? 'ended' : 'upcoming'))
 const startedOn = computed(() => periods.value[periods.value.length - 1]!.period_start)
 
+// Term and renewal live on the retainer row, not in retainer_status().
+const { data: terms } = await useAsyncData(`retainer-${id}-terms`, async () => {
+  const { data } = await supabase.from('retainers').select('term, renews').eq('id', periods.value[0]!.retainer_id).maybeSingle()
+  return data
+}, fresh)
 const { data: client } = await useAsyncData(`retainer-${id}-client`, async () => {
   const { data } = await supabase.from('clients').select('id, name').eq('id', seed.value!.client_id).single()
   return data
@@ -87,6 +92,7 @@ const seeMoney = computed(() => useCurrentUser().can('see_money'))
         </div>
       </div>
       <UBadge :color="status === 'current' ? 'success' : status === 'upcoming' ? 'info' : 'neutral'" variant="subtle">{{ status }}</UBadge>
+      <UBadge v-if="terms && terms.term !== 'custom'" color="neutral" variant="subtle" :title="terms.renews ? 'The next period opens on its own when this one ends' : 'Stops after this period unless renewal is turned back on'">{{ terms.term }}<template v-if="terms.renews">, renews</template><template v-else>, ends</template></UBadge>
     </div>
 
     <UCard>
