@@ -2532,3 +2532,20 @@ has approved. `feedback.status` is now open, approved, hold or done
 Approve on open and held rows; `list_feedback` over MCP defaults to
 approved, which is the work list, and a session never starts on an
 open item unless told to in chat.
+
+## Review fixes, tranche 1: the database (2026-09-04)
+
+Luke approved every foundation finding. Migration
+`review_foundation_tranche_1`, mirrored: retainer rollover never
+carries a deficit forward; run_reminders skips client contacts;
+`harvest_archive_monthly (project_id)` is indexed; the profile column
+guard covers client_id; project_budget(s) return nothing for clients,
+show money to the service role (so the brief's dollar-budget warning
+works) and check the permission once; unbilled_summary allows the
+service role (the Monday digest gets rows) and checks is_admin once;
+"unbilled" now means the same thing everywhere (billable, unclaimed,
+unlocked, approved, not running), in the view, the summary and
+client_money, matching what create_billing_batch enforces;
+run_notification_emails picks each person's rows once and marks
+exactly those sent; task_people asks user_has_permission() for
+followers, so per-person overrides reach them.

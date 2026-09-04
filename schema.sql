@@ -188,8 +188,9 @@ begin
     or new.cost_rate    is distinct from old.cost_rate
     or new.is_active    is distinct from old.is_active
     or new.department_id is distinct from old.department_id
+    or new.client_id    is distinct from old.client_id
     or new.email        is distinct from old.email then
-      raise exception 'Only admins can change role, default_rate, cost_rate, is_active, department, or email';
+      raise exception 'Only admins can change role, default_rate, cost_rate, is_active, department, client, or email';
     end if;
   end if;
   return new;
@@ -949,6 +950,7 @@ create table harvest_archive_monthly (
   -- and the import can upsert on this key.
   unique nulls not distinct (period_month, client_name, project_name, user_name, task_name)
 );
+create index harvest_archive_monthly_project on harvest_archive_monthly (project_id);
 
 create index harvest_archive_period on harvest_archive_monthly (period_month);
 create index harvest_archive_client on harvest_archive_monthly (client_name);
@@ -1528,8 +1530,9 @@ as $$
     where a.project_id = p_project_id
   )
   select live.hours + arch.hours, live.billable_hours + arch.billable_hours,
-         case when public.has_permission('see_money') then live.amount + arch.amount end
-  from live, arch;
+         case when auth.uid() is null or (select public.has_permission('see_money')) then live.amount + arch.amount end
+  from live, arch
+  where not (select public.is_client());
 $$;
 
 -- Same numbers for every project at once, for list pages.
@@ -1555,10 +1558,11 @@ as $$
   select p.id,
          coalesce(live.hours, 0) + coalesce(arch.hours, 0),
          coalesce(live.billable_hours, 0) + coalesce(arch.billable_hours, 0),
-         case when public.has_permission('see_money') then coalesce(live.amount, 0) + coalesce(arch.amount, 0) end
+         case when auth.uid() is null or (select public.has_permission('see_money')) then coalesce(live.amount, 0) + coalesce(arch.amount, 0) end
   from public.projects p
   left join live on live.project_id = p.id
-  left join arch on arch.project_id = p.id;
+  left join arch on arch.project_id = p.id
+  where not (select public.is_client());
 $$;
 
 -- Every retainer with use and rollover worked out. Periods chain when they
@@ -1630,8 +1634,10 @@ begin
     end if;
     prev_chain := r.chain;
     prev_end := r.period_end;
+    -- Leftover is never less than zero: an overspent period starts the
+    -- next one at zero, not in the hole. The cap only trims a surplus.
     prev_leftover := case when r.rollover
-                          then least(greatest(remaining, 0), coalesce(r.rollover_cap, remaining))
+                          then least(greatest(remaining, 0), coalesce(r.rollover_cap, greatest(remaining, 0)))
                           else 0 end;
   end loop;
 end;
@@ -2108,14 +2114,17 @@ declare
   v_from   text := public.vault_secret('resend_from', 'Docket <onboarding@resend.dev>');
   v_app    text := public.vault_secret('app_url', 'https://docket.giganticdesign.com');
   r        record;
+  v_ids    uuid[];
   v_lines  text;
   v_count  int;
   v_sent   int := 0;
 begin
   if auth.uid() is not null and not public.is_admin() then raise exception 'Admins only'; end if;
   if v_key is null then return 0; end if;
+  -- The rows that go out are picked once per person, so the email and
+  -- the "sent" mark cover exactly the same set.
   for r in
-    select n.user_id, pr.email, pr.full_name
+    select n.user_id, pr.email, pr.full_name, array_agg(n.id) as ids
     from public.notifications n
     join public.profiles pr on pr.id = n.user_id and pr.is_active
     where n.email = 'pending'
@@ -2123,11 +2132,11 @@ begin
       and (v_daily or coalesce((select p.email from public.notification_prefs p where p.user_id = n.user_id and p.kind = n.kind), public.notification_email_default(n.kind)) = 'instant')
     group by n.user_id, pr.email, pr.full_name
   loop
+    v_ids := r.ids;
     select string_agg('- ' || n.title || coalesce(E'\n  ' || n.body, '') || coalesce(E'\n  ' || v_app || n.link, ''), E'\n\n' order by n.created_at), count(*)
       into v_lines, v_count
     from public.notifications n
-    where n.user_id = r.user_id and n.email = 'pending'
-      and (v_daily or coalesce((select p.email from public.notification_prefs p where p.user_id = n.user_id and p.kind = n.kind), public.notification_email_default(n.kind)) = 'instant');
+    where n.id = any(v_ids);
     perform net.http_post(
       url     := 'https://api.resend.com/emails',
       body    := jsonb_build_object('from', v_from, 'to', jsonb_build_array(r.email),
@@ -2135,9 +2144,7 @@ begin
                                     'text', format(E'Hi %s,\n\n%s\n\nSee everything: %s/notifications\n\nDocket', split_part(r.full_name, ' ', 1), regexp_replace(v_lines, '^- ', '', 'n'), v_app)),
       headers := jsonb_build_object('Authorization', 'Bearer ' || v_key, 'Content-Type', 'application/json')
     );
-    update public.notifications n set email = 'sent'
-    where n.user_id = r.user_id and n.email = 'pending'
-      and (v_daily or coalesce((select p.email from public.notification_prefs p where p.user_id = n.user_id and p.kind = n.kind), public.notification_email_default(n.kind)) = 'instant');
+    update public.notifications n set email = 'sent' where n.id = any(v_ids);
     v_sent := v_sent + 1;
   end loop;
   return v_sent;
@@ -2267,6 +2274,7 @@ language sql security definer set search_path = '' stable as $$
            min(te.spent_on) as oldest, max(te.spent_on) as newest
     from public.time_entries te join public.projects p on p.id = te.project_id
     where te.is_billable and te.batch_id is null and not te.is_locked and te.deleted_at is null
+      and te.status = 'approved'
       and (te.ended_at is not null or te.started_at is null)
     group by p.client_id
   ) t on t.client_id = c.id
@@ -2276,7 +2284,7 @@ language sql security definer set search_path = '' stable as $$
     where ex.is_billable and ex.batch_id is null and not ex.is_locked and ex.deleted_at is null
     group by p.client_id
   ) e on e.client_id = c.id
-  where public.is_admin() and (t.client_id is not null or e.client_id is not null)
+  where (auth.uid() is null or (select public.is_admin())) and (t.client_id is not null or e.client_id is not null)
   order by coalesce(t.amount, 0) + coalesce(e.amount, 0) desc
 $$;
 
@@ -2859,6 +2867,21 @@ revoke execute on function public.accept_quote(uuid, text, text)  from public, a
 revoke execute on function public.decline_quote(uuid, text, text) from public, anon;
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.has_permission(text)        from public, anon;
+
+-- The same question about somebody else: their override first, then
+-- their role. For jobs that fan out to other people (task_people).
+create or replace function public.user_has_permission(p_user uuid, p_key text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select o.allowed from public.permission_overrides o where o.user_id = p_user and o.key = p_key),
+    exists (select 1 from public.profiles pr
+            where pr.id = p_user
+              and (pr.role = 'admin' or exists (select 1 from public.permissions p where p.role = pr.role and p.key = p_key))));
+$$;
+revoke execute on function public.user_has_permission(uuid, text) from public, anon, authenticated;
 revoke execute on function public.task_visible(uuid)          from public, anon;
 revoke execute on function public.notify(uuid, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
 revoke execute on function public.run_notification_emails()   from public, anon;
@@ -3055,7 +3078,7 @@ begin
     join public.tasks     t  on t.id = te.task_id
     where te.started_at is not null and te.ended_at is null and te.deleted_at is null
       and te.started_at < now() - interval '10 hours'
-      and pr.is_active
+      and pr.is_active and pr.role <> 'client'
   loop
     v_subject := format('Your Docket timer has been running for %s hours', r.hours_running);
     v_body := format(
@@ -3075,7 +3098,7 @@ begin
     for r in
       select pr.id as user_id, pr.full_name, pr.email as to_email
       from public.profiles pr
-      where pr.is_active
+      where pr.is_active and pr.role <> 'client'
         and not exists (select 1 from public.time_entries te
                         where te.user_id = pr.id and te.spent_on = v_yesterday and te.deleted_at is null)
         and not exists (select 1 from public.time_off o
@@ -3720,6 +3743,7 @@ as $$
     from public.time_detail td
     join public.projects p on p.id = td.project_id
     where td.is_billable and not td.is_locked and td.batch_id is null
+      and td.status = 'approved'
     group by p.client_id
   ), e as (
     select p.client_id, coalesce(sum(x.amount), 0) as amount
@@ -4072,7 +4096,7 @@ language sql stable set search_path = '' as $$
   select f.user_id from public.work_item_followers f
   join public.profiles pr on pr.id = f.user_id and pr.is_active and pr.role <> 'client'
   where f.work_item_id = p_item
-    and (pr.role = 'admin' or exists (select 1 from public.permissions p where p.role = pr.role and p.key = 'see_all_tasks'));
+    and public.user_has_permission(f.user_id, 'see_all_tasks');
 $$;
 
 -- ============================================================
