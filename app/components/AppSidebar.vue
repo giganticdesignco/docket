@@ -68,14 +68,14 @@ const mobileOpen = ref(false)
 watch(() => route.path, () => { mobileOpen.value = false })
 
 // Seven quick clicks on the logo open the credits.
-const { aboutOpen } = useEasterEggs()
+const { credits } = useEasterEggs()
 let logoClicks = 0
 let logoLast = 0
 function logoClick(e: MouseEvent) {
   const now = Date.now()
   logoClicks = now - logoLast < 4000 ? logoClicks + 1 : 1
   logoLast = now
-  if (logoClicks >= 7) { logoClicks = 0; e.preventDefault(); aboutOpen.value = true }
+  if (logoClicks >= 7) { logoClicks = 0; e.preventDefault(); credits() }
 }
 </script>
 

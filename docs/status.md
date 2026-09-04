@@ -2811,3 +2811,25 @@ SearchPalette, party CSS in main.css.
 Verified in Chrome: the code toggles the party class, the confetti
 canvas and the rainbow line; seven logo clicks open the credits with
 the numbers; "coin" and "roll" appear as "Well now" items and toast.
+
+## 2026-09-04: easter eggs, each its own thing
+
+Luke: each egg should do something of its own, in keeping with what it
+is, and Escape should always get you out. Reworked. The cheat code
+turns the page into an arcade cabinet (scanlines, vignette, glowing
+logo, a "Player 1 ready" moment) for the session. The credits roll
+like film credits: the cast from profiles, hours logged this year,
+tasks finished, who made it. "coin" flips a gold coin across the
+screen, logo for heads and D for tails. "roll" tumbles a d20 that
+settles on the number, confetti on a twenty, a crack on a one.
+"party" is still the party. "make it rain" rains dollar signs.
+"xyzzy" opens a text adventure in the corner that knows LOOK,
+INVENTORY (your open tasks), TIMER (your running timer), HELLO, HELP,
+QUIT, and the two words from 1976. Escape closes any overlay, and
+pressed again ends arcade or party mode; a real dialog keeps its own
+Escape. The guide now lists every egg at the end.
+
+Verified in Chrome: the banner and scanlines, a coin landing Tails on
+the D side, a die landing on 18 with its caption, five adventure
+commands answered, party on and off with Escape, the credits rolling
+with eighteen names and closing on Escape.

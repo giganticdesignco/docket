@@ -626,6 +626,7 @@ function created(id: string) {
 }
 // The nobody ring's hand, with a nod on two days of the year.
 const nobodyIcon = holiday() === 'halloween' ? 'i-lucide-ghost' : holiday() === 'newyear' ? 'i-lucide-party-popper' : 'i-lucide-hand'
+const nobodyTitle = holiday() === 'halloween' ? 'Boo. Nobody is up.' : holiday() === 'newyear' ? 'Happy new year. Nobody is up.' : 'Nobody is up'
 // List, cards, or the focus list, as one choice for the view strip.
 const viewChoice = computed<'list' | 'cards' | 'focus'>({
   get: () => (focusMode.value ? 'focus' : viewMode.value),
@@ -757,7 +758,7 @@ const viewChoice = computed<'list' | 'cards' | 'focus'>({
             <td class="hidden w-40 px-2 py-1.5 sm:table-cell">
               <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="peopleTitle(i) || 'Assign'" @click="openMenu(i, 'assignees', $event)">
                 <template v-if="i.work_item_assignees.length">
-                  <span v-if="!i.assignee_id" class="relative z-10 grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" title="Nobody is up"><UIcon :name="nobodyIcon" class="size-3 text-warning" /></span>
+                  <span v-if="!i.assignee_id" class="relative z-10 grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" :title="nobodyTitle"><UIcon :name="nobodyIcon" class="size-3 text-warning" /></span>
                   <span v-for="a in cluster(i).slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full text-[10px] font-medium ring-2 ring-default" :class="a.user_id === i.assignee_id ? 'relative z-10 bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                   <span v-if="i.work_item_assignees.length > 4" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ i.work_item_assignees.length - 4 }}</span>
                 </template>

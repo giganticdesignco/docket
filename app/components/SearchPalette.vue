@@ -90,11 +90,13 @@ const secrets = computed<CommandPaletteItem[]>(() => {
   const w = term.value.trim().toLowerCase()
   const done = (fn: () => void) => () => { open.value = false; fn() }
   if (w === 'party') return [{ label: eggs.party.value ? 'Party over' : 'Party mode', icon: 'i-lucide-party-popper', onSelect: done(eggs.toggleParty) }]
-  if (w === 'confetti' || w === 'make it rain') return [{ label: 'Make it rain', icon: 'i-lucide-sparkles', onSelect: done(() => confetti()) }]
+  if (w === 'confetti') return [{ label: 'Confetti', icon: 'i-lucide-sparkles', onSelect: done(() => confetti()) }]
+  if (w === 'make it rain' || w === 'rain') return [{ label: 'Make it rain', icon: 'i-lucide-banknote', onSelect: done(() => rain()) }]
   if (w === 'coin' || w === 'flip' || w === 'flip a coin') return [{ label: 'Flip a coin', icon: 'i-lucide-coins', onSelect: done(eggs.flipCoin) }]
   if (w === 'roll' || w === 'd20' || w === 'dice') return [{ label: 'Roll a d20', icon: 'i-lucide-dices', onSelect: done(eggs.rollD20) }]
-  if (w === 'credits' || w === 'about') return [{ label: 'About Docket', icon: 'i-lucide-info', onSelect: done(() => { eggs.aboutOpen.value = true }) }]
-  if (w === 'xyzzy' || w === 'plugh') return [{ label: 'Nothing happens', icon: 'i-lucide-wand', onSelect: done(eggs.xyzzy) }]
+  if (w === 'credits' || w === 'about') return [{ label: 'Roll the credits', icon: 'i-lucide-clapperboard', onSelect: done(eggs.credits) }]
+  if (w === 'xyzzy' || w === 'plugh' || w === 'adventure') return [{ label: 'Nothing happens', icon: 'i-lucide-terminal', onSelect: done(eggs.adventure) }]
+  if (w === 'arcade' || w === 'konami') return [{ label: eggs.arcade.value ? 'Game over' : 'Insert coin', icon: 'i-lucide-gamepad-2', onSelect: done(eggs.toggleArcade) }]
   return []
 })
 
