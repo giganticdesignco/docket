@@ -187,18 +187,21 @@ export function writeTools(c: Caller, origin: string): Tool[] {
     },
     {
       name: 'create_task',
-      description: 'Make a task on a project. Optional status key, priority (low, normal, high, urgent), dates, estimate, assignee ids (see people). assign_me puts the caller on it. Returns the id and link.',
-      input_schema: { type: 'object', properties: { project_id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, status: { type: 'string' }, priority: { type: 'string' }, start_on: { type: 'string' }, due_on: { type: 'string' }, estimate_hours: { type: 'number' }, assignee_ids: { type: 'array', items: { type: 'string' } }, assign_me: { type: 'boolean' } }, required: ['project_id', 'title'] },
+      description: 'Make a task on a project. Optional status key, priority (low, normal, high, urgent), dates, estimate, assignee_ids for everyone on it (see people), and assignee_id for the one person up on it now. assign_me puts the caller on it and up on it. Returns the id and link.',
+      input_schema: { type: 'object', properties: { project_id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, status: { type: 'string' }, priority: { type: 'string' }, start_on: { type: 'string' }, due_on: { type: 'string' }, estimate_hours: { type: 'number' }, assignee_ids: { type: 'array', items: { type: 'string' } }, assignee_id: { type: 'string' }, assign_me: { type: 'boolean' } }, required: ['project_id', 'title'] },
       run: async (i) => {
         const values: Record<string, unknown> = { project_id: String(i.project_id), title: String(i.title).trim(), created_by: c.userId, description: str(i.description) ?? null, start_on: str(i.start_on) ?? null, due_on: str(i.due_on) ?? null, estimate_hours: num(i.estimate_hours) ?? null }
         if (str(i.status)) values.status = String(i.status)
         if (str(i.priority)) values.priority = String(i.priority)
+        if (str(i.assignee_id)) values.assignee_id = String(i.assignee_id)
+        if (i.assign_me) values.assignee_id = c.userId
         const { data, error } = await sb.from('work_items').insert(values as never).select('id').single()
         if (error) throw new Error(error.message)
         const ids = new Set<string>(Array.isArray(i.assignee_ids) ? i.assignee_ids.map(String) : [])
         if (i.assign_me) ids.add(c.userId)
+        // Upsert: the owner trigger has already put whoever is up on the task.
         if (ids.size) {
-          const { error: ae } = await sb.from('work_item_assignees').insert([...ids].map(user_id => ({ work_item_id: data.id, user_id })))
+          const { error: ae } = await sb.from('work_item_assignees').upsert([...ids].map(user_id => ({ work_item_id: data.id, user_id })), { onConflict: 'work_item_id,user_id', ignoreDuplicates: true })
           if (ae) throw new Error(ae.message)
         }
         return { id: data.id, url: taskUrl(data.id) }
@@ -206,8 +209,8 @@ export function writeTools(c: Caller, origin: string): Tool[] {
     },
     {
       name: 'update_task',
-      description: 'Change a task\'s title, description, status key, priority, dates, or estimate. Add or remove assignees with add_assignee_ids and remove_assignee_ids.',
-      input_schema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, status: { type: 'string' }, priority: { type: 'string' }, start_on: { type: 'string' }, due_on: { type: 'string' }, estimate_hours: { type: 'number' }, add_assignee_ids: { type: 'array', items: { type: 'string' } }, remove_assignee_ids: { type: 'array', items: { type: 'string' } } }, required: ['id'] },
+      description: 'Change a task\'s title, description, status key, priority, dates, or estimate. Add or remove people on it with add_assignee_ids and remove_assignee_ids. assignee_id hands the task to that person (they are put on it if they were not); the string "nobody" leaves nobody up.',
+      input_schema: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, status: { type: 'string' }, priority: { type: 'string' }, start_on: { type: 'string' }, due_on: { type: 'string' }, estimate_hours: { type: 'number' }, add_assignee_ids: { type: 'array', items: { type: 'string' } }, remove_assignee_ids: { type: 'array', items: { type: 'string' } }, assignee_id: { type: 'string' } }, required: ['id'] },
       run: async (i) => {
         const id = String(i.id)
         const patch: Record<string, unknown> = {}
@@ -221,7 +224,15 @@ export function writeTools(c: Caller, origin: string): Tool[] {
         const drop = Array.isArray(i.remove_assignee_ids) ? i.remove_assignee_ids.map(String) : []
         if (drop.length) await sb.from('work_item_assignees').delete().eq('work_item_id', id).in('user_id', drop)
         if (add.length) await sb.from('work_item_assignees').upsert(add.map(user_id => ({ work_item_id: id, user_id })), { onConflict: 'work_item_id,user_id', ignoreDuplicates: true })
-        return { id, url: taskUrl(id), changed: Object.keys(patch), added: add, removed: drop }
+        // Who is up goes through hand_off, so the receiver gets the turn bell.
+        let handed: string | null | undefined
+        if (str(i.assignee_id)) {
+          const to = String(i.assignee_id).toLowerCase() === 'nobody' ? null : String(i.assignee_id)
+          const { error } = await sb.rpc('hand_off', { p_item: id, p_to: to ?? undefined })
+          if (error) throw new Error(error.message)
+          handed = to
+        }
+        return { id, url: taskUrl(id), changed: Object.keys(patch), added: add, removed: drop, ...(handed !== undefined ? { up_now: handed ?? 'nobody' } : {}) }
       },
     },
     {
