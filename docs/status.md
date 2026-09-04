@@ -2367,10 +2367,11 @@ than a negative margin.
 
 ## Subtasks read as nested (2026-09-04)
 
-From Luke's feedback. A parent shows a tree icon in front of its title
-(hover: how many subtasks); a subtask shows a visible elbow and sits a
-step deeper when it is tucked under its parent, and the "in Parent"
-note only appears when the parent is somewhere else. Found on the way:
+From Luke's feedback. A subtask shows a visible elbow and sits a step
+deeper when it is tucked under its parent, and the "in Parent" note
+only appears when the parent is somewhere else. A tree icon on the
+parent was tried and dropped the same hour; Luke did not think the
+parent needed one. Found on the way:
 `UIcon` with `inline` renders zero width, so `size-*` does nothing;
 it needs `inline-block`. Fixed on the triage page's New project icon
 as well.

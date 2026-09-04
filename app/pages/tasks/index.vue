@@ -271,12 +271,6 @@ const toggle = (key: string) => {
 }
 // A subtask shows its parent's title beside it.
 const parentTitle = (i: { parent_id: string | null }) => (i.parent_id ? items.value?.find(x => x.id === i.parent_id)?.title ?? '' : '')
-// How many subtasks a task has, for the tree icon in front of its title.
-const childCount = computed(() => {
-  const m = new Map<string, number>()
-  for (const i of items.value ?? []) if (i.parent_id) m.set(i.parent_id, (m.get(i.parent_id) ?? 0) + 1)
-  return m
-})
 // A subtask sits tucked under its parent when the parent is in the same
 // group; then the indent and the elbow say it all and the "in ..." note
 // is only needed when the parent is somewhere else.
@@ -750,7 +744,6 @@ function created(id: string) {
             </td>
             <td class="min-w-0 px-2 py-1.5" :class="underParent(i, g) ? 'pl-9' : ''">
               <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1.5 inline-block size-4 align-[-3px] text-muted" :title="`Subtask of ${parentTitle(i)}`" />
-              <UIcon v-else-if="childCount.get(i.id)" name="i-lucide-list-tree" class="mr-1.5 inline-block size-4 align-[-3px] text-muted" :title="`${childCount.get(i.id)} ${childCount.get(i.id) === 1 ? 'subtask' : 'subtasks'}`" />
               <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline" :class="focusMode && ws.isDone(i.status) ? 'text-dimmed line-through' : ''">{{ i.title }}</NuxtLink>
               <span v-if="i.parent_id && !underParent(i, g)" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
               <span v-if="focusMode || groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
