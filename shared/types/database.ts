@@ -18,24 +18,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      page_templates: {
-        Row: { color: string; created_at: string; description: string | null; hours: number; id: string; is_active: boolean; name: string; position: number; rate: number | null; task_id: string | null }
-        Insert: { color?: string; created_at?: string; description?: string | null; hours?: number; id?: string; is_active?: boolean; name: string; position?: number; rate?: number | null; task_id?: string | null }
-        Update: { color?: string; created_at?: string; description?: string | null; hours?: number; id?: string; is_active?: boolean; name?: string; position?: number; rate?: number | null; task_id?: string | null }
-        Relationships: []
-      }
-      assistant_conversations: {
-        Row: { created_at: string; id: string; title: string; updated_at: string; user_id: string }
-        Insert: { created_at?: string; id?: string; title: string; updated_at?: string; user_id: string }
-        Update: { created_at?: string; id?: string; title?: string; updated_at?: string; user_id?: string }
-        Relationships: []
-      }
-      assistant_messages: {
-        Row: { content: string; conversation_id: string; created_at: string; id: number; role: string }
-        Insert: { content: string; conversation_id: string; created_at?: string; id?: number; role: string }
-        Update: { content?: string; conversation_id?: string; created_at?: string; id?: number; role?: string }
-        Relationships: []
-      }
       ai_events: {
         Row: {
           created_at: string
@@ -73,7 +55,121 @@ export type Database = {
           saved?: Json | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "ai_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "ai_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      assistant_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "assistant_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "assistant_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      assistant_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: number
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: number
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: number
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_log: {
         Row: {
@@ -396,6 +492,7 @@ export type Database = {
           is_active: boolean
           name: string
           qbo_customer_id: string | null
+          search: unknown
         }
         Insert: {
           created_at?: string
@@ -404,6 +501,7 @@ export type Database = {
           is_active?: boolean
           name: string
           qbo_customer_id?: string | null
+          search?: unknown
         }
         Update: {
           created_at?: string
@@ -412,8 +510,59 @@ export type Database = {
           is_active?: boolean
           name?: string
           qbo_customer_id?: string | null
+          search?: unknown
         }
         Relationships: []
+      }
+      departments: {
+        Row: {
+          id: string
+          is_active: boolean
+          lead_id: string | null
+          name: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          lead_id?: string | null
+          name: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          lead_id?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "departments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "departments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "departments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "departments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       estimator_materials: {
         Row: {
@@ -484,27 +633,6 @@ export type Database = {
         }
         Relationships: []
       }
-      departments: {
-        Row: {
-          id: string
-          is_active: boolean
-          lead_id: string | null
-          name: string
-        }
-        Insert: {
-          id?: string
-          is_active?: boolean
-          lead_id?: string | null
-          name: string
-        }
-        Update: {
-          id?: string
-          is_active?: boolean
-          lead_id?: string | null
-          name?: string
-        }
-        Relationships: []
-      }
       expense_categories: {
         Row: {
           harvest_id: number | null
@@ -528,12 +656,12 @@ export type Database = {
       }
       expenses: {
         Row: {
-          deleted_at: string | null
-          deleted_by: string | null
           amount: number
           batch_id: string | null
           category_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           harvest_id: number | null
           id: string
           is_billable: boolean
@@ -546,12 +674,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          deleted_at?: string | null
-          deleted_by?: string | null
           amount: number
           batch_id?: string | null
           category_id: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           harvest_id?: number | null
           id?: string
           is_billable?: boolean
@@ -564,12 +692,12 @@ export type Database = {
           user_id: string
         }
         Update: {
-          deleted_at?: string | null
-          deleted_by?: string | null
           amount?: number
           batch_id?: string | null
           category_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           harvest_id?: number | null
           id?: string
           is_billable?: boolean
@@ -595,6 +723,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "expense_categories"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "expenses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "expenses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "expenses_project_id_fkey"
@@ -679,7 +835,36 @@ export type Database = {
           refresh_token?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       harvest_archive_monthly: {
         Row: {
@@ -1141,6 +1326,7 @@ export type Database = {
           paid_amount: number
           paid_at: string | null
           public_token: string
+          search: unknown
           sent_at: string | null
           sent_to: string[] | null
           status: Database["public"]["Enums"]["invoice_status"]
@@ -1166,6 +1352,7 @@ export type Database = {
           paid_amount?: number
           paid_at?: string | null
           public_token?: string
+          search?: unknown
           sent_at?: string | null
           sent_to?: string[] | null
           status?: Database["public"]["Enums"]["invoice_status"]
@@ -1191,6 +1378,7 @@ export type Database = {
           paid_amount?: number
           paid_at?: string | null
           public_token?: string
+          search?: unknown
           sent_at?: string | null
           sent_to?: string[] | null
           status?: Database["public"]["Enums"]["invoice_status"]
@@ -1292,7 +1480,36 @@ export type Database = {
           text?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "morning_briefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "morning_briefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "morning_briefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "morning_briefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       notification_prefs: {
         Row: {
@@ -1313,7 +1530,36 @@ export type Database = {
           kind?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notification_prefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notification_prefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_prefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notification_prefs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -1355,7 +1601,118 @@ export type Database = {
           user_id?: string
           work_item_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notifications_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      page_templates: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          hours: number
+          id: string
+          is_active: boolean
+          name: string
+          position: number
+          rate: number | null
+          task_id: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          hours?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          position?: number
+          rate?: number | null
+          task_id?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          hours?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          position?: number
+          rate?: number | null
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_templates_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       permissions: {
         Row: {
@@ -1370,7 +1727,15 @@ export type Database = {
           key?: string
           role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "permissions_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1415,7 +1780,50 @@ export type Database = {
           role?: string
           tours_seen?: Json
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_expenses"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "profiles_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_role_fkey"
+            columns: ["role"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       project_tasks: {
         Row: {
@@ -1501,11 +1909,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "project_template_items_template_id_fkey"
-            columns: ["template_id"]
+            foreignKeyName: "project_template_items_default_role_fkey"
+            columns: ["default_role"]
             isOneToOne: false
-            referencedRelation: "project_templates"
-            referencedColumns: ["id"]
+            referencedRelation: "roles"
+            referencedColumns: ["key"]
           },
           {
             foreignKeyName: "project_template_items_task_id_fkey"
@@ -1515,11 +1923,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "project_template_items_default_role_fkey"
-            columns: ["default_role"]
+            foreignKeyName: "project_template_items_template_id_fkey"
+            columns: ["template_id"]
             isOneToOne: false
-            referencedRelation: "roles"
-            referencedColumns: ["key"]
+            referencedRelation: "project_templates"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1554,9 +1962,9 @@ export type Database = {
         Row: {
           billing_method: Database["public"]["Enums"]["billing_method"]
           budget_amount: number | null
-          client_visible: boolean
           budget_hours: number | null
           client_id: string
+          client_visible: boolean
           code: string | null
           created_at: string
           department_id: string | null
@@ -1566,14 +1974,15 @@ export type Database = {
           is_active: boolean
           lead_id: string | null
           name: string
+          search: unknown
           server_path: string | null
         }
         Insert: {
           billing_method?: Database["public"]["Enums"]["billing_method"]
           budget_amount?: number | null
-          client_visible?: boolean
           budget_hours?: number | null
           client_id: string
+          client_visible?: boolean
           code?: string | null
           created_at?: string
           department_id?: string | null
@@ -1583,14 +1992,15 @@ export type Database = {
           is_active?: boolean
           lead_id?: string | null
           name: string
+          search?: unknown
           server_path?: string | null
         }
         Update: {
           billing_method?: Database["public"]["Enums"]["billing_method"]
           budget_amount?: number | null
-          client_visible?: boolean
           budget_hours?: number | null
           client_id?: string
+          client_visible?: boolean
           code?: string | null
           created_at?: string
           department_id?: string | null
@@ -1600,16 +2010,10 @@ export type Database = {
           is_active?: boolean
           lead_id?: string | null
           name?: string
+          search?: unknown
           server_path?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "projects_department_id_fkey"
-            columns: ["department_id"]
-            isOneToOne: false
-            referencedRelation: "departments"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "projects_client_id_fkey"
             columns: ["client_id"]
@@ -1639,17 +2043,44 @@ export type Database = {
             referencedColumns: ["client_id"]
           },
           {
+            foreignKeyName: "projects_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "projects_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "projects_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "projects_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       quote_line_items: {
         Row: {
-          template_id: string | null
           amount: number
           assignee_id: string | null
           created_at: string
@@ -1662,9 +2093,9 @@ export type Database = {
           sort_order: number
           target_week: string | null
           task_id: string | null
+          template_id: string | null
         }
         Insert: {
-          template_id?: string | null
           amount?: number
           assignee_id?: string | null
           created_at?: string
@@ -1677,9 +2108,9 @@ export type Database = {
           sort_order?: number
           target_week?: string | null
           task_id?: string | null
+          template_id?: string | null
         }
         Update: {
-          template_id?: string | null
           amount?: number
           assignee_id?: string | null
           created_at?: string
@@ -1692,14 +2123,36 @@ export type Database = {
           sort_order?: number
           target_week?: string | null
           task_id?: string | null
+          template_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "quote_line_items_assignee_id_fkey"
             columns: ["assignee_id"]
             isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "quote_line_items_quote_id_fkey"
@@ -1715,13 +2168,19 @@ export type Database = {
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quote_line_items_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "page_templates"
+            referencedColumns: ["id"]
+          },
         ]
       }
       quote_sitemap_nodes: {
         Row: {
-          template_id: string | null
-          hours: number | null
           created_at: string
+          hours: number | null
           id: string
           line_item_id: string | null
           notes: string | null
@@ -1730,12 +2189,12 @@ export type Database = {
           quote_id: string
           sort_order: number
           template: string | null
+          template_id: string | null
           title: string
         }
         Insert: {
-          template_id?: string | null
-          hours?: number | null
           created_at?: string
+          hours?: number | null
           id?: string
           line_item_id?: string | null
           notes?: string | null
@@ -1744,12 +2203,12 @@ export type Database = {
           quote_id: string
           sort_order?: number
           template?: string | null
+          template_id?: string | null
           title: string
         }
         Update: {
-          template_id?: string | null
-          hours?: number | null
           created_at?: string
+          hours?: number | null
           id?: string
           line_item_id?: string | null
           notes?: string | null
@@ -1758,6 +2217,7 @@ export type Database = {
           quote_id?: string
           sort_order?: number
           template?: string | null
+          template_id?: string | null
           title?: string
         }
         Relationships: [
@@ -1782,6 +2242,13 @@ export type Database = {
             referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quote_sitemap_nodes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "page_templates"
+            referencedColumns: ["id"]
+          },
         ]
       }
       quotes: {
@@ -1800,6 +2267,7 @@ export type Database = {
           number: string
           project_id: string | null
           public_token: string
+          search: unknown
           sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal: number
@@ -1823,6 +2291,7 @@ export type Database = {
           number: string
           project_id?: string | null
           public_token?: string
+          search?: unknown
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
@@ -1846,6 +2315,7 @@ export type Database = {
           number?: string
           project_id?: string | null
           public_token?: string
+          search?: unknown
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
@@ -2214,11 +2684,11 @@ export type Database = {
       }
       time_entries: {
         Row: {
-          deleted_at: string | null
-          deleted_by: string | null
           batch_id: string | null
           cost_snapshot: number | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           ended_at: string | null
           harvest_id: number | null
           hours: number
@@ -2232,20 +2702,20 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           spent_on: string
+          started_at: string | null
           status: Database["public"]["Enums"]["time_entry_status"]
           submitted_at: string | null
-          started_at: string | null
           task_id: string
           updated_at: string
           user_id: string
           work_item_id: string | null
         }
         Insert: {
-          deleted_at?: string | null
-          deleted_by?: string | null
           batch_id?: string | null
           cost_snapshot?: number | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           ended_at?: string | null
           harvest_id?: number | null
           hours?: number
@@ -2259,20 +2729,20 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           spent_on: string
+          started_at?: string | null
           status?: Database["public"]["Enums"]["time_entry_status"]
           submitted_at?: string | null
-          started_at?: string | null
           task_id: string
           updated_at?: string
           user_id: string
           work_item_id?: string | null
         }
         Update: {
-          deleted_at?: string | null
-          deleted_by?: string | null
           batch_id?: string | null
           cost_snapshot?: number | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           ended_at?: string | null
           harvest_id?: number | null
           hours?: number
@@ -2286,9 +2756,9 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           spent_on?: string
+          started_at?: string | null
           status?: Database["public"]["Enums"]["time_entry_status"]
           submitted_at?: string | null
-          started_at?: string | null
           task_id?: string
           updated_at?: string
           user_id?: string
@@ -2301,6 +2771,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "billing_batches"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "time_entries_project_id_fkey"
@@ -2329,6 +2827,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "time_entries_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "time_entries_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "time_entries_task_id_fkey"
@@ -2436,6 +2962,56 @@ export type Database = {
           },
         ]
       }
+      user_views: {
+        Row: {
+          key: string
+          state: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          key: string
+          state?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          key?: string
+          state?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       work_item_assignees: {
         Row: {
           user_id: string
@@ -2489,38 +3065,41 @@ export type Database = {
       }
       work_item_comments: {
         Row: {
-          deleted_at: string | null
-          deleted_by: string | null
           author_id: string | null
           author_name: string | null
           body: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           mentions: string[]
+          search: unknown
           visible_to_client: boolean
           work_item_id: string
         }
         Insert: {
-          deleted_at?: string | null
-          deleted_by?: string | null
           author_id?: string | null
           author_name?: string | null
           body: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           mentions?: string[]
+          search?: unknown
           visible_to_client?: boolean
           work_item_id: string
         }
         Update: {
-          deleted_at?: string | null
-          deleted_by?: string | null
           author_id?: string | null
           author_name?: string | null
           body?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           mentions?: string[]
+          search?: unknown
           visible_to_client?: boolean
           work_item_id?: string
         }
@@ -2549,6 +3128,34 @@ export type Database = {
           {
             foreignKeyName: "work_item_comments_author_id_fkey"
             columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_comments_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
@@ -2686,7 +3293,43 @@ export type Database = {
           user_id?: string
           work_item_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "work_item_focus_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_focus_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_item_focus_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_focus_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_item_focus_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       work_item_plans: {
         Row: {
@@ -2710,12 +3353,21 @@ export type Database = {
           user_id?: string
           work_item_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "work_item_plans_work_item_id_user_id_fkey"
+            columns: ["work_item_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "work_item_assignees"
+            referencedColumns: ["work_item_id", "user_id"]
+          },
+        ]
       }
       work_items: {
         Row: {
-          deleted_at: string | null
-          deleted_by: string | null
+          assigned_at: string | null
+          assigned_by: string | null
+          assignee_id: string | null
           clickup_id: string | null
           client_decision: string | null
           client_decision_at: string | null
@@ -2723,6 +3375,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           due_on: string | null
           estimate_hours: number | null
@@ -2733,6 +3387,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["work_priority"]
           project_id: string
           public_token: string
+          search: unknown
           shared_at: string | null
           start_on: string | null
           status: string
@@ -2740,8 +3395,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          deleted_at?: string | null
-          deleted_by?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assignee_id?: string | null
           clickup_id?: string | null
           client_decision?: string | null
           client_decision_at?: string | null
@@ -2749,6 +3405,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           due_on?: string | null
           estimate_hours?: number | null
@@ -2759,6 +3417,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id: string
           public_token?: string
+          search?: unknown
           shared_at?: string | null
           start_on?: string | null
           status?: string
@@ -2766,8 +3425,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          deleted_at?: string | null
-          deleted_by?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          assignee_id?: string | null
           clickup_id?: string | null
           client_decision?: string | null
           client_decision_at?: string | null
@@ -2775,6 +3435,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           due_on?: string | null
           estimate_hours?: number | null
@@ -2785,6 +3447,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["work_priority"]
           project_id?: string
           public_token?: string
+          search?: unknown
           shared_at?: string | null
           start_on?: string | null
           status?: string
@@ -2792,6 +3455,62 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "work_items_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_assignee_id_fkey"
+            columns: ["assignee_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "work_items_created_by_fkey"
             columns: ["created_by"]
@@ -2819,6 +3538,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_items_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "work_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "work_items_project_id_fkey"
@@ -2859,6 +3613,8 @@ export type Database = {
       }
       work_statuses: {
         Row: {
+          claims_owner: boolean
+          clears_owner: boolean
           color: string
           is_active: boolean
           is_client_review: boolean
@@ -2870,6 +3626,8 @@ export type Database = {
           position: number
         }
         Insert: {
+          claims_owner?: boolean
+          clears_owner?: boolean
           color?: string
           is_active?: boolean
           is_client_review?: boolean
@@ -2881,6 +3639,8 @@ export type Database = {
           position?: number
         }
         Update: {
+          claims_owner?: boolean
+          clears_owner?: boolean
           color?: string
           is_active?: boolean
           is_client_review?: boolean
@@ -2893,35 +3653,6 @@ export type Database = {
         }
         Relationships: []
       }
-      user_views: {
-        Row: {
-          key: string
-          state: Json
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          key: string
-          state?: Json
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          key?: string
-          state?: Json
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_views_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       calendar_connections: {
@@ -2932,7 +3663,50 @@ export type Database = {
           last_synced_at: string | null
           user_id: string | null
         }
-        Relationships: []
+        Insert: {
+          connected_at?: string | null
+          google_email?: string | null
+          last_error?: string | null
+          last_synced_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          connected_at?: string | null
+          google_email?: string | null
+          last_error?: string | null
+          last_synced_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "capacity_weekly"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "time_detail"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "google_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       capacity_weekly: {
         Row: {
@@ -2960,6 +3734,87 @@ export type Database = {
           year: number | null
         }
         Relationships: []
+      }
+      invoice_lines_detail: {
+        Row: {
+          amount: number | null
+          cost_amount: number | null
+          description: string | null
+          id: string | null
+          invoice_id: string | null
+          kind: string | null
+          margin_amount: number | null
+          position: number | null
+          project_id: string | null
+          quantity: number | null
+          taxable: boolean | null
+          unit_price: number | null
+        }
+        Insert: {
+          amount?: number | null
+          cost_amount?: never
+          description?: string | null
+          id?: string | null
+          invoice_id?: string | null
+          kind?: string | null
+          margin_amount?: never
+          position?: number | null
+          project_id?: string | null
+          quantity?: number | null
+          taxable?: boolean | null
+          unit_price?: number | null
+        }
+        Update: {
+          amount?: number | null
+          cost_amount?: never
+          description?: string | null
+          id?: string | null
+          invoice_id?: string | null
+          kind?: string | null
+          margin_amount?: never
+          position?: number | null
+          project_id?: string | null
+          quantity?: number | null
+          taxable?: boolean | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "project_budget_status"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "invoice_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["project_id"]
+          },
+        ]
       }
       project_budget_status: {
         Row: {
@@ -3017,23 +3872,6 @@ export type Database = {
             referencedColumns: ["client_id"]
           },
         ]
-      }
-      invoice_lines_detail: {
-        Row: {
-          amount: number | null
-          cost_amount: number | null
-          description: string | null
-          id: string | null
-          invoice_id: string | null
-          kind: string | null
-          margin_amount: number | null
-          position: number | null
-          project_id: string | null
-          quantity: number | null
-          taxable: boolean | null
-          unit_price: number | null
-        }
-        Relationships: []
       }
       time_detail: {
         Row: {
@@ -3208,67 +4046,28 @@ export type Database = {
       }
     }
     Functions: {
-      client_money: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          client_id: string
-          unbilled: number | null
-          billed_year: number | null
-          billed_all: number | null
-          outstanding: number | null
-        }[]
-      }
-      approver_of: {
-        Args: { p_user: string }
+      accept_quote: {
+        Args: { p_email?: string; p_name: string; p_quote_id: string }
         Returns: string
       }
-      can_review: {
-        Args: { p_user: string }
-        Returns: boolean
-      }
-      approve_time_entries: {
-        Args: { p_ids: string[] }
-        Returns: number
-      }
+      actor_name: { Args: never; Returns: string }
       apply_project_template: {
         Args: { p_project_id: string; p_template_id: string }
         Returns: number
       }
-      project_history: {
-        Args: { p_words: string[] }
+      approve_time_entries: { Args: { p_ids: string[] }; Returns: number }
+      approver_of: { Args: { p_user: string }; Returns: string }
+      billing_people: { Args: never; Returns: string[] }
+      can_review: { Args: { p_user: string }; Returns: boolean }
+      client_money: {
+        Args: never
         Returns: {
-          project_id: string | null
-          name: string
-          client_name: string
-          hours: number
-          amount: number | null
-          first_on: string | null
-          last_on: string | null
+          billed_all: number
+          billed_year: number
+          client_id: string
+          outstanding: number
+          unbilled: number
         }[]
-      }
-      reject_time_entries: {
-        Args: { p_ids: string[]; p_reason: string }
-        Returns: number
-      }
-      restore_deleted: {
-        Args: { p_table: string; p_id: string }
-        Returns: undefined
-      }
-      entry_history: {
-        Args: { p_table: string; p_id: string }
-        Returns: {
-          changed_at: string
-          changed_by: string | null
-          changed_by_name: string | null
-          action: string
-          changed_fields: string[] | null
-          old_data: Json | null
-          new_data: Json | null
-        }[]
-      }
-      accept_quote: {
-        Args: { p_email?: string; p_name: string; p_quote_id: string }
-        Returns: string
       }
       create_billing_batch: {
         Args: {
@@ -3293,13 +4092,44 @@ export type Database = {
         Args: { p_name: string; p_quote_id: string; p_reason?: string }
         Returns: undefined
       }
+      entry_history: {
+        Args: { p_id: string; p_table: string }
+        Returns: {
+          action: string
+          changed_at: string
+          changed_by: string
+          changed_by_name: string
+          changed_fields: string[]
+          new_data: Json
+          old_data: Json
+        }[]
+      }
+      hand_off: {
+        Args: { p_item: string; p_note?: string; p_to?: string }
+        Returns: undefined
+      }
       has_permission: { Args: { p_key: string }; Returns: boolean }
+      hours_text: { Args: { h: number }; Returns: string }
+      is_admin: { Args: never; Returns: boolean }
       is_client: { Args: never; Returns: boolean }
       my_client_id: { Args: never; Returns: string }
-      task_visible: { Args: { p_item: string }; Returns: boolean }
-      is_admin: { Args: never; Returns: boolean }
       next_invoice_number: { Args: never; Returns: string }
       next_quote_number: { Args: never; Returns: string }
+      notification_email_default: { Args: { p_kind: string }; Returns: string }
+      notify: {
+        Args: {
+          p_actor?: string
+          p_body?: string
+          p_email?: string
+          p_item?: string
+          p_kind: string
+          p_link?: string
+          p_title: string
+          p_user: string
+        }
+        Returns: undefined
+      }
+      nudge_unowned_tasks: { Args: never; Returns: number }
       project_budget: {
         Args: { p_project_id: string }
         Returns: {
@@ -3317,19 +4147,34 @@ export type Database = {
           project_id: string
         }[]
       }
-      quote_recalc: { Args: { p_quote_id: string }; Returns: undefined }
-      recalc_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
-      relink_harvest_archive: { Args: never; Returns: number }
-      search: {
-        Args: { p_kind?: string; p_limit?: number; p_q: string }
+      project_history: {
+        Args: { p_words: string[] }
         Returns: {
-          id: string
-          kind: string
-          rank: number
-          subtitle: string
-          title: string
+          amount: number
+          client_name: string
+          first_on: string
+          hours: number
+          last_on: string
+          name: string
+          project_id: string
         }[]
       }
+      purge_deleted: { Args: never; Returns: undefined }
+      quote_line_margins: {
+        Args: { p_quote_id: string }
+        Returns: {
+          cost: number
+          line_item_id: string
+          margin: number
+        }[]
+      }
+      quote_recalc: { Args: { p_quote_id: string }; Returns: undefined }
+      recalc_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
+      reject_time_entries: {
+        Args: { p_ids: string[]; p_reason: string }
+        Returns: number
+      }
+      relink_harvest_archive: { Args: never; Returns: number }
       report_expenses: {
         Args: {
           p_billable?: boolean
@@ -3409,26 +4254,26 @@ export type Database = {
           user_name: string
         }[]
       }
-      quote_line_margins: {
-        Args: { p_quote_id: string }
-        Returns: { line_item_id: string; cost: number; margin: number }[]
-      }
       resolve_rate: {
         Args: { p_project_id: string; p_task_id: string; p_user_id: string }
         Returns: number
       }
+      restore_deleted: {
+        Args: { p_id: string; p_table: string }
+        Returns: undefined
+      }
       retainer_period_detail: {
         Args: { p_retainer_id: string }
         Returns: {
+          amount: number
           entry_id: string
-          spent_on: string
+          hours: number
+          notes: string
           project_id: string
           project_name: string
+          spent_on: string
           task_name: string
           user_name: string
-          hours: number
-          amount: number | null
-          notes: string | null
         }[]
       }
       retainer_status: {
@@ -3450,6 +4295,7 @@ export type Database = {
           used: number
         }[]
       }
+      run_due_notifications: { Args: never; Returns: number }
       run_invoice_reminders: {
         Args: { p_dry_run?: boolean; p_force?: boolean }
         Returns: {
@@ -3458,6 +4304,7 @@ export type Database = {
           to_emails: string[]
         }[]
       }
+      run_notification_emails: { Args: never; Returns: number }
       run_reminders: {
         Args: { p_dry_run?: boolean }
         Returns: {
@@ -3465,6 +4312,16 @@ export type Database = {
           kind: Database["public"]["Enums"]["reminder_kind"]
           sent: boolean
           subject: string
+        }[]
+      }
+      search: {
+        Args: { p_kind?: string; p_limit?: number; p_q: string }
+        Returns: {
+          id: string
+          kind: string
+          rank: number
+          subtitle: string
+          title: string
         }[]
       }
       send_reminder: {
@@ -3478,6 +4335,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      task_people: { Args: { p_item: string }; Returns: string[] }
+      task_visible: { Args: { p_item: string }; Returns: boolean }
       unbilled_summary: {
         Args: never
         Returns: {
@@ -3498,7 +4357,6 @@ export type Database = {
       void_invoice: { Args: { p_invoice_id: string }; Returns: undefined }
     }
     Enums: {
-      time_entry_status: "draft" | "submitted" | "approved" | "rejected"
       audit_action: "insert" | "update" | "delete"
       billing_batch_status:
         | "draft"
@@ -3512,6 +4370,7 @@ export type Database = {
       quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
       reminder_kind: "timer_left_running" | "missing_time" | "timesheet_nudge"
       retainer_basis: "hours" | "amount"
+      time_entry_status: "draft" | "submitted" | "approved" | "rejected"
       time_off_kind: "pto" | "holiday" | "unpaid" | "sick"
       work_priority: "low" | "normal" | "high" | "urgent"
     }
@@ -3655,6 +4514,7 @@ export const Constants = {
       quote_status: ["draft", "sent", "accepted", "declined", "expired"],
       reminder_kind: ["timer_left_running", "missing_time", "timesheet_nudge"],
       retainer_basis: ["hours", "amount"],
+      time_entry_status: ["draft", "submitted", "approved", "rejected"],
       time_off_kind: ["pto", "holiday", "unpaid", "sick"],
       work_priority: ["low", "normal", "high", "urgent"],
     },

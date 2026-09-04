@@ -21,7 +21,7 @@ export async function loadReviewDoc(admin: SupabaseClient<Database>, token: stri
 
   const [files, comments, settings] = await Promise.all([
     admin.from('work_item_files').select('id, file_name, size_bytes, content_type, path, created_at').eq('work_item_id', item.id).eq('kind', 'upload').order('created_at'),
-    admin.from('work_item_comments').select('id, author_id, author_name, body, created_at, visible_to_client, profiles(full_name)').eq('work_item_id', item.id).order('created_at'),
+    admin.from('work_item_comments').select('id, author_id, author_name, body, created_at, visible_to_client, profiles!work_item_comments_author_id_fkey(full_name)').eq('work_item_id', item.id).order('created_at'),
     admin.from('invoice_settings').select('company_name, company_email').eq('id', true).single(),
   ])
   for (const r of [files, comments, settings]) {

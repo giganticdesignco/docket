@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     admin.from('work_items').select('title, due_on, projects(name)').not('due_on', 'is', null).lte('due_on', new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)).gte('due_on', t),
     admin.rpc('project_budgets'),
     admin.from('projects').select('id, name, budget_hours, budget_amount').eq('is_active', true),
-    admin.from('time_entries').select('user_id, started_at, profiles(full_name)').is('ended_at', null).not('started_at', 'is', null),
+    admin.from('time_entries').select('user_id, started_at, profiles!time_entries_user_id_fkey(full_name)').is('ended_at', null).not('started_at', 'is', null),
   ])
   const over = (projects ?? []).map(p => ({ ...p, ...(budgets?.find(b => b.project_id === p.id) ?? {}) })).filter(p => (p.budget_hours && (p as { hours_used?: number }).hours_used! >= 0.8 * p.budget_hours) || (p.budget_amount && (p as { amount_used?: number }).amount_used! >= 0.8 * p.budget_amount))
   const facts = { week: { from: weekAgo, to: t, ...rollup }, unbilled, overdueInvoices, quotesExpiring: expiring, tasksDueThisWeek: unassigned, projectsPast80Percent: over, timersRunning: timers }

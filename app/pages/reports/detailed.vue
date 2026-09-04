@@ -153,7 +153,7 @@ async function run() {
     } else {
       const q = supabase
         .from('expenses')
-        .select('id, spent_on, amount, notes, is_billable, is_reimbursable, projects(name, clients(name)), expense_categories(name), profiles(full_name)')
+        .select('id, spent_on, amount, notes, is_billable, is_reimbursable, projects(name, clients(name)), expense_categories(name), profiles!expenses_user_id_fkey(full_name)')
         .gte('spent_on', config.from)
         .lte('spent_on', config.to)
         .order('spent_on')

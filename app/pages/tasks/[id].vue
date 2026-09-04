@@ -28,7 +28,7 @@ const __ad2 = useAsyncData(`task-${id}`, async () => {
 }, fresh)
 
 const __ad3 = useAsyncData(`task-${id}-comments`, async () => {
-  const { data, error } = await supabase.from('work_item_comments').select('*, profiles(full_name)').eq('work_item_id', id).order('created_at')
+  const { data, error } = await supabase.from('work_item_comments').select('*, profiles!work_item_comments_author_id_fkey(full_name)').eq('work_item_id', id).order('created_at')
   if (error) throw error
   return data
 }, fresh)

@@ -33,7 +33,7 @@ const __ad2 = useAsyncData(`batch-${id}-time`, async () => {
 const __ad3 = useAsyncData(`batch-${id}-expenses`, async () => {
   const { data, error } = await supabase
     .from('expenses')
-    .select('id, spent_on, amount, notes, receipt_path, projects(name), expense_categories(name), profiles(full_name)')
+    .select('id, spent_on, amount, notes, receipt_path, projects(name), expense_categories(name), profiles!expenses_user_id_fkey(full_name)')
     .eq('batch_id', id)
     .order('spent_on')
   if (error) throw error

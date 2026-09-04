@@ -133,7 +133,7 @@ export function docketTools(c: Caller): Tool[] {
       run: async (i) => {
         const [{ data: t }, { data: comments }] = await Promise.all([
           sb.from('work_items').select('id, title, description, status, priority, start_on, due_on, estimate_hours, client_decision, projects(name, clients(name)), work_item_assignees(profiles(full_name))').eq('id', String(i.id)).maybeSingle(),
-          sb.from('work_item_comments').select('body, author_name, visible_to_client, created_at, profiles(full_name)').eq('work_item_id', String(i.id)).order('created_at').limit(40),
+          sb.from('work_item_comments').select('body, author_name, visible_to_client, created_at, profiles!work_item_comments_author_id_fkey(full_name)').eq('work_item_id', String(i.id)).order('created_at').limit(40),
         ])
         return { task: t, comments }
       },

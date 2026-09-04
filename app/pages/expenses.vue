@@ -17,7 +17,7 @@ const everyone = persisted(prefs, 'everyone')
 const __ad1 = useAsyncData('expenses', async () => {
   let query = supabase
     .from('expenses')
-    .select('*, projects(name, clients(name)), expense_categories(name), profiles(full_name)')
+    .select('*, projects(name, clients(name)), expense_categories(name), profiles!expenses_user_id_fkey(full_name)')
     .gte('spent_on', `${year.value}-01-01`)
     .lte('spent_on', `${year.value}-12-31`)
     .order('spent_on', { ascending: false })

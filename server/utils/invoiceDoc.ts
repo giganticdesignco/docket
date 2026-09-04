@@ -20,7 +20,7 @@ export async function loadInvoiceDoc(supabase: SupabaseClient<Database>, where: 
       ? supabase.from('time_detail').select('spent_on, user_name, project_name, task_name, hours, notes').eq('batch_id', inv.batch_id).order('spent_on').order('user_name')
       : Promise.resolve({ data: [], error: null }),
     inv.batch_id
-      ? supabase.from('expenses').select('spent_on, amount, notes, projects(name), expense_categories(name), profiles(full_name)').eq('batch_id', inv.batch_id).order('spent_on')
+      ? supabase.from('expenses').select('spent_on, amount, notes, projects(name), expense_categories(name), profiles!expenses_user_id_fkey(full_name)').eq('batch_id', inv.batch_id).order('spent_on')
       : Promise.resolve({ data: [], error: null }),
   ])
   for (const r of [lines, payments, settings, time, expenses]) {
