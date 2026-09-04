@@ -292,9 +292,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
       </div>
       <div class="flex min-h-0 flex-1 flex-col gap-3 p-4">
         <div class="flex shrink-0 items-center gap-2">
-          <UButton size="xs" :variant="showHistory ? 'solid' : 'outline'" color="neutral" icon="i-lucide-history" @click="showHistory = !showHistory;">History</UButton>
-          <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="newChat">New chat</UButton>
-          <span v-if="conversationId && !showHistory" class="ml-auto truncate text-xs text-muted">{{ conversations?.find(c => c.id === conversationId)?.title }}</span>
+          <UButton size="xs" :variant="showHistory ? 'solid' : 'outline'" color="neutral" icon="i-lucide-history" class="shrink-0 whitespace-nowrap" @click="showHistory = !showHistory;">History</UButton>
+          <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" class="shrink-0 whitespace-nowrap" @click="newChat">New chat</UButton>
+          <span v-if="conversationId && !showHistory" class="ml-auto min-w-0 truncate text-xs text-muted">{{ conversations?.find(c => c.id === conversationId)?.title }}</span>
         </div>
 
         <!-- Past conversations -->

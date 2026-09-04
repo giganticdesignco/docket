@@ -3,6 +3,9 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxt/ui', '@nuxtjs/supabase'],
   css: ['~/assets/css/main.css'],
+  // docs/guide.md rides along as a server asset so the assistant can
+  // read the same user guide /help renders.
+  nitro: { serverAssets: [{ baseName: 'docs', dir: '../docs' }] },
   runtimeConfig: {
     // Server only. Set NUXT_HARVEST_ACCESS_TOKEN and NUXT_HARVEST_ACCOUNT_ID.
     harvestAccessToken: '',

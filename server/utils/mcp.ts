@@ -236,6 +236,15 @@ export function writeTools(c: Caller, origin: string): Tool[] {
       },
     },
     {
+      name: 'how_docket_works',
+      description: 'Look up how Docket itself works in the user guide: what a screen does, what a word means (batch, retainer, Up now, focus list), what a rule is. Use this for any "what is" or "how does" question about the app, before answering from memory. Returns the best matching guide sections with a link to /help.',
+      input_schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'] },
+      run: async (i) => {
+        const hits = await searchGuide(String(i.question ?? ''))
+        return hits.length ? hits.map(h => ({ section: h.title, url: `${origin}${h.path}`, text: h.text })) : { none: 'Nothing in the guide matches. Say so, and point at /help.' }
+      },
+    },
+    {
       name: 'list_feedback',
       description: 'Bugs, changes and ideas the team reported from inside Docket (kind bug: it does something wrong; change: it works, make it different; idea: something new), each with the page it came from, the element picked (a CSS path and its text) or the area drawn, and who sent it. Open ones by default; status "done" or "all" for the rest.',
       input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['open', 'done', 'all'] }, limit: { type: 'number' } } },

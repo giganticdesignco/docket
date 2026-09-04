@@ -478,6 +478,10 @@ it, with the client or project's real name.
 - **Ask** anything about time, tasks, budgets, clients, quotes, and
   invoices. It looks things up through the same rules you have, so it
   never shows you more than the app would.
+- **Ask how Docket works.** "What is a batch?", "How do retainers
+  renew?", "What does Up now mean?" It reads this guide and answers
+  from it, with a link to the section, so what it says is what the
+  guide says.
 - **Act.** It can log time, start or stop your timer, change an entry,
   create or update a task, assign people, comment, and add clients and
   projects. It acts only when you clearly ask, asks one question when

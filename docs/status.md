@@ -2466,3 +2466,18 @@ read only with a Harvest badge, open is sent, closed is written off
 (invoiced, never outstanding); the tiles count both; search on number,
 client or subject; 200 rows at a time with Show more. Outstanding and
 overdue on the page now equal the Harvest figures to the cent.
+
+## The assistant knows how Docket works (2026-09-04)
+
+Luke asked whether the assistant could answer "what is a batch and how
+does it work" from the Billing page; it could not, since it only had
+data tools. Now `how_docket_works(question)` (MCP and the chat) ranks
+the user guide's sections by the question's words and returns the
+best three with a link to /help; the system prompt says to use it for
+any "what is" or "how does" question and never to guess. The guide
+rides along as a Nitro server asset (`nitro.serverAssets`, docs
+folder). Teaching the assistant something new about the system is
+therefore the same act as documenting it: write it in the guide.
+Verified from Billing: the answer described batches, locking, the
+invoice, and voiding, all from the guide. Also from a screenshot: the
+assistant header's History and New chat no longer wrap.
