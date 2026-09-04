@@ -114,42 +114,26 @@ through `/portal`. Staff see their own time and expenses unless they have
 
 ## Where the build stands
 
-Steps 1 to 10 of the original order are done (auth through quoting,
-invoicing in Docket, capacity, ClickUp import). Phase 2 shipped
-2026-09-02: search, Gantt schedule, roles and permissions, client
-logins and portal, notifications and @mentions, Google Calendar,
-keyboard shortcuts, walkthrough, estimator, Harvest-style reports and
-rollups, sidebar rework, Mac desktop shell, AI assistant. Phase 3
-shipped 2026-09-02: view persistence, desktop update notice, modals to
-drawers, MCP server (`/api/mcp`, OAuth through Supabase, consent page at
-`/oauth/consent`, Claude card on the Account page). Phase 4 (the PM's
-Scoro notes, `docs/phase-4.md`) shipped 2026-09-03: project page
-upgrade, quote catalog and margins, quotes board, project templates,
-departments, inline timer, finer permissions, retainer page, Planner,
-Home dashboard, timesheet approvals, invoice cost and margin. Same day,
-after Phase 4: Planner laid out like Scoro (people by weekday, drag to
-plan, stretch, hours per day in `work_item_plans`), Capacity page
-removed, approvals routed to department leads, arrangeable table
-columns (`useColumns` + `TableHead`), Clients list money and team
-columns, client page team and tasks, Estimator to new quote, the
-morning brief (`/api/ai/brief`). On 2026-09-04: subtasks, Hills Bank
-removed, a private focus list, client page rework, the junk
-notification clean-up. `docs/status.md` has the detail per item, newest
-at the bottom.
+`docs/handoff.md` is the current state in one page; read it first.
+Steps 1 to 10 of the original order, then Phases 2, 3 and 4
+(`docs/phase-2.md` to `phase-4.md`) shipped 2026-09-02 and 09-03. On
+2026-09-04, eighty-five commits: Up now and Following
+(`docs/up-now.md`, all shipped), the full permissions tool
+(`docs/permissions.md`), retainers with terms, the feedback tool and
+its MCP tools, the agentic code review with all 78 findings fixed
+(the money gate at the database included), live updates on the task
+screens, the two rails, page-shaped skeletons, subtasks, breadcrumbs,
+one action row per document page, and the easter eggs.
+`docs/status.md` has the detail per item, newest at the bottom.
 
-**In progress: "Up now"** (`docs/up-now.md`). A task keeps everyone on
-it, and `work_items.assignee_id` says which one of them is up right
-now; null means nobody is, which is a shown state, not a hidden one.
-The schema is applied and mirrored; none of the UI reads it yet, so
-every screen still behaves as it did. Section 3 of that file is the
-ordered list of commits and its header block says which are done.
-Section 9, Following, added 2026-09-04, is a third layer under Also on
-it (bells only, no visibility, explicit Follow) that runs after item 5.
+Nothing is in progress. New work comes from the Feedback page:
+Luke approves rows there and a session works only from the Approved
+list (`list_feedback` on the connector).
 
-Open on Luke's side: set department leads and put people in
-departments (approvals fall to approve_time holders until then), an
-Apple Developer account to sign the Mac app, the Harvest admin token for
-invoice history, cancelling Harvest. MCP is live and verified.
+Open on Luke's side: department leads and departments, an Apple
+Developer account to sign the Mac app, the Harvest admin token and
+cancelling Harvest, and rates on projects, task types and people (none
+are set yet, so money is mostly blank).
 
 ## Gotchas
 

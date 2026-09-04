@@ -1,13 +1,13 @@
 # Status
 
-Chronological, newest at the bottom. Where things stand on 2026-09-03:
-Phases 1 through 4 are shipped (`docs/phase-2.md`, `phase-3.md`,
-`phase-4.md`), plus the same-day items after Phase 4 (Planner rework
-and hours per day, Capacity removed, department leads review time,
-arrangeable columns, Clients list columns, client page team and tasks,
-Estimator to new quote, morning brief). Open on Luke's side: assign
+Chronological, newest at the bottom. `docs/handoff.md` is the one-page
+summary of where things stand on 2026-09-04: Phases 1 through 4, then
+the 2026-09-04 work (Up now and Following, permissions, retainers, the
+feedback tool, the code review and its 78 fixes, live updates, the
+two rails and skeletons, and the rest). Open on Luke's side:
 department leads and departments, Apple Developer signing for the Mac
-app, the Harvest admin token for invoice history, cancelling Harvest.
+app, the Harvest admin token and cancelling Harvest, and rates on
+projects, task types and people.
 
 ## Phase 2, wave 2c: AI assistant (2026-09-02)
 
