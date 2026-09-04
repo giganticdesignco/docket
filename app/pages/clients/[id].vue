@@ -335,25 +335,31 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
       <section class="grid gap-2 lg:row-span-3 lg:grid-rows-subgrid">
         <h2 class="text-lg font-semibold">Team</h2>
         <p class="text-sm text-muted">Who works with this client: project leads, people on open tasks, and anyone with time here in the last 90 days.</p>
-        <UCard class="h-full" :ui="{ body: 'p-3 sm:p-4' }">
-          <ul v-if="team.length" class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
-            <li v-for="m in team" :key="m.id">
-              <button type="button" class="flex items-center gap-2 rounded-md p-1 -m-1 text-left transition-colors hover:bg-elevated" :title="`What ${m.name} does for this client`" @click="member = m;">
-              <span class="grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
-              <div>
-                <div class="font-medium">{{ m.name }}</div>
-                <div class="text-xs text-muted">
-                  <span v-if="m.leads.length" :title="m.leads.join(', ')">Lead on {{ m.leads.length }} {{ m.leads.length === 1 ? 'project' : 'projects' }}</span>
-                  <span v-if="m.leads.length && (m.tasks || m.hours)"> &middot; </span>
-                  <span v-if="m.tasks">{{ m.tasks }} open {{ m.tasks === 1 ? 'task' : 'tasks' }}</span>
-                  <span v-if="m.tasks && m.hours"> &middot; </span>
-                  <span v-if="m.hours" class="tabular-nums">{{ formatHours(m.hours) }} in 90 days</span>
-                </div>
-              </div>
-              </button>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-muted">Nobody yet. People show up here once they lead a project, take a task, or log time for this client.</p>
+        <UCard class="h-full" :ui="{ body: 'p-0 sm:p-0' }">
+          <table v-if="team.length" class="w-full text-sm">
+            <thead class="text-left text-xs text-muted">
+              <tr class="border-b border-default">
+                <th class="px-4 py-2 font-medium">Person</th>
+                <th class="px-2 py-2 font-medium">Leads</th>
+                <th class="px-2 py-2 text-right font-medium">Open tasks</th>
+                <th class="px-4 py-2 text-right font-medium">Last 90 days</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="m in team" :key="m.id" class="cursor-pointer border-b border-default transition-colors last:border-0 hover:bg-elevated" :title="`What ${m.name} does for this client`" @click="member = m;">
+                <td class="px-4 py-1.5">
+                  <span class="flex items-center gap-2">
+                    <span class="grid size-6 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
+                    <span class="font-medium">{{ m.name }}</span>
+                  </span>
+                </td>
+                <td class="max-w-40 truncate px-2 py-1.5 text-muted" :title="m.leads.join(', ')">{{ m.leads.length === 1 ? m.leads[0] : m.leads.length ? `${m.leads.length} projects` : '' }}</td>
+                <td class="px-2 py-1.5 text-right tabular-nums">{{ m.tasks || '' }}</td>
+                <td class="px-4 py-1.5 text-right tabular-nums">{{ m.hours ? formatHours(m.hours) : '' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="px-4 py-6 text-center text-sm text-muted">Nobody yet. People show up here once they lead a project, take a task, or log time for this client.</p>
         </UCard>
       </section>
     </div>

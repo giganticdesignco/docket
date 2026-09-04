@@ -105,6 +105,8 @@ async function createQuote() {
 // ---------- onto a quote ----------
 const quoteId = ref<string | undefined>(typeof route.query.quote === 'string' ? route.query.quote : undefined)
 const quoteOptions = computed(() => (quotes.value ?? []).map(q => ({ label: `${q.number} ${q.title} (${q.clients?.name})`, value: q.id })))
+// Grayed until there is a quote picked and a job to add, so it reads as off.
+const canAddToQuote = computed(() => !!quoteId.value && jobs.value.length > 0)
 const adding = ref(false)
 async function addToQuote(target = quoteId.value) {
   if (!target || !jobs.value.length) return
@@ -205,7 +207,7 @@ const printPage = () => window.print()
             <UButton variant="outline" color="neutral" size="sm" icon="i-lucide-printer" :disabled="!jobs.length" @click="printPage">Print</UButton>
             <template v-if="can('manage_quotes')">
               <USelectMenu v-model="quoteId" :items="quoteOptions" value-key="value" size="sm" class="w-64" placeholder="Pick a draft quote" />
-              <UButton size="sm" icon="i-lucide-file-signature" :loading="adding" :disabled="!quoteId || !jobs.length" @click="addToQuote()">Add to quote</UButton>
+              <UButton size="sm" icon="i-lucide-file-signature" :loading="adding" :disabled="!canAddToQuote" :variant="canAddToQuote ? 'solid' : 'subtle'" :color="canAddToQuote ? 'primary' : 'neutral'" :title="canAddToQuote ? 'Put these jobs on the quote as lines' : !jobs.length ? 'Save a job first' : 'Pick a draft quote first'" @click="addToQuote()">Add to quote</UButton>
               <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-plus" :disabled="!jobs.length" @click="creating = true;">New quote</UButton>
             </template>
           </div>

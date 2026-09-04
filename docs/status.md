@@ -2731,3 +2731,12 @@ canvas centers in its card and a full-screen button gives it the whole
 window; Esc comes back. Verified on a marked test quote with four
 pages (centered with equal margins, the overlay filled 2560 by 1267),
 then deleted.
+
+## 2026-09-04: two more from the feedback list
+
+The Estimator's "Add to quote" button reads as off when it is off:
+neutral and subtle until a draft quote is picked and a job saved, with
+a title saying which is missing. The client page's Team card is a
+table (Person, Leads, Open tasks, Last 90 days) instead of a wrapped
+row of chips; a row click still opens the person's drawer. Verified
+in Chrome on the Estimator and on Webster Bank's page.
