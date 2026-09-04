@@ -195,6 +195,29 @@ const billingTiles = computed(() => {
   ]
 })
 
+// Who is on each project: its lead, plus anyone on one of its open tasks.
+const projectTeam = computed(() => {
+  const m = new Map<string, Set<string>>()
+  const add = (pid: string, uid: string | null) => { if (!uid) return; const set = m.get(pid) ?? new Set<string>(); set.add(uid); m.set(pid, set) }
+  for (const pr of projects.value ?? []) add(pr.id, pr.lead_id)
+  for (const t of openTasks.value ?? []) for (const a of t.work_item_assignees) add(t.project_id, a.user_id)
+  return new Map([...m.entries()].map(([pid, set]) => [pid, [...set].map(nameOf).filter(Boolean).sort()]))
+})
+const teamOn = (projectId: string) => projectTeam.value.get(projectId) ?? []
+
+// Same sort, reorder and show/hide controls as the main lists.
+type ProjectRow = NonNullable<typeof projects.value>[number]
+const projectCols = await useColumns<ProjectRow>('client-projects', [
+  { key: 'name', label: 'Name', sort: p => p.name, always: true },
+  { key: 'code', label: 'Code', sort: p => p.code, hidden: true },
+  { key: 'billing', label: 'Billing', sort: p => p.billing_method },
+  { key: 'team', label: 'Team', sort: p => teamOn(p.id).join(', ') },
+  { key: 'hours', label: 'Hours', align: 'right', sort: p => burn(p.id)?.hours_used ?? 0 },
+  { key: 'budget', label: 'Budget', align: 'right', sort: p => (p.budget_hours ? usedPct(burn(p.id)?.hours_used ?? 0, p.budget_hours) : p.budget_amount ? usedPct(burn(p.id)?.amount_used ?? 0, p.budget_amount) : null) },
+  { key: 'status', label: 'Status', sort: p => (p.is_active ? 0 : 1) },
+])
+const projectRows = computed(() => projectCols.sorted(projects.value ?? []))
+
 const projectName = (projectId: string | null) => projects.value?.find(p => p.id === projectId)?.name ?? 'All projects'
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n) : money(n))
@@ -275,20 +298,21 @@ const invoiceLabel = (inv: InvoiceLike) =>
       <dd>{{ client.qbo_customer_id }}</dd>
     </dl>
 
-    <ReportRollup variant="tiles" :from="`${year}-01-01`" :to="`${year}-12-31`" :client="client.name" :extra="billingTiles" />
+    <!-- Hours is dropped here: almost everything for a client is billable, so it repeats Billable hours. -->
+    <ReportRollup variant="tiles" rate :omit="['Hours']" :from="`${year}-01-01`" :to="`${year}-12-31`" :client="client.name" :extra="billingTiles" />
     <p v-if="billingTiles.length" class="-mt-4 text-xs text-muted">
-      Hours are this year. Invoiced and paid show this year with the lifetime figure under them, outstanding covers every year<template v-if="firstInvoiceYear"> back to {{ firstInvoiceYear }}</template>. Docket and Harvest invoices count together, and an invoice written off in Harvest counts as invoiced but never as outstanding.
+      Hours, billable amount and the effective rate (billable amount over billable hours) are this year. Invoiced and paid show this year with the lifetime figure under them, outstanding covers every year<template v-if="firstInvoiceYear"> back to {{ firstInvoiceYear }}</template>. Docket and Harvest invoices count together, and an invoice written off in Harvest counts as invoiced but never as outstanding.
     </p>
 
     <!-- Who can sign in, and who works on it: side by side, since both are short. -->
-    <div class="grid gap-6 lg:grid-cols-2">
-      <section v-if="canBill" class="space-y-2">
+    <div class="grid gap-x-6 gap-y-2 lg:grid-cols-2 lg:grid-rows-[auto_auto_1fr]">
+      <section v-if="canBill" class="grid gap-2 lg:row-span-3 lg:grid-rows-subgrid">
         <div class="flex items-center gap-3">
           <h2 class="text-lg font-semibold">Contacts</h2>
           <UButton class="ml-auto shrink-0" size="xs" variant="outline" icon="i-lucide-user-plus" @click="inviting = true;">Invite a contact</UButton>
         </div>
         <p class="text-sm text-muted">People who can sign in to see this client's quotes, invoices, and reviews.</p>
-        <UCard :ui="{ body: 'p-0 sm:p-0' }">
+        <UCard class="h-full" :ui="{ body: 'p-0 sm:p-0' }">
           <ul v-if="contacts?.length" class="divide-y divide-default text-sm">
             <li v-for="c in contacts" :key="c.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
               <div class="min-w-0 flex-1">
@@ -304,10 +328,10 @@ const invoiceLabel = (inv: InvoiceLike) =>
         </UCard>
       </section>
 
-      <section class="space-y-2">
+      <section class="grid gap-2 lg:row-span-3 lg:grid-rows-subgrid">
         <h2 class="text-lg font-semibold">Team</h2>
         <p class="text-sm text-muted">Who works with this client: project leads, people on open tasks, and anyone with time here in the last 90 days.</p>
-        <UCard :ui="{ body: 'p-3 sm:p-4' }">
+        <UCard class="h-full" :ui="{ body: 'p-3 sm:p-4' }">
           <ul v-if="team.length" class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
             <li v-for="m in team" :key="m.id" class="flex items-center gap-2">
               <span class="grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
@@ -334,43 +358,41 @@ const invoiceLabel = (inv: InvoiceLike) =>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
-      <table class="w-full text-sm">
-        <thead class="text-left text-muted">
-          <tr class="border-b border-default">
-            <th class="px-4 py-2 font-medium">Name</th>
-            <th class="px-4 py-2 font-medium">Code</th>
-            <th class="px-4 py-2 font-medium">Billing</th>
-            <th class="px-4 py-2 text-right font-medium">Hours</th>
-            <th class="px-4 py-2 text-right font-medium">Budget</th>
-            <th class="px-4 py-2 font-medium">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="p in projects" :key="p.id" class="border-b border-default last:border-0">
-            <td class="px-4 py-2"><NuxtLink :to="`/projects/${p.id}`" class="font-medium hover:underline">{{ p.name }}</NuxtLink></td>
-            <td class="px-4 py-2 text-muted">{{ p.code }}</td>
-            <td class="px-4 py-2">{{ billingLabel(p.billing_method) }}</td>
-            <td class="px-4 py-2 text-right tabular-nums">{{ formatHours(burn(p.id)?.hours_used ?? 0) }}</td>
-            <td class="px-4 py-2 text-right tabular-nums">
-              <template v-if="p.budget_hours && burn(p.id)">
-                <span :class="usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.hours_used, p.budget_hours) }}%</span>
-                <span class="text-muted"> of {{ formatHours(p.budget_hours) }}</span>
-              </template>
-              <template v-else-if="p.budget_amount && burn(p.id) && seeMoney">
-                <span :class="usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.amount_used, p.budget_amount) }}%</span>
-                <span class="text-muted"> of {{ money(p.budget_amount) }}</span>
-              </template>
-              <span v-else class="text-muted">No budget</span>
-            </td>
-            <td class="px-4 py-2">
-              <UBadge :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
-            </td>
-          </tr>
-          <tr v-if="!projects?.length">
-            <td colspan="6" class="px-4 py-8 text-center text-muted">No projects for this client.</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="w-full text-sm">
+          <TableHead :cols="projectCols" />
+          <tbody>
+            <tr v-for="p in projectRows" :key="p.id" class="border-b border-default last:border-0">
+              <td v-for="c in projectCols.visible" :key="c.key" class="px-4 py-2" :class="c.align === 'right' ? 'text-right tabular-nums' : ''">
+                <NuxtLink v-if="c.key === 'name'" :to="`/projects/${p.id}`" class="font-medium hover:underline">{{ p.name }}</NuxtLink>
+                <span v-else-if="c.key === 'code'" class="text-muted">{{ p.code }}</span>
+                <template v-else-if="c.key === 'billing'">{{ billingLabel(p.billing_method) }}</template>
+                <span v-else-if="c.key === 'team'" class="flex -space-x-1.5" :title="teamOn(p.id).join(', ')">
+                  <span v-for="n in teamOn(p.id).slice(0, 5)" :key="n" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(n) }}</span>
+                  <span v-if="teamOn(p.id).length > 5" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ teamOn(p.id).length - 5 }}</span>
+                </span>
+                <template v-else-if="c.key === 'hours'">{{ formatHours(burn(p.id)?.hours_used ?? 0) }}</template>
+                <template v-else-if="c.key === 'budget'">
+                  <template v-if="p.budget_hours && burn(p.id)">
+                    <span :class="usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.hours_used, p.budget_hours)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.hours_used, p.budget_hours) }}%</span>
+                    <span class="text-muted"> of {{ formatHours(p.budget_hours) }}</span>
+                  </template>
+                  <template v-else-if="p.budget_amount && burn(p.id) && seeMoney">
+                    <span :class="usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 100 ? 'text-error' : usedPct(burn(p.id)!.amount_used, p.budget_amount)! >= 80 ? 'text-warning' : ''">{{ usedPct(burn(p.id)!.amount_used, p.budget_amount) }}%</span>
+                    <span class="text-muted"> of {{ money(p.budget_amount) }}</span>
+                  </template>
+                  <span v-else class="text-muted">No budget</span>
+                </template>
+                <UBadge v-else-if="c.key === 'status'" :color="p.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ p.is_active ? 'Active' : 'Inactive' }}</UBadge>
+              </td>
+              <td />
+            </tr>
+            <tr v-if="!projectRows.length">
+              <td :colspan="projectCols.visible.length + 1" class="px-4 py-8 text-center text-muted">No projects for this client.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </UCard>
 
     <div class="flex items-center gap-4">

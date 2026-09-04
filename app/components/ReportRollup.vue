@@ -16,6 +16,12 @@ const props = withDefaults(defineProps<{
   // so a page can put its own numbers in the same grid.
   variant?: 'card' | 'tiles'
   extra?: { label: string, value: string, sub?: string, subClass?: string }[]
+  // Labels to leave out, for a page where one of them says nothing new.
+  omit?: string[]
+  // What an hour of billable work actually earned, billable amount over
+  // billable hours. Off by default, since it only reads as a rate where
+  // the work is mostly hourly.
+  rate?: boolean
 }>(), { title: 'This year', compare: true, variant: 'card' })
 
 const supabase = useSupabaseClient()
@@ -55,7 +61,13 @@ const stats = computed<Stat[]>(() => {
   const s = (label: string, k: keyof typeof now, fmt: (n: number) => string): Stat => ({ label, value: fmt(Number(now[k])), now: Number(now[k]), then: then ? Number(then[k]) : null })
   const base = [s('Hours', 'hours', hoursText), s('Billable hours', 'billable_hours', hoursText)]
   if (!seeMoney.value) return base
-  return [...base, s('Billable amount', 'billable_amount', money0), s('Uninvoiced', 'uninvoiced_amount', money0), s('Expenses', 'expenses', money0)]
+  const out = [...base, s('Billable amount', 'billable_amount', money0), s('Uninvoiced', 'uninvoiced_amount', money0), s('Expenses', 'expenses', money0)]
+  if (props.rate) {
+    // Fixed fee and non-billable work skew this, so it is an average, not a rate card.
+    const per = (r: typeof now | null) => (r && Number(r.billable_hours) > 0 ? Number(r.billable_amount) / Number(r.billable_hours) : 0)
+    out.push({ label: 'Effective rate', value: per(now) ? `${money0(per(now))} / hour` : '', now: per(now), then: then ? per(then) : null })
+  }
+  return out
 })
 function delta(st: Stat): { text: string, color: string } | null {
   if (st.then == null) return null
@@ -68,7 +80,8 @@ function delta(st: Stat): { text: string, color: string } | null {
 // One list the tile layout renders: this component's own stats, then
 // whatever the page handed in.
 const tiles = computed(() => [
-  ...stats.value.map(st => ({ label: st.label, value: st.value, sub: delta(st)?.text, subClass: delta(st)?.color })),
+  ...stats.value.filter(st => !(props.omit ?? []).includes(st.label))
+    .map(st => ({ label: st.label, value: st.value, sub: delta(st)?.text, subClass: delta(st)?.color })),
   ...(props.extra ?? []),
 ])
 

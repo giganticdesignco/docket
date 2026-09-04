@@ -1209,7 +1209,14 @@ Next is step 6: reminders + email.
 - `/admin/expense-categories`: same shape as tasks. 24 categories were
   seeded from Harvest's list (trailing space trimmed on "GDCO - Apparel").
 - Header: admin pages moved into an Admin dropdown (Tasks, Expense
-  categories, Harvest import) so the bar stays short.
+  categories, Harvest import) so the bar stays short, aligned with `grid-rows-subgrid` so the two cards start and end
+together whatever the copy wraps to. Hours is dropped from the client
+tiles (`omit`) because almost all of this studio's work is billable, so
+it repeated Billable hours, and an Effective rate tile (billable amount
+over billable hours, behind the `rate` prop) took the freed slot. The
+client page's Projects table moved onto `useColumns` + `TableHead` as
+`columns:client-projects`, with a Team column (project lead plus anyone
+on one of its open tasks) and Code hidden by default.
 
 Verified in Chrome as luke@: added an expense with a PNG receipt, the
 object landed at `receipts/<luke>/<uuid>.png` with owner set, the
