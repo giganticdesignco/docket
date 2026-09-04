@@ -4020,3 +4020,50 @@ from (select work_item_id, min(user_id::text)::uuid as user_id
       from work_item_assignees group by work_item_id having count(*) = 1) f
 where f.work_item_id = w.id;
 alter table work_items enable trigger user;
+
+-- ============================================================
+-- FOLLOWING
+-- A third layer under work_item_assignees. A follower gets the task's
+-- comment, status and client-decision bells and nothing else. It is not
+-- membership: task_visible() does not read it, so you can only follow a
+-- task you can already see, and a follower who can no longer see the
+-- task (taken off it, without see_all_tasks) stops getting bells
+-- without anyone having to tidy the row.
+-- ============================================================
+
+create table work_item_followers (
+  work_item_id uuid not null references work_items(id) on delete cascade,
+  user_id      uuid not null references profiles(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  primary key (work_item_id, user_id)
+);
+create index work_item_followers_user on work_item_followers (user_id);
+
+alter table work_item_followers enable row level security;
+
+-- Everyone who can see the task can see who follows it.
+create policy visible_select on work_item_followers for select to authenticated
+  using (case when (select public.has_permission('see_all_tasks')) then true else public.task_visible(work_item_id) end);
+-- You follow and unfollow only as yourself, only on a task you can see.
+create policy own_write on work_item_followers for all to authenticated
+  using (user_id = (select auth.uid()) and not (select public.is_client()))
+  with check (user_id = (select auth.uid()) and not (select public.is_client())
+              and case when (select public.has_permission('see_all_tasks')) then true else public.task_visible(work_item_id) end);
+
+-- Followers join the fan-out for comment, client_comment, status and
+-- client_decision. Nothing else reads task_people, so the due bell, the
+-- unowned nudge, assigned, turn and mentions are all unchanged.
+-- A follower is included only while their role can still see the task
+-- from the outside; people on the task or who created it are already
+-- in the first two branches.
+create or replace function public.task_people(p_item uuid) returns setof uuid
+language sql stable set search_path = '' as $$
+  select a.user_id from public.work_item_assignees a where a.work_item_id = p_item
+  union
+  select w.created_by from public.work_items w where w.id = p_item and w.created_by is not null
+  union
+  select f.user_id from public.work_item_followers f
+  join public.profiles pr on pr.id = f.user_id and pr.is_active and pr.role <> 'client'
+  where f.work_item_id = p_item
+    and (pr.role = 'admin' or exists (select 1 from public.permissions p where p.role = pr.role and p.key = 'see_all_tasks'));
+$$;

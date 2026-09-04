@@ -639,8 +639,9 @@ Effort: half a day for Stage 1, four days for Stage 2.
 
 ### Where this stands (2026-09-04)
 
-Not started. Runs after section 3 item 5 and before item 6. Four
-commits, F1 to F4, listed under "The commits" below.
+F1 shipped 2026-09-04: migration `following` applied through the
+Supabase MCP, mirrored at the end of `schema.sql`, types regenerated.
+Nothing in the UI reads it yet. Next: F2, the task page row.
 
 ### What it is
 
