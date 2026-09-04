@@ -1,25 +1,18 @@
-import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/server'
+import { serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~~/shared/types/database'
 
-// Email a quote's link to the client. Admin only; the quote is read
-// through RLS, the Resend key through the service role. A first send
-// moves a draft to sent.
+// Email a quote's link to the client. Needs the Quotes permission; the
+// quote is read through RLS, the Resend key through the service role. A
+// first send moves a draft to sent.
 
 type Body = { quoteId?: string, to?: string[], message?: string }
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event)
-  const to = [...new Set((body.to ?? []).map(s => s.trim()).filter(Boolean))]
   if (!body.quoteId) throw createError({ statusCode: 400, statusMessage: 'quoteId is required' })
-  if (!to.length || to.length > 10 || to.some(e => !EMAIL.test(e))) {
-    throw createError({ statusCode: 400, statusMessage: 'Give one to ten valid email addresses' })
-  }
+  const to = cleanRecipients(body.to)
 
-  const supabase = await serverSupabaseClient<Database>(event)
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin')
-  if (adminErr || !isAdmin) throw createError({ statusCode: 403, statusMessage: 'Admins only' })
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await requireStaff(event, 'manage_quotes')
   const doc = await loadQuoteDoc(supabase, { id: body.quoteId })
   if (!doc) throw createError({ statusCode: 404, statusMessage: 'Quote not found' })
   if (doc.quote.status !== 'draft' && doc.quote.status !== 'sent') throw createError({ statusCode: 400, statusMessage: `This quote is ${doc.quote.status}` })
@@ -55,7 +48,7 @@ ${doc.quote.valid_until ? `<tr><td style="padding:2px 16px 2px 0;color:#555">Val
   return { to, link }
 })
 
-async function tokenFor(supabase: Awaited<ReturnType<typeof serverSupabaseClient<Database>>>, id: string) {
+async function tokenFor(supabase: Awaited<ReturnType<typeof requireStaff>>['supabase'], id: string) {
   const { data } = await supabase.from('quotes').select('public_token').eq('id', id).single()
   return data?.public_token ?? ''
 }

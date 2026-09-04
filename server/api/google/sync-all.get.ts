@@ -4,9 +4,7 @@ import type { Database } from '~~/shared/types/database'
 // Nightly, from the Vercel cron in vercel.json. Vercel sends the
 // CRON_SECRET as a bearer token; nothing else may call this.
 export default defineEventHandler(async (event) => {
-  const secret = useRuntimeConfig().cronSecret
-  const auth = getHeader(event, 'authorization') ?? ''
-  if (!secret || auth !== `Bearer ${secret}`) throw createError({ statusCode: 401, statusMessage: 'Not for you' })
+  requireCron(event)
   const admin = serverSupabaseServiceRole<Database>(event)
   const { data: people } = await admin.from('google_tokens').select('user_id')
   const results: Record<string, number | string> = {}

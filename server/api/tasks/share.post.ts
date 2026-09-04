@@ -1,23 +1,21 @@
-import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/server'
+import { serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~~/shared/types/database'
 
-// Email a task's review link to the client. Any signed-in team member;
-// the task is read through RLS, the Resend key through the service role.
+// Email a task's review link to the client. Any signed-in team member
+// (never a client login); the task is read through RLS, the Resend key
+// through the service role. The message is a short note on top of a
+// fixed body, so this cannot be used to send arbitrary mail as the studio.
 
 type Body = { taskId?: string, to?: string[], message?: string, markClientReview?: boolean }
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event)
-  const to = [...new Set((body.to ?? []).map(s => s.trim()).filter(Boolean))]
   if (!body.taskId) throw createError({ statusCode: 400, statusMessage: 'taskId is required' })
-  if (!to.length || to.length > 10 || to.some(e => !EMAIL.test(e))) {
-    throw createError({ statusCode: 400, statusMessage: 'Give one to ten valid email addresses' })
-  }
+  const to = cleanRecipients(body.to)
+  const note = (body.message ?? '').trim()
+  if (note.length > 1000) throw createError({ statusCode: 400, statusMessage: 'Keep the note under 1000 characters' })
 
-  const supabase = await serverSupabaseClient<Database>(event)
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw createError({ statusCode: 403, statusMessage: 'Sign in first' })
+  const { supabase, user } = await requireStaff(event)
   const { data: task, error } = await supabase
     .from('work_items')
     .select('id, title, public_token, status, shared_at, projects(name, clients(name))')
@@ -32,7 +30,7 @@ export default defineEventHandler(async (event) => {
   const { data: me } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single()
 
   const link = `${await appOrigin(admin, getRequestURL(event).origin)}/r/${task.public_token}`
-  const intro = (body.message ?? '').trim() || `${task.title} is ready for your review.`
+  const intro = note || `${task.title} is ready for your review.`
   const subject = `For review: ${task.title}`
   const text = [intro, `Have a look, leave comments, and approve or request changes here:\n${link}`, `Thanks,\n${me?.full_name ?? company}\n${company}`].join('\n\n')
   const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;max-width:560px">

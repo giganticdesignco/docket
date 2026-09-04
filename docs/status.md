@@ -2549,3 +2549,26 @@ client_money, matching what create_billing_batch enforces;
 run_notification_emails picks each person's rows once and marks
 exactly those sent; task_people asks user_has_permission() for
 followers, so per-person overrides reach them.
+
+## Review fixes, tranche 2: the server (2026-09-04)
+
+Nineteen approved findings, all in server code. A `guard.ts` with
+requireCron, requireStaff(permission), cleanRecipients and pageAll
+replaces the preambles every route wrote for itself; quotes/send,
+invoices/send and the two import routes now check the Quotes,
+Invoices and Settings permissions instead of the Admin role, which is
+what the guide always said; the share-for-review route is team only
+with a capped note; invoices/send and the digest use the shared
+sendEmail, and the brief and digest call the exported callModel. The
+review page's comment and decision routes no longer email the team
+directly (the database triggers bell everyone and email follows each
+person's setting). The review page refuses a deleted task and hides
+deleted comments, and a client contact's own comment sits on the
+client's side. The Harvest sync keeps rows a billing batch has
+claimed locked; the ClickUp sync writes only tasks that changed and
+skips ones deleted in Docket instead of failing. The brief's day
+window follows Chicago's real offset and its "waiting for your
+approval" fact follows the approve-time permission and overrides; the
+digest lists only open, undeleted tasks. MCP update_task surfaces
+refused assignee writes, list_projects and list_clients filter in the
+database, and the guide search stems only a trailing s.

@@ -15,13 +15,14 @@ export async function loadReviewDoc(admin: SupabaseClient<Database>, token: stri
     .from('work_items')
     .select('id, title, description, status, due_on, client_decision, client_decision_by, client_decision_at, updated_at, projects(name, clients(name))')
     .eq('public_token', token)
+    .is('deleted_at', null)
     .maybeSingle()
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
   if (!item) return null
 
   const [files, comments, settings] = await Promise.all([
     admin.from('work_item_files').select('id, file_name, size_bytes, content_type, path, created_at').eq('work_item_id', item.id).eq('kind', 'upload').order('created_at'),
-    admin.from('work_item_comments').select('id, author_id, author_name, body, created_at, visible_to_client, profiles!work_item_comments_author_id_fkey(full_name)').eq('work_item_id', item.id).order('created_at'),
+    admin.from('work_item_comments').select('id, author_id, author_name, body, created_at, visible_to_client, profiles!work_item_comments_author_id_fkey(full_name, role)').eq('work_item_id', item.id).is('deleted_at', null).order('created_at'),
     admin.from('invoice_settings').select('company_name, company_email').eq('id', true).single(),
   ])
   for (const r of [files, comments, settings]) {
@@ -51,16 +52,18 @@ export async function loadReviewDoc(admin: SupabaseClient<Database>, token: stri
     files: (files.data ?? [])
       .filter(f => f.path && urlByPath.get(f.path))
       .map(f => ({ id: f.id, file_name: f.file_name, size_bytes: f.size_bytes, content_type: f.content_type, url: urlByPath.get(f.path!)!, created_at: f.created_at })),
+    // A comment is the client's when nobody at the studio wrote it: no
+    // author, or an author whose profile is a client contact.
     comments: (comments.data ?? [])
       .filter(c => c.author_id == null || c.visible_to_client)
-      .map(c => ({ id: c.id, author: c.author_id ? (c.profiles?.full_name ?? 'Gigantic') : (c.author_name ?? 'Client'), is_client: c.author_id == null, body: c.body, created_at: c.created_at })),
+      .map(c => ({ id: c.id, author: c.author_id ? (c.profiles?.full_name ?? 'Gigantic') : (c.author_name ?? 'Client'), is_client: c.author_id == null || c.profiles?.role === 'client', body: c.body, created_at: c.created_at })),
   }
 }
 
 // Shared by the comment and decision routes: the task behind a token, or 404.
 export async function reviewTask(admin: SupabaseClient<Database>, token: string) {
   if (!REVIEW_TOKEN.test(token)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
-  const { data, error } = await admin.from('work_items').select('id, title, status, projects(name, clients(name))').eq('public_token', token).maybeSingle()
+  const { data, error } = await admin.from('work_items').select('id, title, status, projects(name, clients(name))').eq('public_token', token).is('deleted_at', null).maybeSingle()
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
   if (!data) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   return data

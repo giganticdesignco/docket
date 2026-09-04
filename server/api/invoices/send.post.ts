@@ -1,4 +1,4 @@
-import { serverSupabaseClient, serverSupabaseServiceRole } from '#supabase/server'
+import { serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~~/shared/types/database'
 
 // Email an invoice (or an overdue reminder for it) through Resend. Runs as
@@ -8,22 +8,13 @@ import type { Database } from '~~/shared/types/database'
 
 type Body = { invoiceId?: string, to?: string[], message?: string, kind?: 'invoice' | 'reminder' }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event)
   const kind = body.kind === 'reminder' ? 'reminder' : 'invoice'
-  const to = [...new Set((body.to ?? []).map(s => s.trim()).filter(Boolean))]
-  if (!body.invoiceId) throw createError({ statusCode: 400, statusMessage: 'invoiceId is required' })
-  if (!to.length || to.length > 10 || to.some(e => !EMAIL.test(e))) {
-    throw createError({ statusCode: 400, statusMessage: 'Give one to ten valid email addresses' })
-  }
+  const to = cleanRecipients(body.to)
 
-  const supabase = await serverSupabaseClient<Database>(event)
-  // Signed out, is_admin() is not even callable (revoked from anon), so
-  // an error here means the same thing as false.
-  const { data: isAdmin, error: adminErr } = await supabase.rpc('is_admin')
-  if (adminErr || !isAdmin) throw createError({ statusCode: 403, statusMessage: 'Admins only' })
+  const { supabase } = await requireStaff(event, 'manage_invoices')
 
   const doc = await loadInvoiceDoc(supabase, { id: body.invoiceId })
   if (!doc) throw createError({ statusCode: 404, statusMessage: 'Invoice not found' })
@@ -32,12 +23,6 @@ export default defineEventHandler(async (event) => {
   if (!doc.lines.length) throw createError({ statusCode: 400, statusMessage: 'Add at least one line before sending' })
 
   const admin = serverSupabaseServiceRole<Database>(event)
-  const [{ data: key }, { data: fromSecret }] = await Promise.all([
-    admin.rpc('vault_secret', { p_name: 'resend_api_key' }),
-    admin.rpc('vault_secret', { p_name: 'resend_from' }),
-  ])
-  if (!key) throw createError({ statusCode: 500, statusMessage: 'resend_api_key is not in Vault' })
-  const from = fromSecret ?? 'Docket <onboarding@resend.dev>'
 
   const link = `${await appOrigin(admin, getRequestURL(event).origin)}/i/${doc.invoice.public_token}`
   const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -70,19 +55,8 @@ ${doc.settings.payment_instructions ? para(doc.settings.payment_instructions) : 
 ${para(`Thank you,\n${company}`)}
 </div>`
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from, to, subject, text, html,
-      ...(doc.settings.company_email ? { reply_to: doc.settings.company_email } : {}),
-    }),
-  })
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 300)
-    throw createError({ statusCode: 502, statusMessage: `Resend ${res.status}: ${detail}` })
-  }
-  const { id } = await res.json() as { id: string }
+  const sent = await sendEmail(admin, { to, subject, text, html, replyTo: doc.settings.company_email ?? undefined })
+  if (!sent.ok) throw createError({ statusCode: 502, statusMessage: sent.error })
 
   const now = new Date().toISOString()
   const { data: current } = await supabase.from('invoices').select('status, sent_at, sent_to').eq('id', doc.invoice.id).single()
@@ -93,5 +67,5 @@ ${para(`Thank you,\n${company}`)}
   const { error: updErr } = await supabase.from('invoices').update(patch).eq('id', doc.invoice.id)
   if (updErr) throw createError({ statusCode: 500, statusMessage: `Sent, but could not update the invoice: ${updErr.message}` })
 
-  return { id, to, subject }
+  return { to, subject }
 })

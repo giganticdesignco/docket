@@ -9,9 +9,7 @@ import type { Database } from '~~/shared/types/database'
 // this. Runs with the service role; the imports are the same code the
 // admin Imports pages run.
 export default defineEventHandler(async (event) => {
-  const secret = useRuntimeConfig().cronSecret
-  const auth = getHeader(event, 'authorization') ?? ''
-  if (!secret || auth !== `Bearer ${secret}`) throw createError({ statusCode: 401, statusMessage: 'Not for you' })
+  requireCron(event)
   const admin = serverSupabaseServiceRole<Database>(event)
   const cfg = useRuntimeConfig()
   // ?dry=1 checks the tokens and the wiring without writing anything.

@@ -44,9 +44,20 @@ export function writeTools(c: Caller, origin: string): Tool[] {
       description: 'Active projects with their client and id. Optional q filters by project or client name. Use the id with log_time, start_timer, and create_task.',
       input_schema: { type: 'object', properties: { q: { type: 'string' } } },
       run: async (i) => {
-        const { data } = await sb.from('projects').select('id, name, code, is_active, clients(name)').eq('is_active', true).order('name').limit(300)
-        const q = str(i.q)?.toLowerCase()
-        return (data ?? []).filter(p => !q || p.name.toLowerCase().includes(q) || (p.clients?.name ?? '').toLowerCase().includes(q)).map(p => ({ id: p.id, project: p.name, client: p.clients?.name, code: p.code }))
+        // The match runs in the database: by project name, or by the client's
+        // name (PostgREST cannot OR across the embedded table, so two queries).
+        const q = str(i.q)?.replace(/[%,()]/g, '')
+        const base = () => sb.from('projects').select('id, name, code, is_active, clients(name)').eq('is_active', true).order('name').limit(50)
+        let rows = (await (q ? base().ilike('name', `%${q}%`) : base())).data ?? []
+        if (q && rows.length < 50) {
+          const { data: byClient } = await sb.from('clients').select('id').ilike('name', `%${q}%`).limit(20)
+          if (byClient?.length) {
+            const seen = new Set(rows.map(r => r.id))
+            const { data: more } = await base().in('client_id', byClient.map(c => c.id))
+            rows = [...rows, ...(more ?? []).filter(r => !seen.has(r.id))].slice(0, 50)
+          }
+        }
+        return rows.map(p => ({ id: p.id, project: p.name, client: p.clients?.name, code: p.code }))
       },
     },
     {
@@ -60,9 +71,11 @@ export function writeTools(c: Caller, origin: string): Tool[] {
       description: 'Clients with ids. Optional q filters by name. Use the id with create_project.',
       input_schema: { type: 'object', properties: { q: { type: 'string' } } },
       run: async (i) => {
-        const { data } = await sb.from('clients').select('id, name, is_active').order('name').limit(500)
-        const q = str(i.q)?.toLowerCase()
-        return (data ?? []).filter(c => !q || c.name.toLowerCase().includes(q)).map(c => ({ id: c.id, name: c.name, is_active: c.is_active }))
+        const q = str(i.q)
+        let query = sb.from('clients').select('id, name, is_active').order('name').limit(50)
+        if (q) query = query.ilike('name', `%${q.replace(/[%,()]/g, '')}%`)
+        const { data } = await query
+        return (data ?? []).map(c => ({ id: c.id, name: c.name, is_active: c.is_active }))
       },
     },
     {
@@ -222,8 +235,14 @@ export function writeTools(c: Caller, origin: string): Tool[] {
         }
         const add = Array.isArray(i.add_assignee_ids) ? i.add_assignee_ids.map(String) : []
         const drop = Array.isArray(i.remove_assignee_ids) ? i.remove_assignee_ids.map(String) : []
-        if (drop.length) await sb.from('work_item_assignees').delete().eq('work_item_id', id).in('user_id', drop)
-        if (add.length) await sb.from('work_item_assignees').upsert(add.map(user_id => ({ work_item_id: id, user_id })), { onConflict: 'work_item_id,user_id', ignoreDuplicates: true })
+        if (drop.length) {
+          const { error } = await sb.from('work_item_assignees').delete().eq('work_item_id', id).in('user_id', drop)
+          if (error) throw new Error(error.message)
+        }
+        if (add.length) {
+          const { error } = await sb.from('work_item_assignees').upsert(add.map(user_id => ({ work_item_id: id, user_id })), { onConflict: 'work_item_id,user_id', ignoreDuplicates: true })
+          if (error) throw new Error(error.message)
+        }
         // Who is up goes through hand_off, so the receiver gets the turn bell.
         let handed: string | null | undefined
         if (str(i.assignee_id)) {

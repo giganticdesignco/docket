@@ -31,19 +31,6 @@ export async function sendEmail(
   return { ok: true }
 }
 
-// Tell the people on a task (assignees plus whoever made it) that a client
-// did something on its review link.
-export async function notifyTaskTeam(admin: SupabaseClient<Database>, workItemId: string, subject: string, text: string) {
-  const [{ data: item }, { data: assignees }] = await Promise.all([
-    admin.from('work_items').select('profiles!work_items_created_by_fkey(email, is_active)').eq('id', workItemId).single(),
-    admin.from('work_item_assignees').select('profiles(email, is_active)').eq('work_item_id', workItemId),
-  ])
-  const emails = [
-    ...(assignees ?? []).map(a => a.profiles).filter(p => p?.is_active).map(p => p!.email),
-    ...(item?.profiles?.is_active ? [item.profiles.email] : []),
-  ]
-  return sendEmail(admin, { to: emails, subject, text })
-}
 
 export const escapeHtml = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
 

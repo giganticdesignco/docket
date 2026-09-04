@@ -105,15 +105,7 @@ function findProfile(refs: Refs, user: HarvestRef) {
 }
 
 // PostgREST caps a response at 1000 rows. Page through anything that could exceed it.
-async function selectAll<T>(query: { range: (from: number, to: number) => PromiseLike<{ data: T[] | null, error: { message: string } | null }> }): Promise<T[]> {
-  const out: T[] = []
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await query.range(offset, offset + 999)
-    if (error) throw createError({ statusCode: 500, statusMessage: error.message })
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) return out
-  }
-}
+const selectAll = pageAll
 
 function fail(error: { message: string } | null): asserts error is null {
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
@@ -298,6 +290,11 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
   type Row = Database['public']['Tables']['time_entries']['Insert']
   const rows: Row[] = []
   let skippedExcluded = 0
+  // Rows a Docket billing batch has claimed stay locked whatever Harvest
+  // says; the batch is the truth for those.
+  const batched = new Set((await selectAll(
+    supabase.from('time_entries').select('harvest_id').not('harvest_id', 'is', null).not('batch_id', 'is', null).gte('spent_on', from).lte('spent_on', to),
+  )).map(r => r.harvest_id))
   for (const e of entries) {
     if (excludedClient(e.client?.name)) { skippedExcluded++; continue }
     const profile = findProfile(refs, e.user)
@@ -320,7 +317,7 @@ async function importLive(supabase: Db, from: string, to: string, all: HarvestTi
       notes: e.notes || null,
       is_billable: e.billable,
       // Invoiced in Harvest: never editable, never picked up by a QuickBooks batch.
-      is_locked: e.is_billed,
+      is_locked: e.is_billed || batched.has(e.id),
       // Harvest's rate is the historical truth, not whatever resolve_rate() says today.
       rate_snapshot: e.billable_rate,
       started_at: null,

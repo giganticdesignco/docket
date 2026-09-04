@@ -48,13 +48,16 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     all(supabase.from('profiles').select('id, email')),
     all(supabase.from('clients').select('id, name')),
     all(supabase.from('projects').select('id, client_id, name')),
-    all(supabase.from('work_items').select('id, clickup_id, project_id').not('clickup_id', 'is', null)),
+    all(supabase.from('work_items').select('id, clickup_id, project_id, parent_id, title, description, status, priority, start_on, due_on, estimate_hours').not('clickup_id', 'is', null)),
   ])
 
   const profileByEmail = new Map(profiles.map(p => [p.email.toLowerCase(), p.id]))
   const clientKeys = clients.map(c => ({ id: c.id, key: norm(c.name) }))
   const projectKeys = projects.map(p => ({ id: p.id, client_id: p.client_id, key: norm(p.name), name: p.name }))
   const existingByClickup = new Map(existing.map(w => [w.clickup_id!, w.id]))
+  const existingRow = new Map(existing.map(w => [w.id, w]))
+  let unchanged = 0
+  let skippedDeleted = 0
   const projectByItem = new Map(existing.map(w => [w.id, w.project_id]))
   // Who is already on each task. Without this the loop below deleted every
   // assignee row and put it straight back, which fired notify_on_assignee
@@ -175,10 +178,19 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
 
     let itemId = existingId
     if (itemId) {
-      const { error } = await supabase.from('work_items').update(row).eq('id', itemId)
-      if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+      // Only when something differs: an unchanged task writes nothing.
+      const was = existingRow.get(itemId)
+      const same = !!was && (Object.keys(row) as (keyof typeof row)[]).every(k => (was as Record<string, unknown>)[k] === row[k])
+      if (same) unchanged++
+      else {
+        const { error } = await supabase.from('work_items').update(row).eq('id', itemId)
+        if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+      }
     } else {
       const { data, error } = await supabase.from('work_items').insert({ ...row, created_by: userId }).select('id').single()
+      // A task deleted in Docket is hidden from the Imports page's client but
+      // still holds its clickup_id; leave it deleted rather than fail the run.
+      if (error?.code === '23505') { skippedDeleted++; created--; continue }
       if (error) throw createError({ statusCode: 500, statusMessage: error.message })
       itemId = data.id
       existingByClickup.set(t.id, itemId)
@@ -200,17 +212,9 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
     assigneeByItem.set(itemId, want)
   }
 
-  return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, subtasksByList, skippedExcluded, excludedLists: EXCLUDED_LISTS, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
+  return { dryRun, fetched: tasks.length, created, updated: updated - unchanged, unchanged, skippedDeleted, subtasks, orphanSubtasks, flattened, subtasksByList, skippedExcluded, excludedLists: EXCLUDED_LISTS, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '')
 
-async function all<T>(query: { range: (from: number, to: number) => PromiseLike<{ data: T[] | null, error: { message: string } | null }> }): Promise<T[]> {
-  const out: T[] = []
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await query.range(offset, offset + 999)
-    if (error) throw createError({ statusCode: 500, statusMessage: error.message })
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) return out
-  }
-}
+const all = pageAll

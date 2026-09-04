@@ -7,7 +7,9 @@ type Section = { title: string, path: string, text: string }
 
 const STOP = new Set(['the', 'and', 'for', 'that', 'this', 'with', 'what', 'how', 'does', 'is', 'are', 'it', 'to', 'of', 'in', 'on', 'an', 'a', 'do', 'i', 'my', 'we', 'you', 'work', 'works', 'mean', 'means', 'docket'])
 const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !STOP.has(w))
-const stem = (w: string) => w.replace(/(ies)$/, 'y').replace(/(es|s)$/, '')
+// Only a trailing s comes off, so "invoice" and "invoices" meet without
+// "one" losing its e. Both sides are stemmed the same way.
+const stem = (w: string) => (w.endsWith('ies') ? w.slice(0, -3) + 'y' : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)
 
 let cache: Section[] | null = null
 export async function guideSections(): Promise<Section[]> {

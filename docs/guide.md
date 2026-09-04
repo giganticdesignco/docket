@@ -466,8 +466,11 @@ due date coming up, nobody up on a task you are on, a client's decision
 on a quote or review, an invoice paid, a timer left running, missing
 time. Each kind can go to
 email instantly, in a daily digest, or not at all; set that on the
-Notifications page. Comment, status, and due-date emails are off by
-default so the bell stays useful without flooding the inbox.
+Notifications page. Comment, status, due-date, and nobody-up emails
+are off by default so the bell stays useful without flooding the
+inbox. A client's comment or decision on a review page reaches the
+task's people the same way, through the bell and each person's own
+email setting.
 
 ## The Assistant
 

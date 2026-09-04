@@ -9,14 +9,13 @@ import { sendEmail, appOrigin } from '~~/server/utils/notify'
 // ?dry=1 writes nothing and emails nobody (returns the previews).
 export default defineEventHandler(async (event) => {
   const cfg = useRuntimeConfig()
-  const auth = getHeader(event, 'authorization') ?? ''
-  if (!cfg.cronSecret || auth !== `Bearer ${cfg.cronSecret}`) throw createError({ statusCode: 401, statusMessage: 'Not for you' })
+  requireCron(event)
   const q = getQuery(event)
   const dry = q.dry === '1'
   const admin = serverSupabaseServiceRole<Database>(event)
   const t = today()
-  const dayStart = new Date(`${t}T00:00:00-05:00`)
-  const dayEnd = new Date(dayStart.getTime() + 86_400_000)
+  const dayStart = chicagoMidnight(t)
+  const dayEnd = chicagoMidnight(addDays(t, 1))
   const monday = weekStart(t)
   const lastMonday = addDays(monday, -7)
   const yesterday = addDays(t, t === monday ? -3 : -1)
@@ -24,12 +23,18 @@ export default defineEventHandler(async (event) => {
   let people = admin.from('profiles').select('id, full_name, email, role, brief_email, department_id').eq('is_active', true).neq('role', 'client')
   if (typeof q.user === 'string') people = people.eq('id', q.user)
   const { data: team } = await people
-  const [{ data: statuses }, { data: budgets }, { data: projects }, { data: depts }] = await Promise.all([
+  const [{ data: statuses }, { data: budgets }, { data: projects }, { data: depts }, { data: approveRoles }, { data: approveOverrides }] = await Promise.all([
     admin.from('work_statuses').select('key, label, is_done, is_paused'),
     admin.rpc('project_budgets'),
     admin.from('projects').select('id, name, lead_id, budget_hours, budget_amount, client_id, clients(name)').eq('is_active', true),
     admin.from('departments').select('id, name, lead_id').eq('is_active', true),
+    admin.from('permissions').select('role').eq('key', 'approve_time'),
+    admin.from('permission_overrides').select('user_id, allowed').eq('key', 'approve_time'),
   ])
+  // Who reviews everyone's time: the approve_time permission, override
+  // first, then the role; admins always. Department leads review their own.
+  const approveByRole = new Set((approveRoles ?? []).map(r => r.role))
+  const approveOverride = new Map((approveOverrides ?? []).map(o => [o.user_id, o.allowed]))
   const done = new Set((statuses ?? []).filter(s => s.is_done || s.is_paused).map(s => s.key))
   const label = (k: string) => statuses?.find(s => s.key === k)?.label ?? k
   const origin = await appOrigin(admin, `${getRequestProtocol(event)}://${getRequestHost(event)}`)
@@ -57,7 +62,7 @@ export default defineEventHandler(async (event) => {
     const dueToday = open.filter(w => w.due_on === t)
     const dueSoon = open.filter(w => w.due_on! > t)
     const leads = (depts ?? []).filter(d => d.lead_id === p.id).map(d => d.id)
-    const canApproveAll = p.role === 'admin' || p.role === 'manager'
+    const canApproveAll = p.role === 'admin' || (approveOverride.get(p.id) ?? approveByRole.has(p.role))
     const toReview = (waiting ?? []).filter(e => e.user_id !== p.id && (canApproveAll || leads.includes(e.profiles?.department_id ?? '')))
     const reviewPeople = [...new Set(toReview.map(e => e.profiles?.full_name).filter(Boolean))]
     const led = (projects ?? []).filter(pr => pr.lead_id === p.id).map(pr => {
@@ -84,15 +89,9 @@ export default defineEventHandler(async (event) => {
     let text = ''
     if (cfg.anthropicApiKey) {
       try {
-        const reply = await $fetch<{ content: { type: string, text?: string }[] }>('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'x-api-key': cfg.anthropicApiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-          body: {
-            model: MODELS.fast, max_tokens: 500,
-            system: `You write a short morning note to one person at Gigantic Design Co., a design studio, from the facts given. Address them by first name once. Plain text, two or three short paragraphs, no headings, no bullet points, no em dashes, under 140 words. Lead with what needs attention today: overdue tasks (give the due date as a day like April 30, never as digits), tasks due today, weeks waiting for their approval, last week's unsubmitted time entries (a count of entries, not hours), quotes waiting on a client. Then today's meetings and how the week's hours stand against the target, in one line, hours written like 26.5. Skip anything with nothing in it. No pep talk or sign-off. If nothing needs attention, say so in one plain sentence. If nobodyUp is above zero, end with one short clause using those words, like: and 4 tasks you are on have nobody up. Say nobody up, not unassigned. Do not invent facts, names, or numbers. Whenever you name a task, project, client, or quote from the facts, write it as a link using the ids given, in exactly this form and no other: [task title](/tasks/ID), [project name](/projects/ID), [client name](/clients/ID), [Q number](/quotes/ID). Link each one the first time it appears.`,
-            messages: [{ role: 'user', content: JSON.stringify(facts) }],
-          },
-        })
+        const reply = await callModel(MODELS.fast,
+            `You write a short morning note to one person at Gigantic Design Co., a design studio, from the facts given. Address them by first name once. Plain text, two or three short paragraphs, no headings, no bullet points, no em dashes, under 140 words. Lead with what needs attention today: overdue tasks (give the due date as a day like April 30, never as digits), tasks due today, weeks waiting for their approval, last week's unsubmitted time entries (a count of entries, not hours), quotes waiting on a client. Then today's meetings and how the week's hours stand against the target, in one line, hours written like 26.5. Skip anything with nothing in it. No pep talk or sign-off. If nothing needs attention, say so in one plain sentence. If nobodyUp is above zero, end with one short clause using those words, like: and 4 tasks you are on have nobody up. Say nobody up, not unassigned. Do not invent facts, names, or numbers. Whenever you name a task, project, client, or quote from the facts, write it as a link using the ids given, in exactly this form and no other: [task title](/tasks/ID), [project name](/projects/ID), [client name](/clients/ID), [Q number](/quotes/ID). Link each one the first time it appears.`,
+            [{ role: 'user', content: JSON.stringify(facts) }], undefined, 500)
         text = reply.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
       } catch { text = '' }
     }
@@ -131,4 +130,12 @@ const hm = (h: number) => `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).p
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })
 const longDay = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 function addDays(d: string, n: number) { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10) }
+// Midnight in Chicago on a given day, as an instant, whatever the offset is that day.
+function chicagoMidnight(d: string): Date {
+  const guess = new Date(`${d}T06:00:00Z`)
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(guess)
+  const hour = Number(parts.find(p => p.type === 'hour')?.value ?? 0) % 24
+  const minute = Number(parts.find(p => p.type === 'minute')?.value ?? 0)
+  return new Date(guess.getTime() - (hour * 60 + minute) * 60_000)
+}
 function weekStart(d: string) { const x = new Date(`${d}T12:00:00Z`); const dow = (x.getUTCDay() + 6) % 7; return addDays(d, -dow) }

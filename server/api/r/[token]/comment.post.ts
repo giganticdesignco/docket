@@ -17,10 +17,9 @@ export default defineEventHandler(async (event) => {
   const { error } = await admin.from('work_item_comments').insert({ work_item_id: task.id, author_id: authorId, author_name: name, body: text, visible_to_client: true })
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
 
-  const origin = await appOrigin(admin, getRequestURL(event).origin)
-  await notifyTaskTeam(admin, task.id,
-    `${name} commented on "${task.title}"`,
-    `${name} (${task.projects?.clients?.name ?? 'client'}) commented on ${task.title}:\n\n${text}\n\nOpen the task: ${origin}/tasks/${task.id}`)
+  // The comment trigger bells everyone on the task (kind client_comment or
+  // client_decision), and the email follows each person's Notifications
+  // setting; nothing is mailed straight from here.
 
   return loadReviewDoc(admin, token)
 })

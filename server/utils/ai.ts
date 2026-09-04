@@ -32,7 +32,7 @@ export async function caller(event: H3Event): Promise<Caller> {
   return { userId: user.id, name: profile.full_name, role: profile.role, supabase, admin }
 }
 
-async function callModel(model: string, system: string, messages: Message[], tools?: Tool[], maxTokens = 1500): Promise<Reply> {
+export async function callModel(model: string, system: string, messages: Message[], tools?: Tool[], maxTokens = 1500): Promise<Reply> {
   const key = useRuntimeConfig().anthropicApiKey
   if (!key) throw createError({ statusCode: 500, statusMessage: 'NUXT_ANTHROPIC_API_KEY is not set on the server' })
   return await $fetch<Reply>('https://api.anthropic.com/v1/messages', {
