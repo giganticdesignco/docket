@@ -180,6 +180,12 @@ and the morning brief.
   it, once a week at most. The 9am due-date bell goes to whoever is up,
   to everyone on the task when nobody is, and to everyone again once
   the task is overdue.
+- **Following.** Follow a task from its page to get its comments and
+  status changes without being on it. It is for keeping an eye on work
+  that is not yours: a build you are managing, a task you handed on.
+  Following never puts a task on your list, on Home, in the timer, or
+  on Planner, and it never changes who is up. You can only follow a
+  task you can already see, and Unfollow is the only way to stop.
 
 ### Schedule and Planner
 
@@ -426,9 +432,11 @@ batches next to time. Undo works here too.
 
 ## Notifications
 
-The bell shows what happened: assigned to a task, mentioned, a status
-change, a due date coming up, a client's decision on a quote or review,
-an invoice paid, a timer left running, missing time. Each kind can go to
+The bell shows what happened: assigned to a task, handed a task, a
+comment or status change on a task you are on or follow, mentioned, a
+due date coming up, nobody up on a task you are on, a client's decision
+on a quote or review, an invoice paid, a timer left running, missing
+time. Each kind can go to
 email instantly, in a daily digest, or not at all; set that on the
 Notifications page. Comment, status, and due-date emails are off by
 default so the bell stays useful without flooding the inbox.
