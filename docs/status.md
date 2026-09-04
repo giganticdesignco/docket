@@ -2153,3 +2153,18 @@ created a dead second overload instead of patching the real function.
 Both fixed, the overload dropped.
 
 Next session starts at section 3 item 3 of `docs/up-now.md`.
+
+## Up now: item 3, the status flags (2026-09-04)
+
+`/admin/task-statuses` now edits `claims_owner` and `clears_owner`:
+two checkboxes in the drawer, `Claims the task` and `Clears who is
+up`, and both show in the Means column. Nothing reads them in the UI
+yet; the `work_item_owner_stamp` trigger does. Shipped first so the
+mapping can be retuned without a deploy. Verified by flipping Sent to
+print on and back off; In progress claims and On hold clears, as the
+migration set them.
+
+Same day, Luke asked for **Following** alongside Up now. Spec is
+section 9 of `docs/up-now.md`: a third layer under Also on it that
+gets comment and status bells only, grants no visibility, is explicit
+Follow only, and runs as its own migration after section 3 item 5.

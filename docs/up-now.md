@@ -18,11 +18,13 @@ Shipped:
   `up_now_restore_due_hour_guard`.
 - **Section 3 item 2**, regenerated `shared/types/database.ts`, in the
   same push. `npx nuxt typecheck` is clean.
+- **Section 3 item 3**, the `Claims the task` and `Clears who is up`
+  checkboxes on `/admin/task-statuses`, with both flags in the Means
+  column. Verified by flipping Sent to print on and back off.
 
-Not started: section 3 items 3 through 18, which is the whole UI. The
-next one is item 3, the two checkboxes on `/admin/task-statuses`, which
-the spec puts first on purpose so the claim and clear mapping can be
-retuned without a deploy.
+Not started: section 3 items 4 through 18, then section 9 (Following)
+after item 5. The next one is item 4, the task page. Still nothing in
+the UI reads `assignee_id`; item 3 only edits the mapping.
 
 The backfill has run. 96 tasks have somebody up (every task with exactly
 one person on it, which behaves the same as it did before); 298 have

@@ -15,7 +15,7 @@ const ws = await useWorkStatuses()
 type Status = Tables<'work_statuses'>
 const editing = ref<Status | null>(null)
 const creating = ref(false)
-const form = reactive({ key: '', label: '', color: 'neutral' as StatusColor, is_done: false, is_paused: false, is_client_review: false, is_return: false, is_active: true })
+const form = reactive({ key: '', label: '', color: 'neutral' as StatusColor, is_done: false, is_paused: false, is_client_review: false, is_return: false, claims_owner: false, clears_owner: false, is_active: true })
 
 const { data: usage, refresh: refreshUsage } = await useAsyncData('status-usage', async () => {
   const { data, error } = await supabase.from('work_items').select('status')
@@ -26,11 +26,11 @@ const { data: usage, refresh: refreshUsage } = await useAsyncData('status-usage'
 }, fresh)
 
 function openCreate() {
-  Object.assign(form, { key: '', label: '', color: 'neutral', is_done: false, is_paused: false, is_client_review: false, is_return: false, is_active: true })
+  Object.assign(form, { key: '', label: '', color: 'neutral', is_done: false, is_paused: false, is_client_review: false, is_return: false, claims_owner: false, clears_owner: false, is_active: true })
   creating.value = true
 }
 function openEdit(s: Status) {
-  Object.assign(form, { key: s.key, label: s.label, color: s.color as StatusColor, is_done: s.is_done, is_paused: s.is_paused, is_client_review: s.is_client_review, is_return: s.is_return, is_active: s.is_active })
+  Object.assign(form, { key: s.key, label: s.label, color: s.color as StatusColor, is_done: s.is_done, is_paused: s.is_paused, is_client_review: s.is_client_review, is_return: s.is_return, claims_owner: s.claims_owner, clears_owner: s.clears_owner, is_active: s.is_active })
   editing.value = s
 }
 const slug = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
@@ -41,7 +41,7 @@ async function save() {
   if (!label) return fail('Give the status a label')
   saving.value = true
   try {
-    const values = { label, color: form.color, is_done: form.is_done, is_paused: form.is_paused, is_client_review: form.is_client_review, is_return: form.is_return, is_active: form.is_active }
+    const values = { label, color: form.color, is_done: form.is_done, is_paused: form.is_paused, is_client_review: form.is_client_review, is_return: form.is_return, claims_owner: form.claims_owner, clears_owner: form.clears_owner, is_active: form.is_active }
     if (editing.value) {
       const { error } = await supabase.from('work_statuses').update(values).eq('key', editing.value.key)
       if (error) throw error
@@ -93,7 +93,7 @@ async function remove(s: Status) {
   }
   await Promise.all([ws.reload(), refreshUsage()])
 }
-const flags = (s: Status) => [s.is_done && 'done', s.is_paused && 'paused', s.is_client_review && 'client review', s.is_return && 'changes requested'].filter(Boolean).join(', ')
+const flags = (s: Status) => [s.is_done && 'done', s.is_paused && 'paused', s.is_client_review && 'client review', s.is_return && 'changes requested', s.claims_owner && 'claims the task', s.clears_owner && 'clears who is up'].filter(Boolean).join(', ')
 </script>
 
 <template>
@@ -152,6 +152,8 @@ const flags = (s: Status) => [s.is_done && 'done', s.is_paused && 'paused', s.is
             <UCheckbox v-model="form.is_paused" label="Means paused" description="Hidden from capacity." />
             <UCheckbox v-model="form.is_client_review" label="Client review" description="Share for review moves tasks here." />
             <UCheckbox v-model="form.is_return" label="Changes requested" description="A client's request moves tasks here." />
+            <UCheckbox v-model="form.claims_owner" label="Claims the task" description="Moving a task here puts the person who moved it up on it, when nobody is up yet." />
+            <UCheckbox v-model="form.clears_owner" label="Clears who is up" description="Moving a task here leaves nobody up on it." />
           </div>
           <UCheckbox v-model="form.is_active" label="Active" description="Inactive statuses stay on old tasks but leave the menus." />
         </div>
