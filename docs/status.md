@@ -2367,9 +2367,9 @@ than a negative margin.
 
 ## Subtasks read as nested (2026-09-04)
 
-From Luke's feedback. A subtask shows a visible elbow and sits a step
-deeper when it is tucked under its parent, and the "in Parent" note
-only appears when the parent is somewhere else. A tree icon on the
+From Luke's feedback. A subtask shows a visible elbow in front of its
+title, which is the whole indent, and the "in Parent" note only
+appears when the parent is somewhere else in the list. A tree icon on the
 parent was tried and dropped the same hour; Luke did not think the
 parent needed one. Found on the way:
 `UIcon` with `inline` renders zero width, so `size-*` does nothing;

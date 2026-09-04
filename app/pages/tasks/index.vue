@@ -742,7 +742,7 @@ function created(id: string) {
             <td class="w-6 px-1 py-1.5">
               <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
             </td>
-            <td class="min-w-0 px-2 py-1.5" :class="underParent(i, g) ? 'pl-9' : ''">
+            <td class="min-w-0 px-2 py-1.5">
               <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1.5 inline-block size-4 align-[-3px] text-muted" :title="`Subtask of ${parentTitle(i)}`" />
               <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline" :class="focusMode && ws.isDone(i.status) ? 'text-dimmed line-through' : ''">{{ i.title }}</NuxtLink>
               <span v-if="i.parent_id && !underParent(i, g)" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
