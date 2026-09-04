@@ -379,9 +379,14 @@ async function toggleAssignee(userId: string) {
   const fresh = (items.value ?? []).find(i => i.id === m.item.id)
   if (fresh && menu.value) menu.value = { ...menu.value, item: fresh }
 }
+const closeOnEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu() }
 onMounted(() => {
-  window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu() })
+  window.addEventListener('keydown', closeOnEscape)
   window.addEventListener('scroll', closeMenu, true)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', closeOnEscape)
+  window.removeEventListener('scroll', closeMenu, true)
 })
 const editingDue = ref<string | null>(null)
 function saveDue(i: Item, value: string) {
@@ -541,9 +546,9 @@ const clientCards = computed<ClientCard[]>(() => {
     }
     m.set(name, c)
   }
-  return [...m.values()].filter(c => c.count).map(c => ({ ...c, projects: c.projectIds.size })).sort((a, b) => b.overdue - a.overdue || b.count - a.count || a.name.localeCompare(b.name))
+  return [...m.values()].filter(c => c.count || c.nobodyUp).map(c => ({ ...c, projects: c.projectIds.size })).sort((a, b) => b.overdue - a.overdue || b.count - a.count || a.name.localeCompare(b.name))
 })
-const clientTasks = computed(() => mine.value.filter(i => (i.projects?.clients?.name ?? 'No client') === activeClient.value).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999')))
+const clientTasks = computed(() => [...mine.value, ...unowned.value].filter(i => (i.projects?.clients?.name ?? 'No client') === activeClient.value).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999')))
 const clientProjects = computed(() => {
   const m = new Map<string, { name: string, items: Item[] }>()
   for (const i of clientTasks.value) {
@@ -608,7 +613,7 @@ useShortcuts('Tasks', {
   'p': { label: 'Change priority (selection too)', handler: () => menuOnFocused('priority') },
   'd': { label: 'Set the due date', handler: () => { if (focused.value) editingDue.value = focused.value } },
   'f': { label: 'Add to your focus list, or take it off (selection too)', handler: () => { if (focusedItem.value) toggleFocus(focusedItem.value) } },
-  't': { label: 'Take it: put yourself up on the task (selection too)', handler: () => { if (focusedItem.value && !handingOff.value) takeIt(focusedItem.value) } },
+  'u': { label: 'Take it: put yourself up on the task (selection too)', handler: () => { if (focusedItem.value && !handingOff.value) takeIt(focusedItem.value) } },
   'escape': { label: 'Clear the selection', handler: () => { closeMenu(); selected.value = new Set(); focused.value = null } },
   'delete': { label: 'Delete the task (selection too)', handler: () => { if (toDeleteCount.value) deletingMany.value = true } },
 })
@@ -616,8 +621,14 @@ useShortcuts('Tasks', {
 // ---------- new task ----------
 
 const creating = ref(false)
-// /tasks?new=1 (from search) opens the form straight away.
-if (useRoute().query.new) creating.value = true
+// /tasks?new=1 (from search, or N) opens the form straight away, and
+// ?view=focus / ?view=unowned switch modes, even when already here.
+const route = useRoute()
+watch(() => route.query, (q) => {
+  if (q.new) { creating.value = true }
+  if (q.view === 'focus') { focusMode.value = true; onlyUnowned.value = false }
+  if (q.view === 'unowned') { focusMode.value = false; onlyUnowned.value = true; everyone.value = false }
+}, { immediate: true })
 function created(id: string) {
   creating.value = false
   navigateTo(`/tasks/${id}`)

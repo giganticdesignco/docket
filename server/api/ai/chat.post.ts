@@ -5,7 +5,7 @@
 // tells the drawer to refresh the page when something was written.
 const PATHS: Record<string, string> = { task: '/tasks', project: '/projects', client: '/clients', quote: '/quotes', invoice: '/invoices' }
 const WRITES = new Set(['log_time', 'start_timer', 'stop_timer', 'update_time_entry', 'create_task', 'update_task', 'add_comment', 'create_client', 'create_project'])
-type Body = { messages?: { role: 'user' | 'assistant', content: string }[], context?: { path?: string, taskId?: string, quoteId?: string, client?: string, project?: string, task?: string, quote?: string, invoice?: string, period?: string, mentions?: { kind: string, id: string, title: string }[] } }
+type Body = { messages?: { role: 'user' | 'assistant', content: string }[], context?: { path?: string, taskId?: string, quoteId?: string, client?: string, project?: string, task?: string, quote?: string, invoice?: string, retainer?: string, period?: string, mentions?: { kind: string, id: string, title: string }[] } }
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<Body>(event).catch((): Body => ({}))
@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
     ctx.project ? `Project on screen: ${ctx.project}.` : '',
     ctx.task ? `Task on screen: "${ctx.task}".` : '',
     ctx.quote ? `On screen: ${ctx.quote}.` : '',
+    ctx.retainer ? `Retainer on screen: ${ctx.retainer}.` : '',
     ctx.invoice ? `On screen: ${ctx.invoice}.` : '',
     ctx.period ? `The report on screen covers ${ctx.period}.` : '',
     ...(ctx.mentions ?? []).slice(0, 8).map(m => `The person picked ${m.kind} "${m.title}" (id ${m.id}, ${PATHS[m.kind] ?? m.kind}/${m.id}); use that exact record.`),

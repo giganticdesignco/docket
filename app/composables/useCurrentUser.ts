@@ -1,5 +1,5 @@
 import type { Tables } from '~~/shared/types/database'
-import type { PermissionKey } from '~~/shared/types/app'
+import { SCREENS, type PermissionKey } from '~~/shared/types/app'
 
 // Profile + role for the signed-in user. Shared across the app via useState
 // so the header, pages, and guards all read the same row.
@@ -70,8 +70,17 @@ export function useCurrentUser() {
     if (viewing.value) return viewAs.value!.role === 'admin' || (viewAsOverrides.value[key] ?? viewAsPermissions.value.includes(key))
     return realIsAdmin.value || (overrides.value[key] ?? permissions.value.includes(key))
   }
-  // UI convenience only, same as isAdmin: RLS is what enforces it.
-  const can = (key: PermissionKey) => (key.startsWith('field:') ? hasKey('see_money') && hasKey(key) : hasKey(key))
+  // UI convenience only, same as isAdmin: RLS is what enforces it. A field
+  // also needs see_money; a screen also needs the permission its page
+  // checks, so the rail never offers a link the page would bounce.
+  const can = (key: PermissionKey): boolean => {
+    if (key.startsWith('field:')) return hasKey('see_money') && hasKey(key)
+    if (key.startsWith('screen:')) {
+      const needs = (SCREENS as readonly { key: string, requires?: PermissionKey }[]).find(s => s.key === key)?.requires
+      return hasKey(key) && (!needs || hasKey(needs))
+    }
+    return hasKey(key)
+  }
   const isLead = computed(() => !viewing.value && leads.value.length > 0)
   // Approvals is open to leads as well as approve_time holders.
   const canReview = computed(() => can('approve_time') || isLead.value)

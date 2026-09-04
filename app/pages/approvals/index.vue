@@ -52,7 +52,7 @@ const groups = computed(() => {
     weeks: [...p.weeks.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([week, items]) => ({ week, items, hours: items.reduce((s, r) => s + (r.hours ?? 0), 0), amount: items.reduce((s, r) => s + (r.amount ?? 0), 0) })),
   }))
 })
-const total = computed(() => (rows.value ?? []).reduce((s, r) => s + (r.hours ?? 0), 0))
+const total = computed(() => groups.value.reduce((s, p) => s + p.weeks.reduce((w, x) => w + x.hours, 0), 0))
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const open = ref(new Set<string>())
 const toggle = (k: string) => { if (open.value.has(k)) open.value.delete(k); else open.value.add(k) }

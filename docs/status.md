@@ -2593,3 +2593,22 @@ foundation review at 36 done, 1 held.
 Run 2, the screens, finished: 133 agents, 64 findings, 41 confirmed,
 filed as Open under "Code review: screens" with a plain-English line
 each, for Luke's triage.
+
+## Review fixes, screens tranche 1: correctness (2026-09-04)
+
+Luke approved the screens findings. Planner: dragging a task between
+people now moves its set hours (they were copied, doubling the task,
+and Undo then failed on the duplicate); Undo puts them back. The task
+list's Take it shortcut is `U`, since `T` is the timer everywhere and
+both fired. N, the focus and Nobody up views, and the Time page's
+?new=1 now work when you are already on that page. Saving an invoice
+inserts the new lines before deleting the old, so a failure leaves the
+invoice as it was. The Time page's "copy the previous day" skips a
+running timer with a filter that can match. A monthly or quarterly
+retainer starting late in the month gets the right end date. The
+Tasks cards view keeps a client whose only work has nobody up, and its
+list shows those tasks. The Approvals heading counts what the list
+shows. The task list removes its window listeners on leaving. Screens
+carry the permission their page checks (`requires` in SCREENS), so
+the rail and the route guard agree with the page. The retainer page's
+Assistant context is a real field now.

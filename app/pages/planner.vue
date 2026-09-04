@@ -261,7 +261,8 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
       if (error) throw error
     }
     if (kept.length && (!sameDates || !samePerson)) {
-      const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).eq('user_id', uid)
+      // The hours move: off the person they came from, onto the drop target.
+      const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).in('user_id', [...new Set([owner, uid])])
       if (del.error) throw del.error
       const ins = await supabase.from('work_item_plans').insert(shifted)
       if (ins.error) throw ins.error
@@ -275,7 +276,7 @@ async function plan(t: Task, fromUser: string | null, uid: string, day: string) 
         if (error) throw error
       }
       if (kept.length) {
-        const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).eq('user_id', uid)
+        const del = await supabase.from('work_item_plans').delete().eq('work_item_id', t.id).in('user_id', [...new Set([owner, uid])])
         if (del.error) throw del.error
         const ins = await supabase.from('work_item_plans').insert(kept.map(r => ({ work_item_id: t.id, user_id: owner, day: r.day, hours: r.hours })))
         if (ins.error) throw ins.error

@@ -102,7 +102,7 @@ const { data: workItem } = await useAsyncData('time-work-item', async () => {
   return data
 }, { ...fresh, watch: [() => route.query.item] })
 watch(workItem, (w) => { if (w) creating.value = true }, { immediate: true })
-if (route.query.new) creating.value = true
+watch(() => route.query.new, (v) => { if (v) creating.value = true }, { immediate: true })
 const deleting = ref<Row | null>(null)
 const busy = ref<string | null>(null) // entry id with an action in flight
 
@@ -111,9 +111,10 @@ const busy = ref<string | null>(null) // entry id with an action in flight
 async function copyPreviousDay() {
   const { data: last } = await supabase.from('time_entries').select('spent_on').eq('user_id', user.value!.sub).lt('spent_on', selected.value).order('spent_on', { ascending: false }).limit(1).maybeSingle()
   if (!last) { toast.add({ title: 'Nothing earlier to copy', color: 'neutral' }); return }
-  const { data: src, error } = await supabase.from('time_entries').select('project_id, task_id, hours, notes, is_billable, work_item_id').eq('user_id', user.value!.sub).eq('spent_on', last.spent_on).not('ended_at', 'is', null).is('started_at', null)
-  const rows = (src ?? []).length ? src! : (await supabase.from('time_entries').select('project_id, task_id, hours, notes, is_billable, work_item_id').eq('user_id', user.value!.sub).eq('spent_on', last.spent_on)).data ?? []
+  // Everything from that day except a timer still running.
+  const { data: src, error } = await supabase.from('time_entries').select('project_id, task_id, hours, notes, is_billable, work_item_id').eq('user_id', user.value!.sub).eq('spent_on', last.spent_on).or('started_at.is.null,ended_at.not.is.null')
   if (error) { toast.add({ title: 'Could not copy', description: error.message, color: 'error' }); return }
+  const rows = src ?? []
   const { error: insErr } = await supabase.from('time_entries').insert(rows.map(r => ({ ...r, user_id: user.value!.sub, spent_on: selected.value })))
   if (insErr) { toast.add({ title: 'Could not copy', description: insErr.message, color: 'error' }); return }
   toast.add({ title: `Copied ${rows.length} ${rows.length === 1 ? 'entry' : 'entries'} from ${shortDate(last.spent_on)}`, color: 'success' })

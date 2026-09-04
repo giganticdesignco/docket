@@ -128,8 +128,9 @@ async function save(): Promise<boolean> {
       updated_at: new Date().toISOString(),
     }).eq('id', id)
     if (error) throw error
-    const del = await supabase.from('invoice_lines').delete().eq('invoice_id', id)
-    if (del.error) throw del.error
+    // New lines first, then the old ones go, so a failed insert leaves the
+    // invoice as it was rather than empty.
+    const oldIds = (lines.value ?? []).map(l => l.id)
     if (draftLines.value.length) {
       const ins = await supabase.from('invoice_lines').insert(draftLines.value.map((l, i) => ({
         invoice_id: id,
@@ -143,6 +144,10 @@ async function save(): Promise<boolean> {
         cost_amount: l.cost_amount,
       })))
       if (ins.error) throw ins.error
+    }
+    if (oldIds.length) {
+      const del = await supabase.from('invoice_lines').delete().in('id', oldIds)
+      if (del.error) throw del.error
     }
     await refreshAll()
     toast.add({ title: 'Invoice saved', color: 'success' })

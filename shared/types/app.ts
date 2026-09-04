@@ -52,19 +52,19 @@ export const SCREENS = [
   { key: 'screen:tasks', label: 'Tasks', path: '/tasks', hint: 'The task list. A task page opens from anywhere it is linked.' },
   { key: 'screen:projects', label: 'Projects', path: '/projects', hint: 'The projects list and project pages.' },
   { key: 'screen:clients', label: 'Clients', path: '/clients', hint: 'The clients list and client pages.' },
-  { key: 'screen:reports', label: 'Reports', path: '/reports', hint: 'Needs "see everyone\'s time" to show anything.' },
+  { key: 'screen:reports', label: 'Reports', path: '/reports', hint: 'Needs "see everyone\'s time" to show anything.', requires: 'see_all_time' },
   { key: 'screen:schedule', label: 'Schedule', path: '/schedule', hint: 'The Gantt view.' },
-  { key: 'screen:planner', label: 'Planner', path: '/planner', hint: 'People by weekday.' },
+  { key: 'screen:planner', label: 'Planner', path: '/planner', hint: 'People by weekday.', requires: 'see_capacity' },
   { key: 'screen:estimator', label: 'Estimator', path: '/estimator', hint: 'Rough numbers for new work.' },
   { key: 'screen:expenses', label: 'Expenses', path: '/expenses', hint: 'Their own, or everyone\'s with "see everyone\'s time".' },
   { key: 'screen:time_off', label: 'Time off', path: '/time-off', hint: 'Their own, or everyone\'s with "manage people".' },
-  { key: 'screen:quotes', label: 'Quotes', path: '/quotes', hint: 'Needs the Quotes permission to change anything.' },
-  { key: 'screen:approvals', label: 'Approvals', path: '/approvals', hint: 'Department leads always pass.' },
-  { key: 'screen:billing', label: 'Billing', path: '/billing', hint: 'Batches. Needs the Invoices permission.' },
-  { key: 'screen:invoices', label: 'Invoices', path: '/invoices', hint: 'Needs the Invoices permission.' },
+  { key: 'screen:quotes', label: 'Quotes', path: '/quotes', hint: 'Needs the Quotes permission.', requires: 'manage_quotes' },
+  { key: 'screen:approvals', label: 'Approvals', path: '/approvals', hint: 'Department leads always pass.', requires: 'approve_time' },
+  { key: 'screen:billing', label: 'Billing', path: '/billing', hint: 'Batches. Needs the Invoices permission.', requires: 'manage_invoices' },
+  { key: 'screen:invoices', label: 'Invoices', path: '/invoices', hint: 'Needs the Invoices permission.', requires: 'manage_invoices' },
   { key: 'screen:retainers', label: 'Retainers', path: '/retainers', hint: 'Retainer pages, reached from a client.' },
   { key: 'screen:settings', label: 'Settings', path: '/admin', hint: 'Each settings page also needs its own permission.' },
-] as const
+] as const satisfies readonly { key: string, label: string, path: string, hint: string, requires?: string }[]
 export type ScreenKey = typeof SCREENS[number]['key']
 
 // Money fields, finer than "see rates and amounts". Without that key

@@ -4,7 +4,7 @@
 // The announcement clears when the page goes away, unless a newer page
 // has already announced (Nuxt sets up the next page before it unmounts
 // the old one, so the clear must not wipe the newcomer's line).
-export type Screen = { client?: string, project?: string, task?: string, quote?: string, invoice?: string, period?: string }
+export type Screen = { client?: string, project?: string, task?: string, quote?: string, invoice?: string, retainer?: string, period?: string }
 
 type Announced = Screen & { by?: number }
 let seq = 0

@@ -43,7 +43,11 @@ const termOptions = [
 function endFor(start: string, term: string): string {
   const d = parseDateString(start)
   const months = term === 'monthly' ? 1 : term === 'quarterly' ? 3 : 12
-  const e = new Date(d.getFullYear(), d.getMonth() + months, d.getDate() - 1)
+  // Same day of the month, clamped to that month's length (Jan 31 plus a
+  // month is Feb 28, not Mar 3), then the day before.
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + months + 1, 0).getDate()
+  const e = new Date(d.getFullYear(), d.getMonth() + months, Math.min(d.getDate(), lastDay))
+  e.setDate(e.getDate() - 1)
   return toDateString(e)
 }
 watch(() => [state.term, state.period_start], () => {

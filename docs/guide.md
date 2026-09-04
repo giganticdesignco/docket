@@ -185,7 +185,7 @@ and the morning brief.
   them one at a time (J and K move, 1 takes it, 2 skips). Tasks where
   someone else is up wait in **Waiting on someone else**, folded, with
   their name on the row. The row menu behind the faces has Take it and
-  Nobody as well, and `T` takes the focused row.
+  Nobody as well, and `U` takes the focused row (`T` is the timer, everywhere).
 - **Statuses move the turn.** Moving a task to In progress puts you up
   on it, if nobody was and you are on the task. On hold leaves nobody
   up. Client review does not change who is up, since the person who
