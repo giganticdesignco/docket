@@ -2450,3 +2450,9 @@ can View as a role or a person (a strip across the top, data still
 their own). Settings, Permissions has four tabs. Money on the project,
 client, quote, invoice, approvals, report rollup, retainer and people
 form now keys off the specific field.
+
+## Settings sidebar icons (2026-09-04)
+
+From Luke's feedback: every link in the Settings sidebar has an icon,
+on the wide column and the phone strip. `SubNavLink` takes an optional
+`icon`.

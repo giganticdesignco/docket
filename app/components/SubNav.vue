@@ -2,7 +2,7 @@
 // A second sidebar beside the rail, the way Supabase lays out its
 // settings: a title, then grouped links down the left, the page to the
 // right. On phones it folds into a strip across the top of the page.
-export type SubNavLink = { label: string, to: string, also?: string[] }
+export type SubNavLink = { label: string, to: string, icon?: string, also?: string[] }
 export type SubNavSection = { label?: string, links: SubNavLink[] }
 const props = defineProps<{ title: string, home?: string, sections: SubNavSection[] }>()
 const route = useRoute()
@@ -19,9 +19,9 @@ const sections = computed(() => props.sections.filter(s => s.links.length))
         <div v-if="s.label" class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-dimmed">{{ s.label }}</div>
         <NuxtLink
           v-for="l in s.links" :key="l.to" :to="l.to"
-          class="flex h-8 items-center rounded-md px-2 text-sm transition-colors"
+          class="flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors"
           :class="active(l) ? 'bg-elevated text-highlighted' : 'text-muted hover:bg-elevated hover:text-highlighted'"
-        >{{ l.label }}</NuxtLink>
+        ><UIcon v-if="l.icon" :name="l.icon" class="size-4 shrink-0" />{{ l.label }}</NuxtLink>
       </div>
     </nav>
   </aside>
@@ -29,7 +29,7 @@ const sections = computed(() => props.sections.filter(s => s.links.length))
   <nav class="mb-4 flex flex-wrap items-center gap-1 border-b border-default pb-2 text-sm md:hidden" :aria-label="title">
     <NuxtLink v-if="home" :to="home" class="mr-2 font-semibold" :class="route.path === home ? 'text-highlighted' : 'text-muted'">{{ title }}</NuxtLink>
     <template v-for="(s, i) in sections" :key="s.label ?? i">
-      <NuxtLink v-for="l in s.links" :key="l.to" :to="l.to" class="rounded-md px-2 py-1" :class="active(l) ? 'bg-elevated text-highlighted' : 'text-muted'">{{ l.label }}</NuxtLink>
+      <NuxtLink v-for="l in s.links" :key="l.to" :to="l.to" class="flex items-center gap-1.5 rounded-md px-2 py-1" :class="active(l) ? 'bg-elevated text-highlighted' : 'text-muted'"><UIcon v-if="l.icon" :name="l.icon" class="size-3.5 shrink-0" />{{ l.label }}</NuxtLink>
     </template>
   </nav>
 </template>
