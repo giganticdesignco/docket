@@ -342,16 +342,21 @@ async function deleteQuote() {
         <span class="font-normal text-muted">for <NuxtLink :to="`/clients/${quote.client_id}`" class="hover:underline">{{ quote.clients?.name }}</NuxtLink></span>
       </h1>
       <UBadge :color="badge.color" variant="subtle">{{ badge.label }}</UBadge>
-      <div class="ml-auto flex flex-wrap gap-2">
-        <UButton v-if="editable" :loading="saving" :disabled="!dirty" icon="i-lucide-save" @click="save();">Save</UButton>
-        <UButton :to="publicLink" target="_blank" variant="outline" color="neutral" icon="i-lucide-external-link">Preview</UButton>
-        <UButton variant="outline" color="neutral" icon="i-lucide-link" @click="copyLink">Copy link</UButton>
-        <UButton v-if="editable" icon="i-lucide-send" @click="sendTo = ''; sendMessage = ''; sendOpen = true;">Send</UButton>
-        <UButton v-if="quote.status === 'draft'" variant="outline" icon="i-lucide-check" @click="markSent">Mark as sent</UButton>
-        <UButton v-if="editable" variant="outline" color="success" icon="i-lucide-check-check" @click="decideName = ''; decideNote = ''; decideOpen = 'accept';">Accept</UButton>
-        <UButton v-if="editable" variant="outline" color="neutral" icon="i-lucide-x" @click="decideName = ''; decideNote = ''; decideOpen = 'decline';">Decline</UButton>
-        <UButton v-if="quote.status === 'draft'" variant="ghost" color="error" icon="i-lucide-trash-2" aria-label="Delete quote" @click="deleting = true;" />
-      </div>
+      <PageActions
+        class="ml-auto"
+        :primary="{ label: 'Save', icon: 'i-lucide-save', loading: saving, disabled: !dirty, show: editable, onSelect: save }"
+        :items="[
+          { label: 'Send to the client', icon: 'i-lucide-send', show: editable, onSelect: () => { sendTo = ''; sendMessage = ''; sendOpen = true } },
+          { label: 'Preview', icon: 'i-lucide-external-link', to: publicLink, target: '_blank' },
+          { label: 'Copy link', icon: 'i-lucide-link', onSelect: copyLink },
+        ]"
+        :more="[
+          { label: 'Mark as sent', icon: 'i-lucide-check', show: quote.status === 'draft', onSelect: markSent },
+          { label: 'Accept on their behalf', icon: 'i-lucide-check-check', show: editable, onSelect: () => { decideName = ''; decideNote = ''; decideOpen = 'accept' } },
+          { label: 'Decline on their behalf', icon: 'i-lucide-x', show: editable, onSelect: () => { decideName = ''; decideNote = ''; decideOpen = 'decline' } },
+          { label: 'Delete quote', icon: 'i-lucide-trash-2', color: 'error', show: quote.status === 'draft', onSelect: () => { deleting = true } },
+        ]"
+      />
     </div>
 
     <p class="text-sm text-muted">

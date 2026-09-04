@@ -621,17 +621,17 @@ const crumbs = computed(() => [
     <!-- Top bar: breadcrumb, actions -->
     <div class="flex shrink-0 flex-wrap items-center gap-2 border-b border-default py-3 text-sm">
       <AppCrumbs :items="crumbs" />
-      <div class="ml-auto flex items-center gap-2">
-        <UButton
-          size="sm" icon="i-lucide-star" :variant="onFocusList ? 'solid' : 'outline'" :color="onFocusList ? 'primary' : 'neutral'"
-          :title="onFocusList ? 'Take it off your focus list' : 'Put it on the end of your focus list. Only you see it.'"
-          @click="toggleFocus"
-        >{{ onFocusList ? 'In focus' : 'Add to focus' }}</UButton>
-        <UButton variant="outline" size="sm" icon="i-lucide-share-2" @click="openShare">Share for review</UButton>
+      <PageActions
+        class="ml-auto" size="sm"
+        :items="[
+          { label: onFocusList ? 'On your focus list. Take it off' : 'Add to your focus list (only you see it)', icon: 'i-lucide-star', active: onFocusList, onSelect: toggleFocus },
+          { label: 'Log time: enter hours, or a different day', icon: 'i-lucide-timer', onSelect: () => { loggingTime = true } },
+          { label: 'Share for review', icon: 'i-lucide-share-2', onSelect: openShare },
+        ]"
+        :more="[{ label: 'Delete task', icon: 'i-lucide-trash-2', color: 'error', show: canDelete, onSelect: () => { deleting = true } }]"
+      >
         <TaskTimerControl :work-item="{ id: item.id, title: item.title, project_id: item.project_id }" :project-tasks="itemProjectTasks ?? []" @changed="refreshTimeLogged" />
-        <UButton variant="outline" size="sm" icon="i-lucide-timer" title="Enter hours, or a different day" @click="loggingTime = true;">Log time</UButton>
-        <UButton v-if="canDelete" variant="ghost" color="neutral" size="sm" icon="i-lucide-trash-2" aria-label="Delete task" @click="deleting = true;" />
-      </div>
+      </PageActions>
     </div>
 
     <div class="flex min-h-0 flex-1 flex-col lg:flex-row">

@@ -276,16 +276,20 @@ async function voidInvoice() {
         <span class="font-normal text-muted">for <NuxtLink :to="`/clients/${invoice.client_id}`" class="hover:underline">{{ invoice.clients?.name }}</NuxtLink></span>
       </h1>
       <UBadge :color="badge.color" variant="subtle">{{ badge.label }}</UBadge>
-      <div class="ml-auto flex flex-wrap gap-2">
-        <UButton v-if="isDraft" :loading="saving" :disabled="!dirty" icon="i-lucide-save" @click="save();">Save</UButton>
-        <UButton :to="publicLink" target="_blank" variant="outline" color="neutral" icon="i-lucide-external-link">Preview</UButton>
-        <UButton v-if="invoice.status !== 'void'" variant="outline" color="neutral" icon="i-lucide-link" @click="copyLink">Copy link</UButton>
-        <UButton v-if="isDraft || invoice.status === 'sent'" icon="i-lucide-send" @click="openSend('invoice')">{{ isDraft ? 'Send' : 'Send again' }}</UButton>
-        <UButton v-if="isDraft" variant="outline" icon="i-lucide-check" @click="markSent">Mark as sent</UButton>
-        <UButton v-if="invoice.status === 'sent'" variant="outline" icon="i-lucide-bell" @click="openSend('reminder')">Send reminder</UButton>
-        <UButton v-if="invoice.status === 'sent'" variant="outline" icon="i-lucide-banknote" @click="openPayment">Record payment</UButton>
-        <UButton v-if="isDraft || invoice.status === 'sent'" variant="outline" color="error" icon="i-lucide-ban" @click="voidOpen = true;">Void</UButton>
-      </div>
+      <PageActions
+        class="ml-auto"
+        :primary="isDraft ? { label: 'Save', icon: 'i-lucide-save', loading: saving, disabled: !dirty, onSelect: save } : { label: 'Record payment', icon: 'i-lucide-banknote', show: invoice.status === 'sent', onSelect: openPayment }"
+        :items="[
+          { label: isDraft ? 'Send to the client' : 'Send again', icon: 'i-lucide-send', show: isDraft || invoice.status === 'sent', onSelect: () => openSend('invoice') },
+          { label: 'Send a reminder', icon: 'i-lucide-bell', show: invoice.status === 'sent', onSelect: () => openSend('reminder') },
+          { label: 'Preview', icon: 'i-lucide-external-link', to: publicLink, target: '_blank' },
+          { label: 'Copy link', icon: 'i-lucide-link', show: invoice.status !== 'void', onSelect: copyLink },
+        ]"
+        :more="[
+          { label: 'Mark as sent', icon: 'i-lucide-check', show: isDraft, onSelect: markSent },
+          { label: 'Void invoice', icon: 'i-lucide-ban', color: 'error', show: isDraft || invoice.status === 'sent', onSelect: () => { voidOpen = true } },
+        ]"
+      />
     </div>
 
     <p class="text-sm text-muted">

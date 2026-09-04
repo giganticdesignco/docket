@@ -291,10 +291,7 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
     <div class="flex items-center gap-3">
       <h1 class="text-2xl font-semibold">{{ client.name }}</h1>
       <UBadge v-if="!client.is_active" color="neutral" variant="subtle">Inactive</UBadge>
-      <div class="ml-auto flex gap-2">
-        <UButton v-if="canBill" :to="`/portal?as=${id}`" variant="outline" color="neutral" icon="i-lucide-eye">View as client</UButton>
-        <UButton v-if="isAdmin" variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
-      </div>
+      <PageActions class="ml-auto" :items="[{ label: 'Edit client', icon: 'i-lucide-pencil', show: isAdmin, onSelect: () => { editing = true } }, { label: 'View as client', icon: 'i-lucide-eye', show: canBill, to: `/portal?as=${id}` }]" />
     </div>
 
     <dl v-if="client.qbo_customer_id" class="text-sm">

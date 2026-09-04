@@ -27,6 +27,12 @@ keyboard shortcuts alone.
   "Reset view" on the Tasks page puts its defaults back.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
+- **One row of actions on a page.** A quote, invoice, batch, project,
+  client or task keeps its actions in one row at the top: the main
+  thing as a labeled button (Save, Record payment, Create invoice),
+  the rest as icons that name themselves when you hover, and the rare
+  or destructive ones (mark as sent, accept or decline for the client,
+  void, delete) under the three-dot menu at the end.
 - **Task screens stay current.** Leave Tasks, a task, Home, the
   Planner, the Schedule, or Unsorted tasks open all day and another
   person's change (a hand-off, a new subtask, a comment, a plan) shows

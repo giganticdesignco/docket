@@ -135,12 +135,12 @@ async function voidBatch() {
         <span v-if="batch.projects" class="font-normal text-muted"> / {{ batch.projects.name }}</span>
       </h1>
       <UBadge :color="statusColor[batch.status]" variant="subtle">{{ batch.status }}</UBadge>
-      <div class="ml-auto flex gap-2">
-        <UButton v-if="invoice" :to="`/invoices/${invoice.id}`" variant="outline" icon="i-lucide-file-text">Invoice {{ invoice.number }}</UButton>
-        <UButton v-else-if="batch.status === 'draft'" icon="i-lucide-file-plus" :loading="invoicing" @click="choosingDetail = true;">Create invoice</UButton>
-        <UButton variant="outline" color="neutral" icon="i-lucide-download" :disabled="!time?.length && !expenses?.length" @click="exportCsv">Export CSV</UButton>
-        <UButton v-if="canVoid" variant="outline" color="error" icon="i-lucide-undo-2" @click="confirmingVoid = true;">Void batch</UButton>
-      </div>
+      <PageActions
+        class="ml-auto"
+        :primary="invoice ? { label: `Invoice ${invoice.number}`, icon: 'i-lucide-file-text', to: `/invoices/${invoice.id}` } : { label: 'Create invoice', icon: 'i-lucide-file-plus', loading: invoicing, show: batch.status === 'draft', onSelect: () => { choosingDetail = true } }"
+        :items="[{ label: 'Export CSV', icon: 'i-lucide-download', disabled: !time?.length && !expenses?.length, onSelect: exportCsv }]"
+        :more="[{ label: 'Void batch', icon: 'i-lucide-undo-2', color: 'error', show: canVoid, onSelect: () => { confirmingVoid = true } }]"
+      />
     </div>
 
     <UCard>

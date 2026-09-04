@@ -2740,3 +2740,22 @@ a title saying which is missing. The client page's Team card is a
 table (Person, Leads, Open tasks, Last 90 days) instead of a wrapped
 row of chips; a row click still opens the person's drawer. Verified
 in Chrome on the Estimator and on Webster Bank's page.
+
+## 2026-09-04: one action row on every document page
+
+Luke: the quote page's row of eight buttons was getting out of hand;
+make them icons, organize them, and follow the pattern everywhere.
+`PageActions` is the pattern: one labeled button for the main thing,
+icon buttons (tooltip on hover) for the rest, and a three-dot More
+menu for the rare or destructive ones. Quote: Save, then Send,
+Preview, Copy link, and More holds Mark as sent, Accept and Decline on
+the client's behalf, Delete. Invoice: Save (or Record payment once
+sent), then Send, Reminder, Preview, Copy link, and More holds Mark
+as sent and Void. Batch: Create invoice or the invoice link, Export
+CSV, More holds Void batch. Project: Edit, Task types. Client: Edit,
+View as client. Task: focus star (solid when on), Log time, Share,
+the timer control, More holds Delete. Guide has a line on it.
+
+Verified in Chrome on a marked test quote, test invoice and test batch
+(all deleted after), a task, a project and a client page: the rows
+render as described and the More menus list the right items.

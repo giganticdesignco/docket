@@ -177,10 +177,7 @@ async function copyFolder() {
       </div>
       <UBadge v-if="!project.is_active" color="neutral" variant="subtle">Inactive</UBadge>
       <UBadge v-if="project.client_visible" color="info" variant="subtle" title="Every task on this project shows on the client portal">Visible to client</UBadge>
-      <div v-if="isAdmin" class="ml-auto flex gap-2">
-        <UButton variant="outline" icon="i-lucide-pencil" @click="editing = true;">Edit</UButton>
-        <UButton :to="`/projects/${id}/settings`" variant="outline" icon="i-lucide-settings">Task types</UButton>
-      </div>
+      <PageActions v-if="isAdmin" class="ml-auto" :items="[{ label: 'Edit project', icon: 'i-lucide-pencil', onSelect: () => { editing = true } }, { label: 'Task types and rates', icon: 'i-lucide-settings', to: `/projects/${id}/settings` }]" />
     </div>
 
     <UCard>
