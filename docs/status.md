@@ -2791,3 +2791,23 @@ its settings, Time (a timer started and stopped through the form,
 then purged), Home, Tasks, Planner, a client, Projects, Expenses,
 Approvals, Reports, Schedule, New batch, Invoices and a Retainer page,
 no errors. No approved feedback rows remain.
+
+## 2026-09-04: easter eggs
+
+Luke asked for some fun. Five, none documented past a wink in the
+guide. The Konami code (up up down down left right left right B A)
+anywhere outside a text field turns party mode on: confetti, a
+rainbow line across the top, the logo slowly turning, for the session;
+again turns it off. Seven quick clicks on the G in the rail open the
+credits, with hours logged this year and tasks finished. The search box
+(Cmd+K) answers to a few words: "party", "confetti" or "make it rain",
+"coin" or "flip", "roll" or "d20", "credits" or "about", and "xyzzy",
+which does nothing, as it should. On Halloween the nobody ring on the
+task list shows a ghost instead of the hand, and on New Year's Day a
+party popper. Code: `useEasterEggs`, `EasterEggs.vue`,
+`utils/confetti.ts`, `utils/holiday.ts`, the secrets group in
+SearchPalette, party CSS in main.css.
+
+Verified in Chrome: the code toggles the party class, the confetti
+canvas and the rainbow line; seven logo clicks open the credits with
+the numbers; "coin" and "roll" appear as "Well now" items and toast.

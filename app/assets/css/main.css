@@ -46,3 +46,18 @@
    of running text, and balances headings across their lines. */
 body { text-wrap: pretty; }
 h1, h2, h3 { text-wrap: balance; }
+
+/* Party mode: a rainbow line across the top and the logo turning, for the session. */
+html.party body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  z-index: 60;
+  background: linear-gradient(90deg, #ff004c, #ffb800, #00ba73, #00a3ff, #a855f7, #ff004c);
+  background-size: 200% 100%;
+  animation: party-slide 3s linear infinite;
+}
+html.party aside[data-tour="rail"] img { animation: party-turn 6s linear infinite; }
+@keyframes party-slide { to { background-position: 200% 0; } }
+@keyframes party-turn { to { transform: rotate(360deg); } }

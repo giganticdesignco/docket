@@ -9,6 +9,7 @@ const open = useState('search-open', () => false)
 const supabase = useSupabaseClient()
 const router = useRouter()
 const { can } = useCurrentUser()
+const eggs = useEasterEggs()
 
 
 const term = ref('')
@@ -84,8 +85,22 @@ const actions = computed<CommandPaletteItem[]>(() => {
   ]
 })
 
+// Words the box answers to that are not searches.
+const secrets = computed<CommandPaletteItem[]>(() => {
+  const w = term.value.trim().toLowerCase()
+  const done = (fn: () => void) => () => { open.value = false; fn() }
+  if (w === 'party') return [{ label: eggs.party.value ? 'Party over' : 'Party mode', icon: 'i-lucide-party-popper', onSelect: done(eggs.toggleParty) }]
+  if (w === 'confetti' || w === 'make it rain') return [{ label: 'Make it rain', icon: 'i-lucide-sparkles', onSelect: done(() => confetti()) }]
+  if (w === 'coin' || w === 'flip' || w === 'flip a coin') return [{ label: 'Flip a coin', icon: 'i-lucide-coins', onSelect: done(eggs.flipCoin) }]
+  if (w === 'roll' || w === 'd20' || w === 'dice') return [{ label: 'Roll a d20', icon: 'i-lucide-dices', onSelect: done(eggs.rollD20) }]
+  if (w === 'credits' || w === 'about') return [{ label: 'About Docket', icon: 'i-lucide-info', onSelect: done(() => { eggs.aboutOpen.value = true }) }]
+  if (w === 'xyzzy' || w === 'plugh') return [{ label: 'Nothing happens', icon: 'i-lucide-wand', onSelect: done(eggs.xyzzy) }]
+  return []
+})
+
 const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
   const { q } = parse(term.value)
+  if (secrets.value.length) return [{ id: 'secrets', label: 'Well now', ignoreFilter: true, items: secrets.value }]
   if (q.trim().length < 2) {
     return [
       ...(recent.value.length ? [{ id: 'recent', label: 'Recent', ignoreFilter: true, items: recent.value.map(toItem) }] : []),

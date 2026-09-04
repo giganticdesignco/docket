@@ -46,6 +46,8 @@ keyboard shortcuts alone.
 - **The sitemap on a quote** sits centered in its card, and the
   full-screen button in its toolbar gives it the whole window (Esc
   brings the page back).
+- **There are a few easter eggs.** We are not saying where. One of
+  them is older than the web.
 - **Found a bug, or want something?** Click the speech-bubble icon in
   the rail, the Feedback pill beside the Assistant, or press
   `Cmd+Shift+F` on any screen. Click
