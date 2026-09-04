@@ -44,7 +44,7 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Feedback <span class="text-base font-normal text-muted">{{ openCount }} open</span></h1>
-        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the round button, or Cmd+Shift+F. Each one says which screen and what was picked. Claude reads the open list through the connector.</p>
+        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the Feedback pill, the rail icon, or Cmd+Shift+F. Each one says which screen and what was picked. Claude reads the open list through the connector.</p>
       </div>
       <USwitch v-model="showDone" label="Show done" size="sm" class="ml-auto" />
     </div>

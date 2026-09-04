@@ -2426,3 +2426,11 @@ into the new projects. The old monthly jobs are untouched; the current
 ones stay active because the Harvest sync still maps Harvest time to
 them until Harvest is cancelled, and that time will not count toward
 the new retainer burn.
+
+## No widows (2026-09-04)
+
+From Luke's feedback: `text-wrap: pretty` on the body and `balance`
+on h1 to h3 in `main.css`, so running text keeps a lone word off its
+last line and headings split evenly. Inherited everywhere, nothing per
+page. The Feedback page blurb also stopped calling the pill "the
+round button".

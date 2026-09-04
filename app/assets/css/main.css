@@ -41,3 +41,8 @@
 .table-scroll::-webkit-scrollbar { height: 8px; }
 .table-scroll::-webkit-scrollbar-track { background: transparent; }
 .table-scroll::-webkit-scrollbar-thumb { background: var(--ui-border-accented); border-radius: 9999px; }
+
+/* No widows, anywhere: the browser keeps a lone word off the last line
+   of running text, and balances headings across their lines. */
+body { text-wrap: pretty; }
+h1, h2, h3 { text-wrap: balance; }
