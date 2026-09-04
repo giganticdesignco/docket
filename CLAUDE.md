@@ -124,8 +124,17 @@ plan, stretch, hours per day in `work_item_plans`), Capacity page
 removed, approvals routed to department leads, arrangeable table
 columns (`useColumns` + `TableHead`), Clients list money and team
 columns, client page team and tasks, Estimator to new quote, the
-morning brief (`/api/ai/brief`). `docs/status.md` has the detail per
-item, newest at the bottom.
+morning brief (`/api/ai/brief`). On 2026-09-04: subtasks, Hills Bank
+removed, a private focus list, client page rework, the junk
+notification clean-up. `docs/status.md` has the detail per item, newest
+at the bottom.
+
+**In progress: "Up now"** (`docs/up-now.md`). A task keeps everyone on
+it, and `work_items.assignee_id` says which one of them is up right
+now; null means nobody is, which is a shown state, not a hidden one.
+The schema is applied and mirrored; none of the UI reads it yet, so
+every screen still behaves as it did. Section 3 of that file is the
+ordered list of commits and its header block says which are done.
 
 Open on Luke's side: set department leads and put people in
 departments (approvals fall to approve_time holders until then), an
@@ -143,6 +152,13 @@ invoice history, cancelling Harvest. MCP is live and verified.
   `/api/google/sync-all` (calendars, nightly), `/api/ai/digest` (Monday),
   `/api/sync/morning` (ClickUp tasks and Harvest time, expenses, and
   project budgets, every morning; `?dry=1` for a no-write check).
+- A table with two foreign keys to the same table cannot take an
+  unhinted embed: `profiles(full_name)` on `expenses`,
+  `work_item_comments`, `time_entries` or `work_items` returns PGRST201
+  and no rows. Name the column, `profiles!expenses_user_id_fkey(...)`.
+  Adding such a key breaks every existing unhinted embed on that table,
+  so regenerate `shared/types/database.ts` in the same commit and let
+  `npx nuxt typecheck` find them.
 - QuickBooks is not in the billing path. The `qbo_*` columns on clients,
   tasks, and billing_batches are unused scaffolding.
 - The desktop shell is unsigned until there is an Apple Developer

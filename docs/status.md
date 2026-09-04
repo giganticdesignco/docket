@@ -2068,3 +2068,88 @@ deliberately limited, because right now nothing surfaces a failure:
 - The same loop needs spacing, or a burst larger than 10 people keeps
   tripping the rate limit.
 Neither is built; Luke has not asked for them.
+
+## Two profiles columns on one table broke nine queries (2026-09-04)
+
+Found while regenerating types for the Up now work, not caused by it.
+Soft deletes added a `deleted_by` column to `expenses`,
+`work_item_comments` and `time_entries`, each a foreign key to
+`profiles`. `time_entries` also has `reviewed_by` from timesheet
+approvals. A table with more than one foreign key to `profiles` cannot
+take a bare `profiles(full_name)` embed: PostgREST answers PGRST201 and
+returns no rows at all.
+
+Nine call sites were asking for exactly that, and had been failing
+silently ever since those columns landed: the Expenses list, a billing
+batch's expenses and its two PDF paths, the detailed expense report, a
+task's comment thread, `invoiceDoc`, `reviewDoc`, the assistant's
+`get_task` comment lookup, and the Monday digest's running-timer list.
+
+Nothing flagged it because the committed `shared/types/database.ts` was
+generated before those keys existed and still described one profiles
+relationship per table, so the queries typechecked. Regenerating from
+the live project is what surfaced it. Each query now names the column
+it means, for example `profiles!expenses_user_id_fkey(full_name)`,
+which leaves the response key `profiles` and needs no other change.
+Verified in Chrome: the Expenses list and a task's Activity panel both
+render.
+
+Worth remembering as a rule: **add a foreign key to a table that
+already points at the same target and every unhinted embed on that
+table stops working.** Regenerate the types in the same commit, and
+`nuxt typecheck` will say so.
+
+## Up now: the schema (2026-09-04)
+
+`docs/up-now.md` is the spec, and its "Where this stands" block is the
+running progress. The short version: a task keeps every person on it,
+and `work_items.assignee_id` says which one of them is up right now.
+Null means nobody is, which is a visible state rather than a hidden
+one. `work_item_assignees` is untouched, so comments, mentions, status
+bells, avatars, search, the project and client pages, Everyone,
+Planner, Schedule and the client portal all behave exactly as before.
+Only a person's own lists narrow.
+
+Applied and mirrored into `schema.sql`, commit `c1c9dbd`:
+
+- `work_items.assignee_id`, `assigned_at`, `assigned_by`, plus an
+  index; `work_statuses.claims_owner` and `clears_owner`, with In
+  progress claiming and On hold clearing.
+- `work_item_owner_stamp` carries the handoff on the status change, so
+  it is not a second chore, and only ever claims for somebody already
+  on the task. Client review deliberately does not clear, because it
+  still means "mine to chase".
+- `work_item_owner_follows` keeps whoever is up in
+  `work_item_assignees`, so `task_visible()` and every notification
+  keep working with no second membership rule.
+  `work_item_assignee_removed` clears the owner when somebody is taken
+  off. `time_entry_claims_task` claims an unowned task when you start a
+  timer on it, again only for somebody already on it.
+- `hand_off(item, to, note)` is Take it, Hand off and Nobody in one
+  call, and posts the note as a comment so the reason stays with the
+  work.
+- `notify_on_assignee` stays quiet for the person just handed a task
+  and tells anyone added to an owned task that it is not on their own
+  list yet. New kinds `turn` and `unowned`. `nudge_unowned_tasks()`
+  bells everyone on an open task that has had nobody up for fourteen
+  days, at most weekly. The 9am due bell goes to whoever is up, to
+  everyone when nobody is, and to everyone again once a task is
+  overdue.
+- `capacity_weekly` no longer splits an estimate evenly across
+  everyone on a task. The person up books what is left of it after
+  everyone's planned hours; anybody else books only hours set for them;
+  `booked_tasks` counts tasks you are up on. On day one no number
+  moves, because none of the multi-assignee tasks carry an
+  `estimate_hours` and `work_item_plans` is still empty.
+- `accept_quote` now puts the scope line's named person up on the task
+  it creates, not just on it.
+
+Two of my own mistakes, caught before the push and worth knowing about:
+the first pass at `run_due_notifications` dropped the `hour = 9` guard,
+which would have sent the day's bells just after midnight because the
+cron runs hourly at :15; and the `accept_quote` change was first
+written against a `p_token text` signature that does not exist, which
+created a dead second overload instead of patching the real function.
+Both fixed, the overload dropped.
+
+Next session starts at section 3 item 3 of `docs/up-now.md`.
