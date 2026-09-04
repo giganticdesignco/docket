@@ -56,6 +56,25 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
   const projectKeys = projects.map(p => ({ id: p.id, client_id: p.client_id, key: norm(p.name), name: p.name }))
   const existingByClickup = new Map(existing.map(w => [w.clickup_id!, w.id]))
   const projectByItem = new Map(existing.map(w => [w.id, w.project_id]))
+  // Who is already on each task. Without this the loop below deleted every
+  // assignee row and put it straight back, which fired notify_on_assignee
+  // for the lot every morning (1,107 emails before this was caught) and
+  // cascaded away any work_item_plans row, since Planner's hours hang off
+  // the assignment by a composite FK.
+  const assigneeByItem = new Map<string, Set<string>>()
+  {
+    const ids = [...existingByClickup.values()]
+    for (let i = 0; i < ids.length; i += 500) {
+      const rows = await all<{ work_item_id: string, user_id: string }>(
+        supabase.from('work_item_assignees').select('work_item_id, user_id').in('work_item_id', ids.slice(i, i + 500)),
+      )
+      for (const r of rows) {
+        const set = assigneeByItem.get(r.work_item_id) ?? new Set<string>()
+        set.add(r.user_id)
+        assigneeByItem.set(r.work_item_id, set)
+      }
+    }
+  }
 
   function findClient(listName: string | undefined): string | null {
     if (!listName) return null
@@ -165,12 +184,20 @@ export async function importClickup(supabase: Db, userId: string, dryRun: boolea
       existingByClickup.set(t.id, itemId)
     }
     projectByItem.set(itemId, projectId)
-    const del = await supabase.from('work_item_assignees').delete().eq('work_item_id', itemId)
-    if (del.error) throw createError({ statusCode: 500, statusMessage: del.error.message })
-    if (people.length) {
-      const ins = await supabase.from('work_item_assignees').insert(people.map(user_id => ({ work_item_id: itemId!, user_id })))
+    // Only the difference, so an unchanged task writes nothing.
+    const have = assigneeByItem.get(itemId) ?? new Set<string>()
+    const want = new Set(people)
+    const gone = [...have].filter(u => !want.has(u))
+    const added = [...want].filter(u => !have.has(u))
+    if (gone.length) {
+      const del = await supabase.from('work_item_assignees').delete().eq('work_item_id', itemId).in('user_id', gone)
+      if (del.error) throw createError({ statusCode: 500, statusMessage: del.error.message })
+    }
+    if (added.length) {
+      const ins = await supabase.from('work_item_assignees').insert(added.map(user_id => ({ work_item_id: itemId!, user_id })))
       if (ins.error) throw createError({ statusCode: 500, statusMessage: ins.error.message })
     }
+    assigneeByItem.set(itemId, want)
   }
 
   return { dryRun, fetched: tasks.length, created, updated, subtasks, orphanSubtasks, flattened, subtasksByList, skippedExcluded, excludedLists: EXCLUDED_LISTS, assignments, droppedAssignees, skippedNoClient, inCatchAll, createdProjects, unmatchedLists: [...unmatchedLists].sort() }

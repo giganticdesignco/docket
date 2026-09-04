@@ -2006,3 +2006,32 @@ loaded), and their hours broken down by project. The hours query is
 lazy (`immediate: false` plus a watch on the selected member) and runs
 under RLS, so someone without see_all_time sees only their own rows and
 the empty state says so.
+
+## The ClickUp import was recreating every assignee nightly (2026-09-04)
+
+Found while designing the multi-assignee work, and unrelated to it.
+`clickupImport.ts` deleted every `work_item_assignees` row for each
+synced task and inserted it straight back, and `/api/sync/morning`
+runs that daily. Two consequences, both live:
+
+- `notify_on_assignee` fired for all ~554 rows every morning. 1,107
+  "assigned" notifications had been created and **emailed**; Marissa
+  had 146 unread, Sean 140, Tom 120.
+- `work_item_plans` hangs off the assignment by a composite FK with
+  `on delete cascade`, so every Planner hour on a ClickUp-linked task
+  (389 tasks) would have been wiped each morning. Nothing was actually
+  lost because no plan rows existed on those tasks yet, but Planner
+  shipped yesterday and this would have destroyed data as soon as
+  anyone used it there.
+
+Fixed by loading the current assignments once and writing only the
+difference, so an unchanged task writes nothing. Verified with a real
+sync: assignments went 555 to 560 and exactly 5 notifications were
+created, against 554 the run before.
+
+Also fixed: `run_due_notifications()` had no `deleted_at is null`
+filter, so a soft-deleted task still generated due reminders. It reads
+work_items directly as security definer, so it has to filter itself.
+
+The 1,107 existing junk notifications are still in the table, unread.
+Left alone pending Luke's call.

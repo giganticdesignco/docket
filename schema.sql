@@ -2131,7 +2131,7 @@ begin
     from public.work_items w
     join public.work_item_assignees a on a.work_item_id = w.id
     join public.work_statuses s on s.key = w.status
-    where not s.is_done and w.due_on is not null and w.due_on <= v_today + 1
+    where not s.is_done and w.deleted_at is null and w.due_on is not null and w.due_on <= v_today + 1
       and not exists (select 1 from public.notifications n where n.user_id = a.user_id and n.work_item_id = w.id and n.kind = 'due' and n.created_at::date = v_today)
   loop
     perform public.notify(r.user_id, 'due',
