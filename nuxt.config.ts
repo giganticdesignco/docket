@@ -25,6 +25,8 @@ export default defineNuxtConfig({
     // NUXT_ANTHROPIC_API_KEY for the assistant. Server only.
     anthropicApiKey: '',
   },
+  // The static skeleton in app/spa-loading-template.html shows until the app itself has loaded.
+  spaLoadingTemplate: true,
   routeRules: {
     // The signed-in app renders in the browser. Every page needs the
     // person's session and several Supabase queries; rendering that on

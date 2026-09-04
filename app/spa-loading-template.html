@@ -1,0 +1,49 @@
+<!-- Shown by the browser before the app has loaded at all: the rail and a page of gray blocks, so the first seconds are not a blank window. -->
+<style>
+  .sk { position: fixed; inset: 0; display: flex; background: #fff; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .sk-rail { width: 56px; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 14px; }
+  .sk-rail img { width: 32px; height: 32px; margin-bottom: 8px; }
+  .sk-main { flex: 1; max-width: 1280px; margin: 0 auto; padding: 24px 32px; width: 100%; box-sizing: border-box; }
+  .sk-b { background: #e5e7eb; border-radius: 6px; animation: sk-pulse 1.6s ease-in-out infinite; }
+  .sk-dot { width: 20px; height: 20px; border-radius: 6px; }
+  .sk-row { display: flex; gap: 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid #e5e7eb; }
+  .sk-row:last-child { border-bottom: 0; }
+  .sk-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0; }
+  .sk-table { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+  @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .sk.sk-dark { background: #0b1220; }
+  .sk.sk-dark .sk-rail, .sk.sk-dark .sk-row, .sk.sk-dark .sk-table { border-color: #1f2937; }
+  .sk.sk-dark .sk-b { background: #1f2937; }
+  @media (max-width: 767px) { .sk-rail { display: none; } .sk-tiles { grid-template-columns: repeat(2, 1fr); } }
+</style>
+<div class="sk" aria-busy="true" aria-label="Loading Docket">
+  <div class="sk-rail">
+    <img src="/logo.svg" alt="">
+    <div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div>
+  </div>
+  <div class="sk-main">
+    <div class="sk-b" style="height:28px;width:260px"></div>
+    <div class="sk-b" style="height:16px;width:380px;max-width:100%;margin-top:8px"></div>
+    <div class="sk-tiles">
+      <div class="sk-b" style="height:80px"></div><div class="sk-b" style="height:80px"></div><div class="sk-b" style="height:80px"></div><div class="sk-b" style="height:80px"></div>
+    </div>
+    <div class="sk-table">
+      <div class="sk-row"><div class="sk-b" style="height:16px;width:160px"></div><div class="sk-b" style="height:16px;width:96px"></div><div class="sk-b" style="height:16px;width:64px;margin-left:auto"></div></div>
+      <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:288px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
+      <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:224px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
+      <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:256px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
+      <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:288px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
+      <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:224px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
+      <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:256px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
+    </div>
+  </div>
+</div>
+<script>
+  // Follow the theme the person chose in the app (the same key Nuxt UI keeps), else the system.
+  (function () {
+    var mode = 'system';
+    try { mode = localStorage.getItem('nuxt-color-mode') || 'system'; } catch (e) {}
+    var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (dark) document.querySelector('.sk').className += ' sk-dark';
+  })();
+</script>

@@ -2833,3 +2833,23 @@ Verified in Chrome: the banner and scanlines, a coin landing Tails on
 the D side, a die landing on 18 with its caption, five adventure
 commands answered, party on and off with Escape, the credits rolling
 with eighteen names and closing on Escape.
+
+## 2026-09-04: skeleton while a page loads
+
+Luke: when a page takes a few seconds they should have something on
+screen. Two pieces. `PageSkeleton.vue` (heading, a line, four tiles, a
+table of eight rows, all `USkeleton`) lays over the leaving page from
+250 ms after a navigation starts (`page:loading:start`, so a fast page
+never flashes it) until the new page's data arrives (`page:finish`;
+`page:loading:end` fires far earlier, when only the code has landed,
+and is not used). It covers the whole container at z-20 so the old
+page's raised chips do not poke through. For the very first load,
+before the app is up at all, `app/spa-loading-template.html`
+(`spaLoadingTemplate: true`) draws the same sketch in plain HTML, the
+rail included, and a two-line script reads the theme the person chose
+(`nuxt-color-mode`) so it comes up light or dark to match.
+
+Verified in Chrome: the sketch appears 262 ms after pushing to Reports
+and goes when the page lands (about 2.4 s later); a cold load of
+/tasks shows the static sketch in light, matching Luke's setting,
+where it had followed the system's dark before the script.
