@@ -46,8 +46,9 @@ keyboard shortcuts alone.
 - **The sitemap on a quote** sits centered in its card, and the
   full-screen button in its toolbar gives it the whole window (Esc
   brings the page back).
-- **There are a few easter eggs.** They are listed at the end of this
-  guide, for anyone who wants the answers.
+- **There are a few easter eggs.** Seven of them, give or take. One is
+  older than the web, one needs a coin, and two only turn up on the
+  right day. We are not saying more.
 - **Found a bug, or want something?** Click the speech-bubble icon in
   the rail, the Feedback pill beside the Assistant, or press
   `Cmd+Shift+F` on any screen. Click
@@ -622,33 +623,3 @@ Nothing fires while you are typing in a field.
 - **Jobs run in the database and on Vercel:** reminders hourly,
   notification emails every five minutes, invoice reminders hourly, the
   morning sync, calendar sync nightly, a Monday digest, the purge.
-
-## Easter eggs
-
-None of these do any work. Each one does its own thing, in keeping
-with what it is. Esc always gets you out: it closes whatever is on
-screen, and pressed again ends arcade or party mode.
-
-- **The cheat code.** Up, up, down, down, left, right, left, right,
-  B, A, typed anywhere outside a text box, turns the screen into an
-  arcade cabinet for the rest of the session: scanlines, a vignette, a
-  glowing logo, and a "Player 1 ready" moment on the way in. The same
-  code turns it off. Typing "arcade" in the search box does the same.
-- **The credits.** Seven quick clicks on the G in the rail, or
-  "credits" in the search box, roll the credits like the end of a
-  film: the cast (everyone on the team), hours logged this year, tasks
-  finished, and who made it.
-- **A coin.** "coin" or "flip" in the search box tosses a coin across
-  the screen. The logo is heads. It really is random.
-- **A d20.** "roll" or "d20" tumbles a twenty-sided die. A natural
-  twenty gets confetti. A one cracks the die.
-- **Party mode.** "party" in the search box: confetti, a rainbow line
-  across the top, and the logo turning slowly, for the session. Again
-  turns it off. "confetti" on its own is just the confetti.
-- **Make it rain.** "make it rain" or "rain" in the search box does
-  exactly that, in dollars.
-- **The adventure.** "xyzzy" (or "plugh") opens a small text
-  adventure in the corner. It knows LOOK, INVENTORY, TIMER, HELLO,
-  HELP and QUIT, and a couple of words from 1976. Nothing happens.
-- **Two days a year.** On Halloween the "nobody is up" ring on the
-  task list is a ghost, and on New Year's Day a party popper.
