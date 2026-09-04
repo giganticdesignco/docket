@@ -1967,8 +1967,9 @@ create a second client, which is the one thing to watch.
 
 ## Outstanding on the Clients list (2026-09-04)
 
-`client_money()` gains an `outstanding` column: Docket invoices with
-status 'sent' plus Harvest invoices with state 'open', all years. The
+`client_money()` gains `outstanding` (Docket 'sent' plus Harvest 'open',
+all years) and `billed_all` (everything invoiced for the life of the
+account). The
 function had to be dropped and recreated, since the return type gained
 a column. A Harvest invoice in the 'closed' state was written off, so
 it counts as billed but never as outstanding; the client page's Billing

@@ -186,8 +186,9 @@ sees hours.
 - **The Clients list** can show the team on each account (project leads
   and people on open tasks) and, for people who see money, what each
   client has unbilled (billable time and expenses not yet on a batch or
-  invoice), what was billed this year, what is still outstanding across
-  every year, and what is left of a running retainer. Turn them on with the gear.
+  invoice), what was billed this year and for the life of the account,
+  what is still outstanding across every year, and what is left of a
+  running retainer. Turn them on with the gear.
 - **Billing on a client's page** shows what was invoiced and paid this
   year with the lifetime figure under each, and what is outstanding
   across every year. Docket and Harvest invoices count together. An

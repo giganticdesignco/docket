@@ -59,6 +59,7 @@ const team = (id: string) => teams.value?.get(id) ?? []
 const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const unbilled = (id: string) => moneyById.value?.get(id)?.unbilled ?? null
 const billed = (id: string) => moneyById.value?.get(id)?.billed_year ?? null
+const billedAll = (id: string) => moneyById.value?.get(id)?.billed_all ?? null
 const outstanding = (id: string) => moneyById.value?.get(id)?.outstanding ?? null
 // A client can have more than one retainer running; sum what is left, by basis.
 const retainerLeft = (id: string) => {
@@ -84,6 +85,7 @@ const cols = await useColumns<Tables<'clients'>>('clients', [
   { key: 'team', label: 'Team', sort: c => team(c.id).join(', ') },
   { key: 'unbilled', label: 'Unbilled', align: 'right', sort: c => unbilled(c.id), permission: 'see_money' },
   { key: 'billed', label: 'Billed this year', align: 'right', sort: c => billed(c.id), permission: 'see_money' },
+  { key: 'billedAll', label: 'Billed all time', align: 'right', sort: c => billedAll(c.id), permission: 'see_money' },
   { key: 'outstanding', label: 'Outstanding', align: 'right', sort: c => outstanding(c.id), permission: 'see_money' },
   { key: 'retainer', label: 'Retainer left', align: 'right', sort: c => { const r = retainerLeft(c.id); return r ? (r.hasHours ? r.hours : r.dollars) : null }, permission: 'see_money' },
   { key: 'status', label: 'Status', sort: c => (c.is_active ? 0 : 1) },
@@ -120,6 +122,7 @@ function onSaved(_c: Tables<'clients'>) {
               </span>
               <span v-else-if="col.key === 'unbilled'" :class="(unbilled(c.id) ?? 0) > 0 ? '' : 'text-dimmed'" title="Billable time and expenses not yet on a batch or invoice">{{ unbilled(c.id) ? money(unbilled(c.id)) : '' }}</span>
               <span v-else-if="col.key === 'billed'" title="Invoices sent or paid this year, Docket and Harvest">{{ billed(c.id) ? money(billed(c.id)) : '' }}</span>
+              <span v-else-if="col.key === 'billedAll'" title="Everything invoiced for the life of the account, Docket and Harvest">{{ billedAll(c.id) ? money(billedAll(c.id)) : '' }}</span>
               <span v-else-if="col.key === 'outstanding'" :class="(outstanding(c.id) ?? 0) > 0 ? 'text-warning' : 'text-dimmed'" title="Still owed across every year, Docket and Harvest. Written off invoices are not counted.">{{ outstanding(c.id) ? money(outstanding(c.id)) : '' }}</span>
               <span v-else-if="col.key === 'retainer'" :class="retainerText(c.id).includes('over') ? 'text-error' : ''" title="What is left of the current retainer period">{{ retainerText(c.id) }}</span>
               <UBadge v-else-if="col.key === 'status'" :color="c.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">
