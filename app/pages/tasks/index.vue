@@ -271,6 +271,16 @@ const toggle = (key: string) => {
 }
 // A subtask shows its parent's title beside it.
 const parentTitle = (i: { parent_id: string | null }) => (i.parent_id ? items.value?.find(x => x.id === i.parent_id)?.title ?? '' : '')
+// How many subtasks a task has, for the tree icon in front of its title.
+const childCount = computed(() => {
+  const m = new Map<string, number>()
+  for (const i of items.value ?? []) if (i.parent_id) m.set(i.parent_id, (m.get(i.parent_id) ?? 0) + 1)
+  return m
+})
+// A subtask sits tucked under its parent when the parent is in the same
+// group; then the indent and the elbow say it all and the "in ..." note
+// is only needed when the parent is somewhere else.
+const underParent = (i: Item, g: Group) => !!i.parent_id && g.items.some(x => x.id === i.parent_id)
 const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 const priorityIcon = (p: string) => (p === 'urgent' ? 'i-lucide-flame' : p === 'high' ? 'i-lucide-flag' : p === 'low' ? 'i-lucide-arrow-down' : 'i-lucide-minus')
 const priorityClass = (p: string) => (p === 'urgent' ? 'text-error' : p === 'high' ? 'text-warning' : 'text-dimmed')
@@ -681,7 +691,7 @@ function created(id: string) {
                 <span class="mt-1.5 size-2.5 shrink-0 rounded-full" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" />
                 <span class="line-clamp-2 font-medium">{{ i.title }}</span>
               </div>
-              <div v-if="i.parent_id" class="mt-1 truncate text-xs text-dimmed"><UIcon name="i-lucide-corner-down-right" class="inline size-3 align-[-2px]" /> {{ parentTitle(i) }}</div>
+              <div v-if="i.parent_id" class="mt-1 truncate text-xs text-dimmed"><UIcon name="i-lucide-corner-down-right" class="inline-block size-3 align-[-2px]" /> {{ parentTitle(i) }}</div>
               <div class="mt-auto flex items-center gap-2 pt-3 text-xs text-muted">
                 <span :class="i.due_on && i.due_on < today && !ws.isDone(i.status) ? 'text-error' : ''">{{ i.due_on ? shortDate(i.due_on) : 'no date' }}</span>
                 <UIcon :name="priorityIcon(i.priority)" class="size-3.5" :class="priorityClass(i.priority)" />
@@ -738,10 +748,11 @@ function created(id: string) {
             <td class="w-6 px-1 py-1.5">
               <button type="button" data-menu="status" class="block size-3 rounded-full ring-2 ring-transparent hover:ring-accented" :class="dotClass(ws.color(i.status))" :title="ws.label(i.status)" @click="openMenu(i, 'status', $event)" />
             </td>
-            <td class="min-w-0 px-2 py-1.5" :class="i.parent_id ? 'pl-6' : ''">
-              <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1 inline size-3.5 align-[-2px] text-dimmed" :title="`Subtask of ${parentTitle(i)}`" />
+            <td class="min-w-0 px-2 py-1.5" :class="underParent(i, g) ? 'pl-9' : ''">
+              <UIcon v-if="i.parent_id" name="i-lucide-corner-down-right" class="mr-1.5 inline-block size-4 align-[-3px] text-muted" :title="`Subtask of ${parentTitle(i)}`" />
+              <UIcon v-else-if="childCount.get(i.id)" name="i-lucide-list-tree" class="mr-1.5 inline-block size-4 align-[-3px] text-muted" :title="`${childCount.get(i.id)} ${childCount.get(i.id) === 1 ? 'subtask' : 'subtasks'}`" />
               <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline" :class="focusMode && ws.isDone(i.status) ? 'text-dimmed line-through' : ''">{{ i.title }}</NuxtLink>
-              <span v-if="i.parent_id" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
+              <span v-if="i.parent_id && !underParent(i, g)" class="ml-2 text-xs text-dimmed">in {{ parentTitle(i) }}</span>
               <span v-if="focusMode || groupBy !== 'project'" class="ml-2 text-xs text-muted">{{ projectLabel(i) }}</span>
               <span v-if="g.key === 'waiting' && i.up" class="ml-2 text-xs text-muted">{{ i.up.full_name }} is up</span>
               <UButton v-if="g.key === 'unowned'" size="xs" variant="outline" icon="i-lucide-hand" class="ml-2 align-middle" :disabled="handingOff" @click.stop="takeIt(i)">Take it</UButton>

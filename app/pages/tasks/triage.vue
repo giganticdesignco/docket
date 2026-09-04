@@ -244,7 +244,7 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
               :class="over === `${g.clientId}|new` ? 'border-primary bg-primary/10 text-highlighted' : 'border-accented'"
               @dragover="onDragOver(`${g.clientId}|new`, g.clientId, $event)" @dragleave="over === `${g.clientId}|new` && (over = null)" @drop.prevent="onDropNew(g)"
               @click="newFor = { clientId: g.clientId, clientName: g.clientName, generalId: g.generalId };"
-            ><UIcon name="i-lucide-plus" class="mr-1 inline size-3.5 align-[-2px]" />New project</button>
+            ><UIcon name="i-lucide-plus" class="mr-1 inline-block size-3.5 align-[-2px]" />New project</button>
           </div>
         </div>
       </div>

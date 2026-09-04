@@ -2364,3 +2364,13 @@ cards view's "All clients" is the same style inline. No page has a
 back arrow any more. Tailwind v4 note: `space-y` puts its gap on the
 previous sibling's margin-bottom, so the crumbs take `mb-3` rather
 than a negative margin.
+
+## Subtasks read as nested (2026-09-04)
+
+From Luke's feedback. A parent shows a tree icon in front of its title
+(hover: how many subtasks); a subtask shows a visible elbow and sits a
+step deeper when it is tucked under its parent, and the "in Parent"
+note only appears when the parent is somewhere else. Found on the way:
+`UIcon` with `inline` renders zero width, so `size-*` does nothing;
+it needs `inline-block`. Fixed on the triage page's New project icon
+as well.
