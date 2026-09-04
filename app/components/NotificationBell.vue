@@ -38,7 +38,7 @@ const ago = (iso: string) => {
   const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
   return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`
 }
-const ICON: Record<string, string> = { assigned: 'i-lucide-user-plus', mentioned: 'i-lucide-at-sign', comment: 'i-lucide-message-square', client_comment: 'i-lucide-message-square-text', status: 'i-lucide-circle-dot', due: 'i-lucide-calendar-clock', client_decision: 'i-lucide-badge-check', quote_decision: 'i-lucide-file-signature', invoice_paid: 'i-lucide-banknote', timer: 'i-lucide-timer', missing_time: 'i-lucide-clock-alert', time_rejected: 'i-lucide-undo-2', time_submitted: 'i-lucide-badge-check' }
+const ICON: Record<string, string> = { assigned: 'i-lucide-user-plus', turn: 'i-lucide-hand', unowned: 'i-lucide-circle-dashed', mentioned: 'i-lucide-at-sign', comment: 'i-lucide-message-square', client_comment: 'i-lucide-message-square-text', status: 'i-lucide-circle-dot', due: 'i-lucide-calendar-clock', client_decision: 'i-lucide-badge-check', quote_decision: 'i-lucide-file-signature', invoice_paid: 'i-lucide-banknote', timer: 'i-lucide-timer', missing_time: 'i-lucide-clock-alert', time_rejected: 'i-lucide-undo-2', time_submitted: 'i-lucide-badge-check' }
 </script>
 
 <template>
