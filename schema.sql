@@ -484,7 +484,12 @@ create table work_statuses (
   is_paused        boolean not null default false,
   is_client_review boolean not null default false,
   is_return        boolean not null default false,
-  is_active        boolean not null default true
+  is_active        boolean not null default true,
+  -- Whose turn it is travels with the status, so a handoff is not a
+  -- second chore. Checkboxes on /admin/task-statuses, so the mapping
+  -- retunes without a deploy. See "Up now" at the end of this file.
+  claims_owner     boolean not null default false,
+  clears_owner     boolean not null default false
 );
 insert into work_statuses (key, label, color, position, is_done, is_paused, is_client_review, is_return) values
   ('new',               'New',               'neutral', 1, false, false, false, false),
@@ -497,6 +502,10 @@ insert into work_statuses (key, label, color, position, is_done, is_paused, is_c
   ('on_hold',           'On hold',           'neutral', 8, false, true,  false, false),
   ('completed',         'Completed',         'success', 9, true,  false, false, false)
 on conflict (key) do nothing;
+-- Only In progress claims, and only On hold clears: Client review still
+-- means "mine to chase", which is what the account people mean by it.
+update work_statuses set claims_owner = true where key = 'in_progress';
+update work_statuses set clears_owner = true where key = 'on_hold';
 
 -- work_items live under projects; several people can be assigned; comments
 -- and files hang off them. Comments allow a null author with a typed name
@@ -526,6 +535,12 @@ create table work_items (
   client_decision_by text,
   client_decision_at timestamptz,
   shared_at          timestamptz,
+  -- Up now: several people are on a task across its life, but at any
+  -- moment one of them is up. Null means nobody is. See the "Up now"
+  -- section at the end of this file.
+  assignee_id    uuid references profiles(id) on delete set null,
+  assigned_at    timestamptz,
+  assigned_by    uuid references profiles(id) on delete set null,
   created_by     uuid not null references profiles(id) on delete restrict,
   completed_at   timestamptz,
   created_at     timestamptz not null default now(),
@@ -533,6 +548,7 @@ create table work_items (
 );
 create index work_items_project_status on work_items (project_id, status);
 create index work_items_due on work_items (due_on);
+create index work_items_assignee on work_items (assignee_id);
 create trigger work_items_touch before insert or update on work_items
   for each row execute function public.work_item_touch();
 
@@ -1365,9 +1381,12 @@ select
       and cb.starts_at >= w.week_start
       and cb.starts_at <  w.week_start + 7
   ), 0) as meeting_hours,
-  -- Hours someone set per day on Planner (work_item_plans) where they
-  -- exist for this person and task; otherwise the estimate split evenly
-  -- across assignees, in the due week. Done and paused do not book.
+  -- Hours someone set per day on Planner (work_item_plans), for anyone
+  -- on the task; plus, for the person up on it, whatever is left of the
+  -- estimate after every hour anyone has planned. Someone who is on a
+  -- task but not up on it books only the hours set for them, so a
+  -- designer who finished in July stops booking half an estimate
+  -- against a build due in week four. Done and paused do not book.
   coalesce((
     select sum(pl.hours)
     from work_item_plans pl
@@ -1378,26 +1397,22 @@ select
       and pl.day >= w.week_start
       and pl.day <  w.week_start + 7
   ), 0) + coalesce((
-    select sum(coalesce(wi.estimate_hours, 0)
-               / greatest((select count(*) from work_item_assignees a2 where a2.work_item_id = wi.id), 1))
+    select sum(coalesce(wi.estimate_hours, 0))
     from work_items wi
-    join work_item_assignees a on a.work_item_id = wi.id
     join work_statuses s on s.key = wi.status
-    where a.user_id = pr.id
+    where wi.assignee_id = pr.id
       and not s.is_done and not s.is_paused
       and wi.due_on >= w.week_start
       and wi.due_on <  w.week_start + 7
-      and not exists (select 1 from work_item_plans pl where pl.work_item_id = wi.id and pl.user_id = pr.id)
+      and not exists (select 1 from work_item_plans pl where pl.work_item_id = wi.id)
   ), 0) + coalesce((
-    -- A partly set task: whatever is left of the person's share sits
-    -- evenly on the span's unset weekdays, the way Planner shows it.
+    -- A partly set task: what is left of the estimate sits evenly on the
+    -- span's weekdays that nobody has planned, the way Planner shows it.
     select sum(
       greatest(0, coalesce(wi.estimate_hours, 0)
-                  / greatest((select count(*) from work_item_assignees a2 where a2.work_item_id = wi.id), 1)
-                  - (select sum(p2.hours) from work_item_plans p2 where p2.work_item_id = wi.id and p2.user_id = pr.id))
+                  - (select sum(p2.hours) from work_item_plans p2 where p2.work_item_id = wi.id))
       * u.in_week / u.total)
     from work_items wi
-    join work_item_assignees a on a.work_item_id = wi.id and a.user_id = pr.id
     join work_statuses s on s.key = wi.status
     cross join lateral (
       select count(*) filter (where d >= w.week_start and d < w.week_start + 7) as in_week, count(*) as total
@@ -1405,18 +1420,20 @@ select
         (case when wi.start_on is not null and wi.start_on <= wi.due_on then wi.start_on else wi.due_on end)::timestamp,
         wi.due_on::timestamp, interval '1 day') d
       where extract(isodow from d) < 6
-        and not exists (select 1 from work_item_plans p3 where p3.work_item_id = wi.id and p3.user_id = pr.id and p3.day = d::date)
+        and not exists (select 1 from work_item_plans p3 where p3.work_item_id = wi.id and p3.day = d::date)
     ) u
-    where not s.is_done and not s.is_paused
+    where wi.assignee_id = pr.id
+      and not s.is_done and not s.is_paused
       and wi.due_on is not null and u.total > 0
-      and exists (select 1 from work_item_plans p4 where p4.work_item_id = wi.id and p4.user_id = pr.id)
+      and exists (select 1 from work_item_plans p4 where p4.work_item_id = wi.id)
   ), 0) as booked_hours,
+  -- Tasks you are up on. Being on a task somebody else is up on does not
+  -- put it in your count.
   coalesce((
     select count(*)
     from work_items wi
-    join work_item_assignees a on a.work_item_id = wi.id
     join work_statuses s on s.key = wi.status
-    where a.user_id = pr.id
+    where wi.assignee_id = pr.id
       and not s.is_done and not s.is_paused
       and wi.due_on >= w.week_start
       and wi.due_on <  w.week_start + 7
@@ -1937,7 +1954,7 @@ $$;
 
 create or replace function public.notification_email_default(p_kind text) returns text
 language sql immutable set search_path = '' as $$
-  select case when p_kind in ('comment', 'status', 'due') then 'off' else 'instant' end;
+  select case when p_kind in ('comment', 'status', 'due', 'unowned') then 'off' else 'instant' end;
 $$;
 
 -- Insert a notification for one person, honouring their preferences.
@@ -1983,13 +2000,23 @@ language sql stable set search_path = '' as $$
   where is_active and (role = 'admin' or role in (select role from public.permissions where key = 'manage_invoices'));
 $$;
 
+-- Being added to a task is still worth a bell, but the person just
+-- handed it gets the 'turn' bell instead, and somebody added to a task
+-- that already has an owner is told it is not on their own list yet.
 create or replace function public.notify_on_assignee() returns trigger
 language plpgsql security definer set search_path = '' as $$
-declare v_title text;
+declare v_title text; v_owned boolean;
 begin
-  select title into v_title from public.work_items where id = new.work_item_id;
-  perform public.notify(new.user_id, 'assigned', public.actor_name() || ' assigned you: ' || v_title, null,
-                        '/tasks/' || new.work_item_id, auth.uid(), new.work_item_id);
+  if exists (select 1 from public.work_items w
+             where w.id = new.work_item_id and w.assignee_id = new.user_id) then
+    return new;
+  end if;
+  select w.title, w.assignee_id is not null into v_title, v_owned
+    from public.work_items w where w.id = new.work_item_id;
+  perform public.notify(new.user_id, 'assigned',
+    public.actor_name() || ' assigned you: ' || v_title,
+    case when v_owned then 'Someone else is up on it, so it is not on your own list yet.' end,
+    '/tasks/' || new.work_item_id, auth.uid(), new.work_item_id);
   return new;
 end $$;
 create trigger notify_on_assignee after insert on work_item_assignees for each row execute function public.notify_on_assignee();
@@ -2117,7 +2144,10 @@ begin
 end $$;
 
 -- Due tomorrow, today, and overdue: once a day at 9am Central, in the
--- bell (and by email if the person turns 'due' on).
+-- bell (and by email if the person turns 'due' on). The bell goes to
+-- whoever is up. If nobody is up, it goes to everyone on the task; and
+-- an overdue task is everyone's again even when someone IS up, so a
+-- stale or wrong claim cannot bury work.
 create or replace function public.run_due_notifications() returns int
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -2126,13 +2156,22 @@ declare
   r record; v_n int := 0;
 begin
   if extract(hour from v_local) <> 9 then return 0; end if;
+  perform public.nudge_unowned_tasks();
   for r in
-    select w.id, w.title, w.due_on, a.user_id
+    select w.id, w.title, w.due_on, u.user_id
     from public.work_items w
-    join public.work_item_assignees a on a.work_item_id = w.id
     join public.work_statuses s on s.key = w.status
-    where not s.is_done and w.deleted_at is null and w.due_on is not null and w.due_on <= v_today + 1
-      and not exists (select 1 from public.notifications n where n.user_id = a.user_id and n.work_item_id = w.id and n.kind = 'due' and n.created_at::date = v_today)
+    cross join lateral (
+      select w.assignee_id as user_id where w.assignee_id is not null
+      union
+      select a.user_id from public.work_item_assignees a
+      where a.work_item_id = w.id and (w.assignee_id is null or w.due_on < v_today)
+    ) u
+    where w.deleted_at is null and not s.is_done
+      and w.due_on is not null and w.due_on <= v_today + 1
+      and not exists (select 1 from public.notifications n
+                      where n.user_id = u.user_id and n.work_item_id = w.id
+                        and n.kind = 'due' and n.created_at::date = v_today)
   loop
     perform public.notify(r.user_id, 'due',
       case when r.due_on > v_today then 'Due tomorrow: ' || r.title
@@ -2522,7 +2561,9 @@ begin
   end loop;
 
   -- Every sitemap page becomes a task, with the page's hours as the
-  -- estimate, assigned to whoever the page's scope line names.
+  -- estimate, assigned to whoever the page's scope line names. That
+  -- person is also up on it: the scope line is a statement of whose
+  -- turn it is first.
   for r in
     select n.title, n.path, coalesce(n.hours, t.hours) as hours, t.name as template_name, n.sort_order, l.assignee_id
     from public.quote_sitemap_nodes n
@@ -2538,6 +2579,7 @@ begin
     returning id into v_item;
     if r.assignee_id is not null then
       insert into public.work_item_assignees (work_item_id, user_id) values (v_item, r.assignee_id) on conflict do nothing;
+      update public.work_items set assignee_id = r.assignee_id where id = v_item;
     end if;
   end loop;
 
@@ -3817,3 +3859,164 @@ create policy own_focus on work_item_focus for all to authenticated
   using (user_id = (select auth.uid()) and not (select is_client()))
   with check (user_id = (select auth.uid()) and not (select is_client()));
 grant select, insert, update, delete on work_item_focus to authenticated;
+
+-- ============================================================
+-- UP NOW
+-- A task belongs to several people across its life, but at any moment
+-- one of them is up. work_items.assignee_id is that person, and null
+-- means nobody is up yet. work_item_assignees is unchanged and still
+-- means "on this task": RLS visibility, comments, mentions, status
+-- bells, avatars, the client page team column, search. Only the person
+-- up now sees the task on their own lists. Nothing is hidden from
+-- Everyone, Planner, Schedule, search, the project page or the portal.
+-- The columns themselves are on the work_items and work_statuses
+-- definitions above.
+-- ============================================================
+
+-- The status carries the handoff, so it is not a second chore. Claiming
+-- requires the mover to already be on the task: an account person moving
+-- a card for a maker must never silently take it off the maker's list.
+create or replace function public.work_item_owner_stamp() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_clears boolean; v_claims boolean; v_me uuid := auth.uid();
+begin
+  if tg_op = 'UPDATE'
+     and new.status is distinct from old.status
+     and new.assignee_id is not distinct from old.assignee_id then
+    select s.clears_owner, s.claims_owner into v_clears, v_claims
+      from public.work_statuses s where s.key = new.status;
+    if coalesce(v_clears, false) then
+      new.assignee_id := null;
+    elsif coalesce(v_claims, false) and new.assignee_id is null and v_me is not null
+      and exists (select 1 from public.work_item_assignees a
+                  where a.work_item_id = new.id and a.user_id = v_me) then
+      new.assignee_id := v_me;
+    end if;
+  end if;
+  if new.assignee_id is distinct from (case when tg_op = 'UPDATE' then old.assignee_id else null end) then
+    new.assigned_at := case when new.assignee_id is null then null else now() end;
+    new.assigned_by := case when new.assignee_id is null then null else v_me end;
+  end if;
+  return new;
+end $$;
+create trigger work_item_owner_stamp before insert or update on work_items
+  for each row execute function public.work_item_owner_stamp();
+
+-- Whoever is up is always on the task, so task_visible() and every
+-- notification keep working without a second membership rule.
+create or replace function public.work_item_owner_follows() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.assignee_id is not null then
+    insert into public.work_item_assignees (work_item_id, user_id)
+    values (new.id, new.assignee_id) on conflict do nothing;
+  end if;
+  return null;
+end $$;
+create trigger work_item_owner_follows after insert or update of assignee_id on work_items
+  for each row execute function public.work_item_owner_follows();
+
+-- Taking somebody off the task clears them from "up now", nothing else.
+create or replace function public.work_item_assignee_removed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.work_items set assignee_id = null
+  where id = old.work_item_id and assignee_id = old.user_id;
+  return null;
+end $$;
+create trigger work_item_assignee_removed after delete on work_item_assignees
+  for each row execute function public.work_item_assignee_removed();
+
+-- Starting a timer on a task nobody is up on puts you up on it. It only
+-- ever claims for someone already on the task, so it cannot be used to
+-- join a task you cannot see. Harvest's importer never sets
+-- work_item_id, so the nightly sync cannot fire it.
+create or replace function public.time_entry_claims_task() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.work_item_id is null or new.user_id is null then return null; end if;
+  update public.work_items w set assignee_id = new.user_id
+  where w.id = new.work_item_id
+    and w.assignee_id is null
+    and w.deleted_at is null
+    and exists (select 1 from public.work_item_assignees a
+                where a.work_item_id = w.id and a.user_id = new.user_id)
+    and exists (select 1 from public.work_statuses s
+                where s.key = w.status and not s.is_done);
+  return null;
+end $$;
+create trigger time_entry_claims_task after insert on time_entries
+  for each row execute function public.time_entry_claims_task();
+
+-- Take it, Hand off, and Nobody, in one call. p_to null means nobody is
+-- up. A note is posted as a comment so the reason stays with the work.
+create or replace function public.hand_off(p_item uuid, p_to uuid default null, p_note text default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v_me uuid := auth.uid(); v_title text; v_note text;
+begin
+  if v_me is null then raise exception 'Sign in first'; end if;
+  if (select public.is_client()) then raise exception 'Not allowed'; end if;
+  if not ((select public.task_visible(p_item)) or (select public.has_permission('see_all_tasks')))
+    then raise exception 'Task not found'; end if;
+  select w.title into v_title
+    from public.work_items w where w.id = p_item and w.deleted_at is null;
+  if v_title is null then raise exception 'Task not found'; end if;
+  if p_to is not null and not exists (select 1 from public.profiles
+       where id = p_to and is_active and role <> 'client')
+    then raise exception 'Pick someone on the team'; end if;
+  v_note := nullif(btrim(coalesce(p_note, '')), '');
+
+  -- assignee_id first, so work_item_owner_follows adds the row while the
+  -- owner is already set and notify_on_assignee stays quiet for them.
+  update public.work_items set assignee_id = p_to, updated_at = now() where id = p_item;
+
+  if v_note is not null then
+    insert into public.work_item_comments (work_item_id, author_id, body) values (p_item, v_me, v_note);
+  end if;
+  if p_to is not null and p_to <> v_me then
+    perform public.notify(p_to, 'turn', public.actor_name() || ' handed you: ' || v_title,
+                          v_note, '/tasks/' || p_item, v_me, p_item);
+  end if;
+end $$;
+revoke execute on function public.hand_off(uuid, uuid, text) from public, anon;
+grant   execute on function public.hand_off(uuid, uuid, text) to authenticated;
+
+-- An open task with people on it and nobody up, that has not moved in
+-- two weeks, goes back in front of every one of them. Over-showing is
+-- the only direction this errs in. Called from run_due_notifications.
+create or replace function public.nudge_unowned_tasks() returns int
+language plpgsql security definer set search_path = '' as $$
+declare r record; v_n int := 0;
+begin
+  for r in
+    select w.id, w.title, a.user_id
+    from public.work_items w
+    join public.work_statuses s on s.key = w.status
+    join public.work_item_assignees a on a.work_item_id = w.id
+    where w.deleted_at is null and w.assignee_id is null
+      and not s.is_done and not s.is_paused
+      and w.updated_at < now() - interval '14 days'
+      and not exists (select 1 from public.notifications n
+                      where n.user_id = a.user_id and n.work_item_id = w.id
+                        and n.kind = 'unowned' and n.created_at > now() - interval '7 days')
+  loop
+    perform public.notify(r.user_id, 'unowned', 'Nobody is up on: ' || r.title,
+      'It has not moved in two weeks. Take it, or hand it to someone.',
+      '/tasks/' || r.id, null, r.id);
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+revoke execute on function public.nudge_unowned_tasks() from public, anon;
+
+-- Day one. Triggers off so nothing bells: a task with exactly one person
+-- on it puts that person up, which is identical to how it behaves today.
+-- Tasks with two or more people are deliberately left with nobody up, so
+-- they surface in the "Nobody up" band rather than silently picking one.
+alter table work_items disable trigger user;
+update work_items w
+set assignee_id = f.user_id, assigned_at = now()
+from (select work_item_id, min(user_id::text)::uuid as user_id
+      from work_item_assignees group by work_item_id having count(*) = 1) f
+where f.work_item_id = w.id;
+alter table work_items enable trigger user;
