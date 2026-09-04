@@ -4,9 +4,10 @@ import type { Tables } from '~~/shared/types/database'
 // The ClickUp import could only tie a task to a project when the
 // project's name appeared in the task's title; everything else landed
 // in a "General" project made for the client. This page lists those,
-// a client at a time, so they can be moved to the right project in a
-// few clicks each: tick the rows, pick the project. Every move offers
-// Undo for thirty seconds.
+// a client at a time, with the client's projects beside them, so they
+// can be moved in a few clicks each: drag a row onto a project, or tick
+// several and drop (or pick) once. Every move offers Undo for thirty
+// seconds.
 definePageMeta({ middleware: 'can', permission: 'manage_tasks' })
 useHead({ title: 'Unsorted tasks' })
 
@@ -71,9 +72,8 @@ const clientOptions = computed(() => {
 
 // The client's other projects. Active ones only: these are open tasks,
 // and a finished project is the wrong home for open work.
-const projectOptions = (clientId: string) => (projects.value ?? [])
-  .filter(p => p.client_id === clientId && p.is_active && p.name !== 'General')
-  .map(p => ({ label: p.name, value: p.id }))
+const clientProjects = (clientId: string) => (projects.value ?? []).filter(p => p.client_id === clientId && p.is_active && p.name !== 'General')
+const projectOptions = (clientId: string) => clientProjects(clientId).map(p => ({ label: p.name, value: p.id }))
 
 // ---------- selection ----------
 const selected = ref(new Set<string>())
@@ -118,6 +118,38 @@ function moveSelected(g: { clientId: string, generalId: string, items: Item[] },
   move(groupSelected(g).map(i => i.id), projectId, g.generalId)
 }
 
+// ---------- drag a row onto a project ----------
+// A ticked row drags the whole selection in its client; an unticked row
+// drags itself. Drop on a project card, or on New project to make one
+// and move them into it.
+const dragging = ref<{ ids: string[], clientId: string, generalId: string } | null>(null)
+const over = ref<string | null>(null)
+function onDragStart(g: { clientId: string, generalId: string, items: Item[] }, i: Item, e: DragEvent) {
+  const ids = selected.value.has(i.id) ? groupSelected(g).map(x => x.id) : [i.id]
+  dragging.value = { ids, clientId: g.clientId, generalId: g.generalId }
+  e.dataTransfer?.setData('text/plain', i.id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+const reset = () => { dragging.value = null; over.value = null }
+function onDragOver(target: string, clientId: string, e: DragEvent) {
+  if (dragging.value?.clientId !== clientId) return
+  e.preventDefault()
+  over.value = target
+}
+async function onDrop(projectId: string, clientId: string) {
+  const d = dragging.value
+  reset()
+  if (!d || d.clientId !== clientId) return
+  await move(d.ids, projectId, d.generalId)
+}
+function onDropNew(g: { clientId: string, clientName: string, generalId: string }) {
+  const d = dragging.value
+  reset()
+  if (!d || d.clientId !== g.clientId) return
+  for (const id of d.ids) selected.value.add(id)
+  newFor.value = { clientId: g.clientId, clientName: g.clientName, generalId: g.generalId }
+}
+
 // ---------- a project that does not exist yet ----------
 const newFor = ref<{ clientId: string, clientName: string, generalId: string } | null>(null)
 async function projectCreated(p: Tables<'projects'>) {
@@ -138,7 +170,7 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
     <div class="flex flex-wrap items-center gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Unsorted tasks <span class="text-base font-normal text-muted">{{ openItems.length }}</span></h1>
-        <p class="text-sm text-muted">Tasks the ClickUp import could not tie to a project sit in each client's General project. Tick the ones that belong together, then pick where they go.</p>
+        <p class="text-sm text-muted">Tasks the ClickUp import could not tie to a project sit in each client's General project. Drag a task onto one of the client's projects, or tick several and drop them together.</p>
       </div>
       <div class="ml-auto flex flex-wrap items-center gap-3">
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search titles" size="sm" class="w-48" />
@@ -173,21 +205,51 @@ const initials = (name: string) => name.split(' ').map(w => w[0]).join('').slice
           </div>
         </div>
       </template>
-      <ul class="divide-y divide-default text-sm">
-        <li v-for="i in g.items" :key="i.id" class="flex items-center gap-3 px-4 py-2" :class="isSelected(i.id) ? 'bg-primary/5' : ''">
-          <UCheckbox :model-value="isSelected(i.id)" :aria-label="`Select ${i.title}`" @update:model-value="toggle(i.id, $event === true)" />
-          <div class="min-w-0 flex-1">
-            <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
-            <div class="truncate text-xs text-muted">{{ i.work_item_assignees.map(a => a.profiles?.full_name).filter(Boolean).join(', ') || 'Unassigned' }}</div>
+      <div class="grid lg:grid-cols-[1fr_18rem]">
+        <!-- Left: the unsorted tasks, one fixed column grid so faces, dates and statuses line up -->
+        <ul class="divide-y divide-default text-sm">
+          <li
+            v-for="i in g.items" :key="i.id" draggable="true"
+            class="grid cursor-grab grid-cols-[auto_1fr_5rem_4rem_7rem_1.5rem] items-center gap-3 px-4 py-2 active:cursor-grabbing"
+            :class="[isSelected(i.id) ? 'bg-primary/5' : '', dragging?.ids.includes(i.id) ? 'opacity-40' : '']"
+            @dragstart="onDragStart(g, i, $event)" @dragend="reset"
+          >
+            <UCheckbox :model-value="isSelected(i.id)" :aria-label="`Select ${i.title}`" @update:model-value="toggle(i.id, $event === true)" />
+            <div class="min-w-0">
+              <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
+              <div class="truncate text-xs text-muted">{{ i.work_item_assignees.map(a => a.profiles?.full_name).filter(Boolean).join(', ') || 'Unassigned' }}</div>
+            </div>
+            <span class="flex -space-x-1.5" :title="i.work_item_assignees.map(a => a.profiles?.full_name).join(', ')">
+              <span v-for="a in i.work_item_assignees.slice(0, 3)" :key="a.profiles?.full_name ?? ''" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
+            </span>
+            <span class="text-right tabular-nums" :class="i.due_on && i.due_on < todayString() ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
+            <span class="min-w-0"><UBadge :color="ws.color(i.status)" variant="subtle" size="sm" class="max-w-full truncate">{{ ws.label(i.status) }}</UBadge></span>
+            <UButton v-if="i.clickup_id" :to="`https://app.clickup.com/t/${i.clickup_id}`" external target="_blank" icon="i-lucide-external-link" variant="ghost" color="neutral" size="xs" aria-label="Open in ClickUp" title="Open in ClickUp" />
+            <span v-else />
+          </li>
+        </ul>
+        <!-- Right: the client's projects, each a drop target -->
+        <div class="border-t border-default p-3 lg:border-l lg:border-t-0">
+          <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-dimmed">Projects</div>
+          <div class="space-y-1.5">
+            <div
+              v-for="p in clientProjects(g.clientId)" :key="p.id"
+              class="rounded-md border px-3 py-2 text-sm transition-colors"
+              :class="over === `${g.clientId}|${p.id}` ? 'border-primary bg-primary/10' : dragging?.clientId === g.clientId ? 'border-dashed border-primary/40' : 'border-default'"
+              @dragover="onDragOver(`${g.clientId}|${p.id}`, g.clientId, $event)" @dragleave="over === `${g.clientId}|${p.id}` && (over = null)" @drop.prevent="onDrop(p.id, g.clientId)"
+            >
+              <NuxtLink :to="`/projects/${p.id}`" class="font-medium hover:underline">{{ p.name }}</NuxtLink>
+            </div>
+            <p v-if="!clientProjects(g.clientId).length" class="px-1 py-2 text-xs text-muted">No active projects yet.</p>
+            <button
+              type="button" class="w-full rounded-md border border-dashed px-3 py-2 text-left text-sm text-muted transition-colors hover:border-primary hover:text-highlighted"
+              :class="over === `${g.clientId}|new` ? 'border-primary bg-primary/10 text-highlighted' : 'border-accented'"
+              @dragover="onDragOver(`${g.clientId}|new`, g.clientId, $event)" @dragleave="over === `${g.clientId}|new` && (over = null)" @drop.prevent="onDropNew(g)"
+              @click="newFor = { clientId: g.clientId, clientName: g.clientName, generalId: g.generalId };"
+            ><UIcon name="i-lucide-plus" class="mr-1 inline size-3.5 align-[-2px]" />New project</button>
           </div>
-          <span class="flex shrink-0 -space-x-1.5" :title="i.work_item_assignees.map(a => a.profiles?.full_name).join(', ')">
-            <span v-for="a in i.work_item_assignees.slice(0, 3)" :key="a.profiles?.full_name ?? ''" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default">{{ initials(a.profiles?.full_name ?? '?') }}</span>
-          </span>
-          <span class="w-16 text-right tabular-nums" :class="i.due_on && i.due_on < todayString() ? 'text-error' : 'text-muted'">{{ i.due_on ? shortDate(i.due_on) : '' }}</span>
-          <UBadge :color="ws.color(i.status)" variant="subtle" size="sm">{{ ws.label(i.status) }}</UBadge>
-          <UButton v-if="i.clickup_id" :to="`https://app.clickup.com/t/${i.clickup_id}`" external target="_blank" icon="i-lucide-external-link" variant="ghost" color="neutral" size="xs" aria-label="Open in ClickUp" title="Open in ClickUp" />
-        </li>
-      </ul>
+        </div>
+      </div>
     </UCard>
 
     <AppDrawer :open="!!newFor" :title="newFor ? `New project for ${newFor.clientName}` : 'New project'" @update:open="(v) => { if (!v) newFor = null }">

@@ -2264,3 +2264,14 @@ into a project, and the same faces alignment fix there; then drag on
 `/tasks` to reorder rows and to nest a task under another as a
 subtask (shared order, drop between rows reorders, drop onto a row
 nests, one level deep, same project).
+
+## Unsorted tasks page: two columns, drag into a project (2026-09-04)
+
+Each client card on `/tasks/triage` is now two columns: the unsorted
+tasks on the left, the client's active projects on the right as drop
+targets, with a dashed New project target that opens the project form
+with the dragged tasks preselected. A ticked row drags the whole
+selection in its client; an unticked row drags itself. The Move
+selected picker and Undo stay. Rows use one fixed column grid so the
+faces, dates and statuses line up. Verified by dragging a task onto a
+project (moved, toast, Undo offered) and moving it back.
