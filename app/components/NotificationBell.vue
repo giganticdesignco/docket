@@ -2,6 +2,8 @@
 // The bell in the rail: unread count, the latest few in a popover, and
 // a link to the full list. Subscribes to the person's rows so a new
 // row shows up without a reload.
+// Which way the popover opens: right of the left rail, left of the right one.
+const props = withDefaults(defineProps<{ side?: 'left' | 'right' }>(), { side: 'right' })
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const open = ref(false)
@@ -29,7 +31,7 @@ const ICON: Record<string, string> = Object.fromEntries(NOTIFICATION_KINDS.map(k
 </script>
 
 <template>
-  <UPopover v-model:open="open" :content="{ side: 'right', align: 'end', sideOffset: 8 }">
+  <UPopover v-model:open="open" :content="{ side: props.side, align: 'end', sideOffset: 8 }">
     <button type="button" class="relative flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted transition-colors hover:bg-elevated hover:text-highlighted" :title="unread ? `${unread} unread` : 'Notifications'" data-tour="bell">
       <span class="relative shrink-0">
         <UIcon name="i-lucide-bell" class="size-5" />

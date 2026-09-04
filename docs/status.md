@@ -2873,3 +2873,28 @@ entry.
 Verified in Chrome at 1100px wide: a task page's Comment button is
 clear, the rail has the sparkles; at 1600px the task-shaped and
 report-shaped sketches show on the way to those pages.
+
+## 2026-09-04: a right rail for the tools; the floating buttons are gone
+
+Luke: the Feedback pill and the Assistant button got in the way when
+the window narrowed; rather than fold them into one hover icon, a
+second rail on the right with the icons at the bottom. `AppRightRail`
+is the mirror of the left one: 56px, fixed at the right edge, labels
+when hovered (it widens leftward), hidden on phones where the menu
+carries the same items. It holds the Assistant (with its Cmd+J hint),
+Send feedback, the bell (its popover now opens leftward, a `side` prop
+on NotificationBell), Help, light or dark, and the account row with
+Sign out. The left rail is pages and Settings only. `useRailTools`
+holds what both rails and the phone menu share (the Assistant and
+shortcut sheet switches, the feedback picker, the Help menu, the
+theme). The page has 56px of padding on the right; the Assistant
+drawer sits inboard of the rail and the page makes room for both.
+The floating Assistant button and the Feedback pill are deleted. The
+Getting around tour gained a step for the right rail; the guide
+describes the two rails and no longer mentions a round button.
+
+Verified in Chrome: on a task page the rail sits at the right edge
+with six rows at the bottom, the left rail's bottom is Settings alone,
+hovering widens it with labels, the Assistant opens 56px inboard and
+the page pads to 472px, the bell popover opens to the left of the
+rail, and nothing floats over the comment box.

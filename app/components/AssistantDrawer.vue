@@ -282,7 +282,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
   <!-- A panel beside the page, not over it. The page keeps working
        behind it and makes room on wide screens (app.vue). -->
   <Transition enter-active-class="transition-transform duration-200" enter-from-class="translate-x-full" leave-active-class="transition-transform duration-200" leave-to-class="translate-x-full">
-    <aside v-if="open" class="fixed inset-y-0 right-0 z-30 flex w-full max-w-[26rem] flex-col border-l border-default bg-default shadow-xl print:hidden" aria-label="Assistant">
+    <aside v-if="open" class="fixed inset-y-0 right-0 z-30 flex w-full max-w-[26rem] flex-col border-l border-default bg-default shadow-xl md:right-14 print:hidden" aria-label="Assistant">
       <div class="flex shrink-0 items-start gap-3 border-b border-default px-4 py-3">
         <div class="min-w-0 flex-1">
           <h2 class="font-semibold">Assistant</h2>

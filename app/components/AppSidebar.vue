@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Left rail, Supabase style: icons only until you hover, then it widens
-// over the page with labels and section headings. On phones it becomes a
-// top bar with a menu that slides in from the left.
+// over the page with labels and section headings. Pages and Settings
+// only; the tools (Assistant, feedback, the bell, help, the theme) sit
+// in the right rail. On phones it becomes a top bar with a menu that
+// slides in from the left and carries both.
 const { profile, isAdmin, can, signOut, canReview } = useCurrentUser()
 const route = useRoute()
 
@@ -43,27 +45,10 @@ const sections = computed<Section[]>(() => {
 const settings: Link = { label: 'Settings', to: '/admin', icon: 'i-lucide-settings' }
 const showSettings = computed(() => can('screen:settings') && (can('manage_settings') || can('manage_people')))
 const searchOpen = useState('search-open', () => false)
-const assistantOpen = useState('assistant-open', () => false)
-const sheetOpen = useState('shortcut-sheet-open', () => false)
-const tour = useTour()
-const helpItems = computed(() => [[
-  ...(tour.pageTour.value ? [{ label: `Tour: ${tour.pageTour.value.title}`, icon: 'i-lucide-route', onSelect: () => tour.start(tour.pageTour.value!.id) }] : []),
-  { label: 'User guide', icon: 'i-lucide-book-open', to: '/help' },
-  { label: 'Tour: Getting around', icon: 'i-lucide-compass', onSelect: () => tour.start('around') },
-  { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', kbds: ['?'], onSelect: () => { sheetOpen.value = true } },
-  { label: 'Send feedback', icon: 'i-lucide-message-square-warning', kbds: ['meta', 'shift', 'f'], onSelect: () => { feedbackPick.value = true } },
-]])
-const feedbackPick = useState('feedback-pick', () => false)
+const { assistantOpen, feedbackPick, isDark } = useRailTools()
 
 const active = (to: string) => route.path === to || route.path.startsWith(`${to}/`)
 
-// Light or dark, remembered per browser. Client-only so the server never
-// hydrates the wrong icon.
-const colorMode = useColorMode()
-const isDark = computed({
-  get: () => colorMode.value === 'dark',
-  set: (v: boolean) => { colorMode.preference = v ? 'dark' : 'light' },
-})
 
 const mobileOpen = ref(false)
 watch(() => route.path, () => { mobileOpen.value = false })
@@ -121,33 +106,6 @@ function logoClick(e: MouseEvent) {
         <UIcon :name="settings.icon" class="size-5 shrink-0" />
         <span class="hidden truncate group-hover:inline">{{ settings.label }}</span>
       </NuxtLink>
-      <NotificationBell />
-      <button type="button" data-tour="feedback" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Send feedback: a bug, a change, or an idea (Cmd+Shift+F)" @click="feedbackPick = true;">
-        <UIcon name="i-lucide-message-square-warning" class="size-5 shrink-0" />
-        <span class="hidden truncate group-hover:inline">Send feedback</span>
-      </button>
-      <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Assistant (Cmd+J)" @click="assistantOpen = true;">
-        <UIcon name="i-lucide-sparkles" class="size-5 shrink-0" />
-        <span class="hidden truncate group-hover:inline">Assistant</span>
-      </button>
-      <UDropdownMenu :items="helpItems" :content="{ side: 'right', align: 'end' }">
-        <button type="button" data-tour="help" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Help">
-          <UIcon name="i-lucide-circle-help" class="size-5 shrink-0" />
-          <span class="hidden truncate group-hover:inline">Help</span>
-        </button>
-      </UDropdownMenu>
-      <ClientOnly>
-        <button type="button" data-tour="theme" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" @click="isDark = !isDark;">
-          <UIcon :name="isDark ? 'i-lucide-moon' : 'i-lucide-sun'" class="size-5 shrink-0" />
-          <span class="hidden truncate group-hover:inline">{{ isDark ? 'Dark mode' : 'Light mode' }}</span>
-        </button>
-        <template #fallback><div class="h-9" /></template>
-      </ClientOnly>
-      <div class="flex h-9 items-center gap-3 px-2 text-sm" :title="profile?.full_name ?? ''">
-        <span class="grid size-5 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(profile?.full_name) }}</span>
-        <NuxtLink to="/account" class="hidden min-w-0 flex-1 truncate hover:underline group-hover:inline" title="Account">{{ profile?.full_name }}<span v-if="isAdmin" class="text-muted"> &middot; admin</span></NuxtLink>
-        <button type="button" class="hidden text-xs text-muted hover:text-highlighted group-hover:inline" @click="signOut">Sign out</button>
-      </div>
     </div>
   </aside>
 

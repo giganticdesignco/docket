@@ -48,7 +48,7 @@ async function remove(r: Tables<'feedback'>) {
     <div class="flex flex-wrap items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Feedback <span class="text-base font-normal text-muted">{{ openCount }} open</span></h1>
-        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the Feedback pill, the rail icon, or Cmd+Shift+F. Each one says which screen and what was picked. Approve the ones to do; Claude works from the Approved list through the connector.</p>
+        <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the right rail's feedback icon or Cmd+Shift+F. Each one says which screen and what was picked. Approve the ones to do; Claude works from the Approved list through the connector.</p>
       </div>
       <SegmentedControl v-model="tab" :items="tabs" class="ml-auto" />
     </div>

@@ -19,7 +19,7 @@ keyboard shortcuts alone.
   see the names.
 - **Search** with `Cmd+K` finds tasks, projects, clients, quotes, and
   invoices as you type. Prefixes narrow it: `t:` tasks, `c:` clients.
-- **The Assistant** lives behind the round button in the bottom right,
+- **The Assistant** lives behind the sparkle icon in the right rail,
   or `Cmd+J`. More on it below.
 - **Every screen remembers how you left it**: list or cards, grouping,
   filters, the width of the activity panel on a task. That memory is
@@ -55,9 +55,13 @@ keyboard shortcuts alone.
 - **There are a few easter eggs.** Seven of them, give or take. One is
   older than the web, one needs a coin, and two only turn up on the
   right day. We are not saying more.
+- **Two rails.** The left one is pages: the everyday five, More, and
+  Settings. The right one is tools: the Assistant, feedback,
+  notifications, help, light or dark, and your account, tucked at the
+  bottom. Both show labels when you hover. On a phone the menu carries
+  all of it.
 - **Found a bug, or want something?** Click the speech-bubble icon in
-  the rail, the Feedback pill beside the Assistant, or press
-  `Cmd+Shift+F` on any screen. Click
+  the right rail or press `Cmd+Shift+F` on any screen. Click
   the thing that is wrong, or drag a box around an area, say whether
   it is a bug (it does something it should not), a change (it works,
   make it different) or an idea (something new), and send. The report keeps the screen and
@@ -506,7 +510,7 @@ email setting.
 
 ## The Assistant
 
-The round button in the corner (or `Cmd+J`) opens a panel beside the
+The sparkle icon in the right rail (or `Cmd+J`) opens a panel beside the
 page. It knows which screen you are on and offers questions that fit
 it, with the client or project's real name.
 

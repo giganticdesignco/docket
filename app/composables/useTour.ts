@@ -17,6 +17,7 @@ const TOURS: Tour[] = [
     steps: [
       { title: 'Welcome to Docket', text: 'Time, tasks, and billing in one place. This takes half a minute and you can skip it any time. Each page has its own short tour the first time you open it.' },
       { el: '[data-tour="rail"]', title: 'The rail', text: 'Hover to see labels. The top five are the everyday pages; More holds the rest.' },
+      { el: '[data-tour="right-rail"]', title: 'The other rail', text: 'The tools that are not pages: the Assistant, feedback, notifications, help, and light or dark. Hover for labels.' },
       { el: '[data-tour="search"]', title: 'Search', text: 'Cmd+K from anywhere finds tasks, projects, clients, quotes, and invoices as you type.' },
       { el: '[data-tour="help"]', title: 'Help', text: 'Replay a tour or see the keyboard shortcuts for the page you are on. Press ? for the shortcuts any time.' },
       { el: '[data-tour="theme"]', title: 'Light or dark', text: 'Your choice, remembered on this browser.' },

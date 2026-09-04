@@ -136,18 +136,6 @@ const KIND_ITEMS: { value: 'bug' | 'change' | 'idea', label: string, icon: strin
 
 <template>
   <div data-feedback-tool>
-    <button
-      v-show="!picking && !assistantOpen"
-      type="button"
-      class="fixed bottom-6 right-20 z-40 hidden h-10 items-center gap-2 rounded-full xl:flex border border-default bg-default px-3 text-sm text-muted shadow-md transition hover:text-highlighted hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 print:hidden"
-      title="Send feedback: a bug, a change, or an idea (Cmd+Shift+F)"
-      aria-label="Send feedback"
-      @click="picking = true"
-    >
-      <UIcon name="i-lucide-message-square-warning" class="size-4" />
-      <span class="hidden sm:inline">Feedback</span>
-    </button>
-
     <Teleport to="body">
       <div v-if="picking" data-feedback-tool class="fixed inset-0 z-[60]" :class="chosen ? '' : 'cursor-crosshair'" @pointermove="onMove" @pointerdown="onDown" @pointerup="onUp">
         <div v-if="!chosen" class="pointer-events-none fixed left-1/2 top-4 z-10 -translate-x-1/2 rounded-full border border-default bg-default px-4 py-1.5 text-sm shadow-lg">
