@@ -1,7 +1,9 @@
 <script setup lang="ts">
-// Every Docket invoice, with what is outstanding and what is late. New
-// invoices usually start from a batch (Billing); this page can also start
-// a blank one for a client.
+// Every invoice, Docket's own and the Harvest history, with what is
+// outstanding and what is late. New invoices usually start from a batch
+// (Billing); this page can also start a blank one for a client. Harvest
+// rows are read only: the number opens nothing, the badge says where it
+// came from, and a closed one in Harvest means written off.
 definePageMeta({ middleware: 'can', permission: 'manage_invoices' })
 useHead({ title: 'Invoices' })
 
@@ -23,11 +25,30 @@ const __ad2 = useAsyncData('clients-for-invoices', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2])
-const { data: invoices } = __ad1
+// The Harvest years, 2015 on. Thousands of rows, so the list below shows
+// a page at a time.
+const __ad3 = useAsyncData('harvest-invoices-all', async () => {
+  const out: { id: string, number: string, subject: string | null, state: string, issue_date: string, due_date: string | null, amount: number, due_amount: number, client_id: string | null, client_name: string }[] = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('harvest_invoices').select('id, number, subject, state, issue_date, due_date, amount, due_amount, client_id, client_name').order('issue_date', { ascending: false }).range(from, from + 999)
+    if (error) throw error
+    out.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
+  return out
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3])
+const { data: docketInvoices } = __ad1
 const { data: clients } = __ad2
+const { data: harvest } = __ad3
 
-type Row = NonNullable<typeof invoices.value>[number]
+// One shape for both sources. Harvest: open is sent, paid is paid, closed
+// is written off (invoiced, never outstanding), draft is draft.
+type Row = { id: string, source: 'docket' | 'harvest', number: string, status: string, subject: string | null, issue_date: string, due_date: string, total: number, due_amount: number, client_id: string | null, client_name: string }
+const invoices = computed<Row[]>(() => [
+  ...(docketInvoices.value ?? []).map(i => ({ id: i.id, source: 'docket' as const, number: i.number, status: i.status, subject: i.subject, issue_date: i.issue_date, due_date: i.due_date, total: i.total, due_amount: i.due_amount, client_id: i.client_id, client_name: i.clients?.name ?? '' })),
+  ...(harvest.value ?? []).map(i => ({ id: i.id, source: 'harvest' as const, number: i.number, status: i.state === 'open' ? 'sent' : i.state === 'closed' ? 'written_off' : i.state, subject: i.subject, issue_date: i.issue_date, due_date: i.due_date ?? i.issue_date, total: i.amount, due_amount: i.due_amount, client_id: i.client_id, client_name: i.client_name })),
+])
 type Filter = 'open' | 'overdue' | 'draft' | 'paid' | 'void' | 'all'
 const view = await useViewState('invoices', { filter: 'all' as Filter })
 const filter = persisted(view, 'filter')
@@ -38,10 +59,11 @@ const filters: { value: Filter, label: string }[] = [
 const today = todayString()
 const isOverdue = (i: Pick<Row, 'status' | 'due_date'>) => i.status === 'sent' && i.due_date < today
 // Drafts float to the top of "All" so work in progress is never hidden.
-const rank: Record<string, number> = { draft: 0, sent: 1, paid: 2, void: 3 }
+const rank: Record<string, number> = { draft: 0, sent: 1, paid: 2, void: 3, written_off: 3 }
+const search = ref('')
 const cols = await useColumns<Row>('invoices', [
   { key: 'number', label: 'Number', sort: i => i.number, always: true },
-  { key: 'client', label: 'Client', sort: i => i.clients?.name },
+  { key: 'client', label: 'Client', sort: i => i.client_name },
   { key: 'subject', label: 'Subject', sort: i => i.subject },
   { key: 'issued', label: 'Issued', sort: i => i.issue_date },
   { key: 'due', label: 'Due', sort: i => i.due_date },
@@ -49,13 +71,22 @@ const cols = await useColumns<Row>('invoices', [
   { key: 'outstanding', label: 'Outstanding', align: 'right', sort: i => (i.status === 'sent' ? i.due_amount : null), permission: 'see_money' },
   { key: 'status', label: 'Status', sort: i => rank[i.status] ?? 9 },
 ])
-const rows = computed(() => cols.sorted((invoices.value ?? [])
+const q = computed(() => search.value.trim().toLowerCase())
+const matches = (i: Row) => !q.value || `${i.number} ${i.client_name} ${i.subject ?? ''}`.toLowerCase().includes(q.value)
+const allRows = computed(() => cols.sorted((invoices.value ?? [])
   .filter(i =>
     filter.value === 'all' ? true
     : filter.value === 'open' ? i.status === 'sent'
     : filter.value === 'overdue' ? isOverdue(i)
+    : filter.value === 'void' ? (i.status === 'void' || i.status === 'written_off')
     : i.status === filter.value)
+  .filter(matches)
   .sort((a, b) => (filter.value === 'all' ? (rank[a.status] ?? 9) - (rank[b.status] ?? 9) : 0))))
+// A page at a time, so eleven years of Harvest do not land in the DOM at once.
+const PAGE = 200
+const shown = ref(PAGE)
+watch([filter, q], () => { shown.value = PAGE })
+const rows = computed(() => allRows.value.slice(0, shown.value))
 const outstanding = computed(() => (invoices.value ?? []).filter(i => i.status === 'sent').reduce((s, i) => s + i.due_amount, 0))
 const overdue = computed(() => (invoices.value ?? []).filter(isOverdue).reduce((s, i) => s + i.due_amount, 0))
 const drafts = computed(() => (invoices.value ?? []).filter(i => i.status === 'draft').length)
@@ -65,6 +96,7 @@ const badge = (i: Pick<Row, 'status' | 'due_date'>): { label: string, color: 'ne
   isOverdue(i) ? { label: 'overdue', color: 'error' }
   : i.status === 'sent' ? { label: 'sent', color: 'warning' }
   : i.status === 'paid' ? { label: 'paid', color: 'success' }
+  : i.status === 'written_off' ? { label: 'written off', color: 'neutral' }
   : { label: i.status, color: 'neutral' }
 
 const creating = ref(false)
@@ -90,7 +122,7 @@ async function createBlank() {
     <div class="flex items-center gap-4">
       <div>
         <h1 class="text-2xl font-semibold">Invoices</h1>
-        <p class="text-sm text-muted">Made from billing batches, or blank for fixed fees and deposits.</p>
+        <p class="text-sm text-muted">Made from billing batches, or blank for fixed fees and deposits. The Harvest years are here too, read only.</p>
       </div>
       <UButton icon="i-lucide-plus" class="ml-auto" @click="creating = true;">Blank invoice</UButton>
     </div>
@@ -110,8 +142,12 @@ async function createBlank() {
       </UCard>
     </div>
 
-    <div class="flex flex-wrap gap-1">
-      <UButton v-for="f in filters" :key="f.value" size="xs" :variant="filter === f.value ? 'solid' : 'ghost'" :color="filter === f.value ? 'primary' : 'neutral'" @click="filter = f.value;">{{ f.label }}</UButton>
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-wrap gap-1">
+        <UButton v-for="f in filters" :key="f.value" size="xs" :variant="filter === f.value ? 'solid' : 'ghost'" :color="filter === f.value ? 'primary' : 'neutral'" @click="filter = f.value;">{{ f.label }}</UButton>
+      </div>
+      <UInput v-model="search" icon="i-lucide-search" placeholder="Number, client, or subject" size="sm" class="w-64" />
+      <span class="text-xs text-muted">{{ allRows.length.toLocaleString() }} {{ allRows.length === 1 ? 'invoice' : 'invoices' }}</span>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
@@ -120,8 +156,14 @@ async function createBlank() {
         <tbody>
           <tr v-for="i in rows" :key="i.id" class="border-b border-default last:border-0">
             <td v-for="c in cols.visible" :key="c.key" class="px-4 py-2" :class="[c.align === 'right' ? 'text-right tabular-nums' : '', c.key === 'subject' ? 'max-w-xs truncate text-muted' : '']" :title="c.key === 'subject' ? i.subject ?? '' : undefined">
-              <NuxtLink v-if="c.key === 'number'" :to="`/invoices/${i.id}`" class="font-medium tabular-nums hover:underline">{{ i.number }}</NuxtLink>
-              <NuxtLink v-else-if="c.key === 'client'" :to="`/clients/${i.client_id}`" class="hover:underline">{{ i.clients?.name }}</NuxtLink>
+              <template v-if="c.key === 'number'">
+                <NuxtLink v-if="i.source === 'docket'" :to="`/invoices/${i.id}`" class="font-medium tabular-nums hover:underline">{{ i.number }}</NuxtLink>
+                <span v-else class="font-medium tabular-nums" title="Imported from Harvest; open it there for the lines">{{ i.number }} <UBadge color="neutral" variant="subtle" size="sm" class="ml-1 align-middle">Harvest</UBadge></span>
+              </template>
+              <template v-else-if="c.key === 'client'">
+                <NuxtLink v-if="i.client_id" :to="`/clients/${i.client_id}`" class="hover:underline">{{ i.client_name }}</NuxtLink>
+                <span v-else class="text-muted">{{ i.client_name }}</span>
+              </template>
               <template v-else-if="c.key === 'subject'">{{ i.subject }}</template>
               <span v-else-if="c.key === 'issued'" class="tabular-nums">{{ shortDate(i.issue_date) }}</span>
               <span v-else-if="c.key === 'due'" class="tabular-nums" :class="isOverdue(i) ? 'text-error' : ''">{{ shortDate(i.due_date) }}</span>
@@ -133,6 +175,11 @@ async function createBlank() {
           </tr>
           <tr v-if="!rows.length">
             <td :colspan="cols.visible.length + 1" class="px-4 py-8 text-center text-muted">Nothing here.</td>
+          </tr>
+          <tr v-else-if="allRows.length > rows.length">
+            <td :colspan="cols.visible.length + 1" class="px-4 py-2 text-center">
+              <UButton size="xs" variant="ghost" color="neutral" @click="shown += PAGE;">Show {{ Math.min(PAGE, allRows.length - rows.length) }} more of {{ (allRows.length - rows.length).toLocaleString() }}</UButton>
+            </td>
           </tr>
         </tbody>
       </table></div>

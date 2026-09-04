@@ -2456,3 +2456,13 @@ form now keys off the specific field.
 From Luke's feedback: every link in the Settings sidebar has an icon,
 on the wide column and the phone strip. `SubNavLink` takes an optional
 `icon`.
+
+## Invoices page shows the Harvest years (2026-09-04)
+
+Luke: "I thought we imported invoices?" They were (7,463 from 2015 to
+the cutover) but only the client page and the money tiles read them.
+The Invoices page now merges them with Docket's own: Harvest rows are
+read only with a Harvest badge, open is sent, closed is written off
+(invoiced, never outstanding); the tiles count both; search on number,
+client or subject; 200 rows at a time with Show more. Outstanding and
+overdue on the page now equal the Harvest figures to the cent.
