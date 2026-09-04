@@ -2510,3 +2510,16 @@ task every night; project_budgets() readable by clients; see_money
 enforced only in views while base tables expose the columns; the
 share endpoint usable as an email relay by any signed-in user.
 Run 2, the screens, started straight after.
+
+## Feedback: On hold, and a plain-English line (2026-09-04)
+
+Luke asked for a way to hold a finding, and for a layman's explanation
+on each. `feedback.status` gains `hold` (migration
+`feedback_status_hold`); the page has three tabs, Open, On hold and
+Done, with Hold and Done on open rows and Reopen (and Done) on the
+rest; `resolve_feedback` over MCP takes a status. `feedback.plain`
+(migration `feedback_plain`) holds a one or two sentence plain-English
+account of what a technical finding means for the studio, shown first
+with "The technical version" folded beneath; the 37 review findings
+each got one. Reports people file themselves have no plain line and
+read as before.

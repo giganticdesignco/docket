@@ -8,18 +8,22 @@ useHead({ title: 'Feedback' })
 const supabase = useSupabaseClient()
 const toast = useToast()
 
-const showDone = ref(false)
+// Open by default; Held and Done are a tab each.
+type Tab = 'open' | 'hold' | 'done'
+const tab = ref<Tab>('open')
 const { data: rows, refresh } = await useAsyncData('feedback', async () => {
   const { data, error } = await supabase.from('feedback').select('*, by:profiles!feedback_created_by_fkey(full_name), closer:profiles!feedback_done_by_fkey(full_name)').order('created_at', { ascending: false }).limit(500)
   if (error) throw error
   return data
 }, fresh)
 type Row = NonNullable<typeof rows.value>[number]
-const shown = computed(() => (rows.value ?? []).filter(r => showDone.value || r.status === 'open'))
-const openCount = computed(() => (rows.value ?? []).filter(r => r.status === 'open').length)
+const shown = computed(() => (rows.value ?? []).filter(r => r.status === tab.value))
+const count = (s: Tab) => (rows.value ?? []).filter(r => r.status === s).length
+const openCount = computed(() => count('open'))
+const tabs: { key: Tab, label: string }[] = [{ key: 'open', label: 'Open' }, { key: 'hold', label: 'On hold' }, { key: 'done', label: 'Done' }]
 
 const busy = ref<string | null>(null)
-async function setStatus(r: Row, status: 'open' | 'done') {
+async function setStatus(r: Row, status: Tab) {
   busy.value = r.id
   try {
     const { error } = await supabase.from('feedback').update({ status }).eq('id', r.id)
@@ -46,7 +50,9 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
         <h1 class="text-2xl font-semibold">Feedback <span class="text-base font-normal text-muted">{{ openCount }} open</span></h1>
         <p class="text-sm text-muted">Bugs, changes and ideas sent from inside Docket with the Feedback pill, the rail icon, or Cmd+Shift+F. Each one says which screen and what was picked. Claude reads the open list through the connector.</p>
       </div>
-      <USwitch v-model="showDone" label="Show done" size="sm" class="ml-auto" />
+      <div class="ml-auto flex gap-0.5 rounded-md bg-elevated p-0.5">
+        <UButton v-for="t in tabs" :key="t.key" size="xs" :variant="tab === t.key ? 'solid' : 'ghost'" :color="tab === t.key ? 'primary' : 'neutral'" @click="tab = t.key;">{{ t.label }} <span class="opacity-70">{{ count(t.key) }}</span></UButton>
+      </div>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
@@ -54,7 +60,14 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
         <li v-for="r in shown" :key="r.id" class="flex items-start gap-3 px-4 py-3" :class="r.status === 'done' ? 'opacity-60' : ''">
           <UBadge :color="r.kind === 'bug' ? 'error' : r.kind === 'change' ? 'warning' : 'primary'" variant="subtle" size="sm" class="mt-0.5 w-16 justify-center">{{ r.kind === 'bug' ? 'Bug' : r.kind === 'change' ? 'Change' : 'Idea' }}</UBadge>
           <div class="min-w-0 flex-1">
-            <p class="whitespace-pre-line">{{ r.body }}</p>
+            <template v-if="r.plain">
+              <p class="whitespace-pre-line">{{ r.plain }}</p>
+              <details class="mt-1 text-xs text-muted">
+                <summary class="cursor-pointer select-none hover:text-highlighted">The technical version</summary>
+                <p class="mt-1 whitespace-pre-line">{{ r.body }}</p>
+              </details>
+            </template>
+            <p v-else class="whitespace-pre-line">{{ r.body }}</p>
             <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               <NuxtLink :to="r.path" class="hover:underline" :title="r.path">{{ r.page_title || r.path }}</NuxtLink>
               <span v-if="r.element_text" class="min-w-0 max-w-md truncate" :title="r.selector ?? ''">on "{{ r.element_text }}"</span>
@@ -63,12 +76,18 @@ const stamp = (iso: string) => new Date(iso).toLocaleString('en-US', { month: 's
               <span v-if="r.status === 'done' && r.done_at">done by {{ r.closer?.full_name }}, {{ stamp(r.done_at) }}</span>
             </div>
           </div>
-          <UButton v-if="r.status === 'open'" size="xs" variant="outline" color="neutral" icon="i-lucide-check" :loading="busy === r.id" @click="setStatus(r, 'done')">Done</UButton>
-          <UButton v-else size="xs" variant="ghost" color="neutral" :loading="busy === r.id" @click="setStatus(r, 'open')">Reopen</UButton>
+          <template v-if="r.status === 'open'">
+            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-pause" :loading="busy === r.id" title="Not now. It leaves the open list without counting as done." @click="setStatus(r, 'hold')">Hold</UButton>
+            <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-check" :loading="busy === r.id" @click="setStatus(r, 'done')">Done</UButton>
+          </template>
+          <template v-else>
+            <UButton size="xs" variant="ghost" color="neutral" :loading="busy === r.id" @click="setStatus(r, 'open')">Reopen</UButton>
+            <UButton v-if="r.status === 'hold'" size="xs" variant="outline" color="neutral" icon="i-lucide-check" :loading="busy === r.id" @click="setStatus(r, 'done')">Done</UButton>
+          </template>
           <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-trash-2" aria-label="Delete" @click="remove(r)" />
         </li>
       </ul>
-      <p v-else class="px-4 py-10 text-center text-sm text-muted">{{ showDone ? 'Nothing yet.' : 'Nothing open. Cmd+Shift+F on any screen sends the next one.' }}</p>
+      <p v-else class="px-4 py-10 text-center text-sm text-muted">{{ tab === 'open' ? 'Nothing open. Cmd+Shift+F on any screen sends the next one.' : tab === 'hold' ? 'Nothing on hold.' : 'Nothing done yet.' }}</p>
     </UCard>
   </div>
 </template>

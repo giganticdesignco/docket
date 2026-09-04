@@ -822,6 +822,7 @@ export type Database = {
           kind: string
           page_title: string | null
           path: string
+          plain: string | null
           rect: Json | null
           selector: string | null
           status: string
@@ -838,6 +839,7 @@ export type Database = {
           kind: string
           page_title?: string | null
           path: string
+          plain?: string | null
           rect?: Json | null
           selector?: string | null
           status?: string
@@ -854,6 +856,7 @@ export type Database = {
           kind?: string
           page_title?: string | null
           path?: string
+          plain?: string | null
           rect?: Json | null
           selector?: string | null
           status?: string

@@ -560,7 +560,9 @@ lead), project templates, page templates for sitemaps, task statuses,
 task types, expense categories, invoice settings (numbering, terms,
 tax, notes, the project folder roots), estimator materials and
 pricing, imports, and Feedback: the bugs, changes and ideas the team sent from
-inside Docket, with Done to close them.
+inside Docket, in three tabs, Open, On hold (not now) and Done. A
+finding filed by a code review carries a plain-English line first,
+with the technical version behind it.
 
 ## Keyboard shortcuts
 

@@ -4096,7 +4096,8 @@ create table feedback (
   element_text text,
   rect         jsonb,
   viewport     text,
-  status       text not null default 'open' check (status in ('open', 'done')),
+  plain        text,
+  status       text not null default 'open' check (status in ('open', 'hold', 'done')),
   done_by      uuid references profiles(id) on delete set null,
   done_at      timestamptz,
   created_at   timestamptz not null default now()
@@ -4118,7 +4119,7 @@ create policy own_or_settings_update on feedback for update to authenticated
 create policy own_or_settings_delete on feedback for delete to authenticated
   using (created_by = (select auth.uid()) or (select public.has_permission('manage_settings')));
 
--- Closing stamps who and when; reopening clears both.
+-- Closing stamps who and when; reopening or holding clears both.
 create or replace function public.feedback_done_stamp() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
