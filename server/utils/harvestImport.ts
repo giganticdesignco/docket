@@ -4,7 +4,11 @@ import type { Database } from '~~/shared/types/database'
 // Import from Harvest.
 //   archive:  roll one month up into harvest_archive_monthly (replaces the month)
 //   live:     upsert one month's entries into time_entries keyed on harvest_id,
-//             creating clients, projects, tasks, and project_tasks as needed
+//             creating clients, projects, tasks, and project_tasks as needed.
+//             `from`/`to` narrow it to a date range instead of a whole month,
+//             which is how the "Catch up yesterday" button works. Every step,
+//             the reconcile that removes entries deleted in Harvest included,
+//             is scoped to that range.
 //   projects: copy budget, rate, billing method, and active flag onto the
 //             Docket projects that came from Harvest
 //   expenses: upsert one month's expenses into expenses keyed on harvest_id,
@@ -16,7 +20,8 @@ import type { Database } from '~~/shared/types/database'
 // month again is safe. Run from the Imports page or the morning cron.
 
 type Mode = 'archive' | 'live' | 'projects' | 'expenses' | 'invoices'
-export type HarvestBody = { month?: string, mode?: Mode, dryRun?: boolean }
+export type HarvestBody = { month?: string, mode?: Mode, dryRun?: boolean, from?: string, to?: string }
+const isDate = (s: string | undefined): s is string => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s)
 type Db = SupabaseClient<Database>
 
 // Runs as whichever client is handed in: the signed-in admin from the
@@ -27,8 +32,16 @@ export async function runHarvestImport(supabase: Db, body: HarvestBody) {
   if (!modes.includes(body.mode as Mode)) {
     throw createError({ statusCode: 400, statusMessage: `mode must be one of ${modes.join(', ')}` })
   }
-  if (body.mode !== 'projects' && body.mode !== 'invoices' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
-    throw createError({ statusCode: 400, statusMessage: 'month must be YYYY-MM' })
+  // A from/to pair stands in for the month on the modes that read a range.
+  const ranged = isDate(body.from) && isDate(body.to)
+  if (ranged && body.from! > body.to!) {
+    throw createError({ statusCode: 400, statusMessage: 'from must not be after to' })
+  }
+  if (body.mode !== 'projects' && body.mode !== 'invoices' && !ranged && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw createError({ statusCode: 400, statusMessage: 'month must be YYYY-MM, or pass from and to as YYYY-MM-DD' })
+  }
+  if (ranged && body.mode === 'archive') {
+    throw createError({ statusCode: 400, statusMessage: 'archive rolls up whole months, so it takes month, not from and to' })
   }
   const dryRun = !!body.dryRun
 
@@ -40,10 +53,10 @@ export async function runHarvestImport(supabase: Db, body: HarvestBody) {
     return { month, mode: body.mode, dryRun, skippedRunning: 0, ...(await importInvoices(supabase, dryRun)) }
   }
 
-  const from = `${month}-01`
-  const to = lastDayOfMonth(month)
+  const from = ranged ? body.from! : `${month}-01`
+  const to = ranged ? body.to! : lastDayOfMonth(month)
   if (body.mode === 'expenses') {
-    return { month, mode: body.mode, dryRun, skippedRunning: 0, ...(await importExpenses(supabase, from, to, dryRun)) }
+    return { month: ranged ? `${from} to ${to}` : month, mode: body.mode, dryRun, skippedRunning: 0, ...(await importExpenses(supabase, from, to, dryRun)) }
   }
 
   const all = await harvestTimeEntries(from, to)
@@ -54,7 +67,7 @@ export async function runHarvestImport(supabase: Db, body: HarvestBody) {
     ? await importArchive(supabase, from, entries, dryRun)
     : await importLive(supabase, from, to, all, entries, dryRun)
 
-  return { month, mode: body.mode, dryRun, fetched: all.length, skippedRunning: all.length - entries.length, ...result }
+  return { month: ranged ? `${from} to ${to}` : month, mode: body.mode, dryRun, fetched: all.length, skippedRunning: all.length - entries.length, ...result }
 }
 
 // ---------- shared lookups ----------

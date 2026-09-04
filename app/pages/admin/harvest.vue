@@ -53,7 +53,7 @@ const stopRequested = ref(false)
 const progress = ref({ done: 0, total: 0, current: '' })
 
 type Mode = 'archive' | 'live' | 'projects' | 'expenses' | 'invoices'
-type Step = { month: string, mode: Mode }
+type Step = { month: string, mode: Mode, from?: string, to?: string }
 type Result = {
   month: string
   mode: Mode
@@ -100,8 +100,8 @@ async function run(steps: Step[]) {
     for (const step of steps) {
       if (stopRequested.value) break
       mode = step.mode
-      progress.value.current = step.mode === 'projects' ? 'project details' : step.mode === 'invoices' ? 'invoices' : step.month
-      const res = await $fetch<Result>('/api/harvest/import', { method: 'POST', body: { month: step.month, mode: step.mode, dryRun: dryRun.value } })
+      progress.value.current = step.mode === 'projects' ? 'project details' : step.mode === 'invoices' ? 'invoices' : step.from ?? step.month
+      const res = await $fetch<Result>('/api/harvest/import', { method: 'POST', body: { month: step.month, mode: step.mode, from: step.from, to: step.to, dryRun: dryRun.value } })
       log.value.unshift(res)
       progress.value.done++
     }
@@ -127,6 +127,16 @@ const importArchive = () => run(months(archiveFrom.value, archiveTo.value).map(m
 const syncLive = () => run([
   ...months(thisYear, thisYear, thisMonth).map(month => ({ month, mode: 'live' as const })),
   { month: thisMonthKey, mode: 'projects' as const },
+])
+// A timer still running when the morning cron fires is skipped, because its
+// hours are partial. Stop it later in the day and it sits in Harvest until
+// the next sync. This pulls just yesterday, so it is quick and safe to
+// repeat: entries are keyed on harvest_id and the reconcile is scoped to the
+// same day.
+const yesterday = new Date(now.getTime() - 86_400_000)
+const yesterdayKey = `${yesterday.getFullYear()}-${pad(yesterday.getMonth() + 1)}-${pad(yesterday.getDate())}`
+const catchUpYesterday = () => run([
+  { month: yesterdayKey.slice(0, 7), mode: 'live' as const, from: yesterdayKey, to: yesterdayKey },
 ])
 const syncProjects = () => run([{ month: thisMonthKey, mode: 'projects' as const }])
 const importInvoices = () => run([{ month: thisMonthKey, mode: 'invoices' as const }])
@@ -200,10 +210,13 @@ const money = (n: number | null | undefined) => `$${(n ?? 0).toLocaleString(unde
             <strong class="tabular-nums">{{ num(liveCount) }}</strong> entries this year came from Harvest.
           </p>
           <div class="flex flex-wrap gap-2">
-            <UButton icon="i-lucide-refresh-cw" :disabled="running" @click="syncLive">Sync January to {{ pad(thisMonth) }}</UButton>
+            <UButton icon="i-lucide-calendar-check" :disabled="running" title="Pull just yesterday's entries from Harvest" @click="catchUpYesterday">Catch up yesterday</UButton>
+            <UButton icon="i-lucide-refresh-cw" variant="outline" :disabled="running" @click="syncLive">Sync January to {{ pad(thisMonth) }}</UButton>
             <UButton icon="i-lucide-briefcase" variant="outline" :disabled="running" @click="syncProjects">Sync project details</UButton>
           </div>
           <p class="text-xs text-muted">
+            The morning sync skips a timer that was still running when it ran, because its hours are only partial.
+            Stop the timer and press Catch up yesterday to pull it in. Safe to press twice.
             Entries for people without a Docket profile are skipped and listed below. Add them in Supabase Auth, then sync again.
             Project details (budget, rate, billing method, active) are copied from Harvest at the end of every sync.
           </p>
