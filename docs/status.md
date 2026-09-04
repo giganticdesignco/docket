@@ -2827,7 +2827,7 @@ settles on the number, confetti on a twenty, a crack on a one.
 INVENTORY (your open tasks), TIMER (your running timer), HELLO, HELP,
 QUIT, and the two words from 1976. Escape closes any overlay, and
 pressed again ends arcade or party mode; a real dialog keeps its own
-Escape. The guide now lists every egg at the end.
+Escape. The guide only alludes to them: seven, give or take, one older than the web, one that needs a coin, two that turn up on the right day.
 
 Verified in Chrome: the banner and scanlines, a coin landing Tails on
 the D side, a die landing on 18 with its caption, five adventure
