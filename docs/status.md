@@ -2898,3 +2898,8 @@ with six rows at the bottom, the left rail's bottom is Settings alone,
 hovering widens it with labels, the Assistant opens 56px inboard and
 the page pads to 472px, the bell popover opens to the left of the
 rail, and nothing floats over the comment box.
+
+The first-load sketch (`app/spa-loading-template.html`) draws the
+right rail too: a strip down the right edge with six dots at the
+bottom, so the page that appears matches the sketch that stood in for
+it. Verified with a cold load of /tasks.

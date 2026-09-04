@@ -3,6 +3,7 @@
   .sk { position: fixed; inset: 0; display: flex; background: #fff; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; }
   .sk-rail { width: 56px; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 14px; }
   .sk-rail img { width: 32px; height: 32px; margin-bottom: 8px; }
+  .sk-rail.sk-right { border-right: 0; border-left: 1px solid #e5e7eb; justify-content: flex-end; padding-top: 0; padding-bottom: 14px; }
   .sk-main { flex: 1; max-width: 1280px; margin: 0 auto; padding: 24px 32px; width: 100%; box-sizing: border-box; }
   .sk-b { background: #e5e7eb; border-radius: 6px; animation: sk-pulse 1.6s ease-in-out infinite; }
   .sk-dot { width: 20px; height: 20px; border-radius: 6px; }
@@ -36,6 +37,9 @@
       <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:224px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
       <div class="sk-row"><div class="sk-b" style="height:24px;width:24px;border-radius:9999px"></div><div class="sk-b" style="height:16px;width:256px"></div><div class="sk-b" style="height:16px;width:80px"></div><div class="sk-b" style="height:16px;width:48px;margin-left:auto"></div></div>
     </div>
+  </div>
+  <div class="sk-rail sk-right">
+    <div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot"></div><div class="sk-b sk-dot" style="border-radius:9999px"></div>
   </div>
 </div>
 <script>
