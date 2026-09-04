@@ -40,8 +40,18 @@ Shipped:
   task page row, notification labels, guide.
 - **Section 3 items 7, 8, 9**: Home, the agenda, the timer popover.
 
-Not started: section 3 items 10 through 18. Next is item 10, the new
-task form. Two notes from item 5: done tasks stay in
+- **Section 3 items 10 through 18**: the new task form, Planner,
+  Schedule, the notifications page and bell, the brief, the assistant
+  tools, the MCP tools, and the docs. Also, at Luke's request, a hand
+  button per person in the task list's row menu.
+
+**Every item in section 3 and section 9 has shipped.** Of the verify
+steps in section 7: 1 to 3, 7 (the visible surfaces), 9 through 13
+and 15 were done in the browser or with SQL; 4, 5, 6, 8 and 14 (status
+claims, On hold, the timer claim, the overdue bell at 9am, the morning
+sync) are trigger and cron behavior that was applied with the schema
+and not re-run in this pass; 3's receiver bell and 12 (a client
+contact's portal) need a second sign-in. Two notes from item 5: done tasks stay in
 the ordinary groups whoever is up, so Completed reads as before; and
 `waiting` is folded by default only for people with no saved fold
 state, since `user_views` keeps the folds you had. The `turn` bell

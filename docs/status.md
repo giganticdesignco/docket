@@ -2232,3 +2232,35 @@ changes reverted.
 
 Also: the task list's faces column now lines up across groups
 (`table-fixed` and a fixed-width faces cell).
+
+## Up now: items 10 to 18, done (2026-09-04)
+
+The new task form has Up now (defaulting to you, or Nobody yet) beside
+Also on it, and upserts assignee rows since the owner trigger has
+already added whoever is up. Planner draws a block in the row of
+whoever is up and in the row of anyone with hours set, dashed with
+"Not their turn yet" when it is not their turn; the estimate's
+remainder after everyone's set hours goes to the person up; the band
+is Nobody up; dropping a task on a person puts them up without
+removing whoever it came from, so plan hours stop being cascade
+deleted (verified: a seeded 2h row survived a reassignment). Schedule
+shows what you are up on plus what has nobody up that you are on, and
+the person view dims a bar where someone else is up. Notifications
+page and bell know `turn` and `unowned`. The brief's lists are what
+you are up on and it ends with the nobody up count (dry run: Luke's
+overdue went from ten to six). The assistant's my_tasks is what you
+are up on with a nobody_up count; MCP create_task and update_task take
+assignee_id, "nobody" clears it, both through hand_off (verified with
+a tools/call against /api/mcp). The task list's row menu also hands a
+task to any person in one click, which Luke asked for.
+
+Every item in `docs/up-now.md` sections 3 and 9 has shipped. Its
+header block lists which verify steps were run and which are trigger
+or cron behavior not re-run in this pass.
+
+Queued from Luke, in this order: the unsorted tasks page (`/tasks/
+triage`) as two columns, projects beside tasks, with drag and drop
+into a project, and the same faces alignment fix there; then drag on
+`/tasks` to reorder rows and to nest a task under another as a
+subtask (shared order, drop between rows reorders, drop onto a row
+nests, one level deep, same project).
