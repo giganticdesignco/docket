@@ -72,7 +72,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
   <!-- Desktop rail -->
   <aside data-tour="rail" class="group fixed inset-y-0 left-0 z-40 hidden w-14 flex-col overflow-hidden border-r border-default bg-default transition-[width] duration-150 ease-out hover:w-60 hover:shadow-xl md:flex">
     <NuxtLink to="/" class="flex h-14 shrink-0 items-center gap-3 px-3">
-      <span class="grid size-8 shrink-0 place-items-center rounded-md bg-primary text-sm font-bold text-inverted">D</span>
+      <img src="/logo.svg" alt="" class="size-8 shrink-0">
       <span class="hidden truncate font-semibold group-hover:inline">Docket</span>
     </NuxtLink>
 

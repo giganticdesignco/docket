@@ -18,7 +18,7 @@ onMounted(() => { watch(() => route.path, () => nextTick(() => { if (staff.value
 await callOnce('current-profile', load)
 watch(user, () => load())
 
-useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket') })
+useHead({ titleTemplate: (t) => (t ? `${t} | Docket` : 'Docket'), link: [{ rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }] })
 </script>
 
 <template>
