@@ -37,8 +37,8 @@ export default defineEventHandler(async (event) => {
 
   for (const p of team ?? []) {
     const first = p.full_name.split(' ')[0] ?? p.full_name
-    const [{ data: mine }, { data: busy }, { data: wk }, { data: yd }, { data: avail }, { data: drafts }, { data: waiting }, { data: quotes }] = await Promise.all([
-      admin.from('work_items').select('id, title, status, due_on, project_id, projects(name, client_id, clients(name)), work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', p.id).not('due_on', 'is', null).lte('due_on', addDays(t, 2)).order('due_on'),
+    const [{ data: mine }, { data: busy }, { data: wk }, { data: yd }, { data: avail }, { data: drafts }, { data: waiting }, { data: quotes }, { data: unowned }] = await Promise.all([
+      admin.from('work_items').select('id, title, status, due_on, assignee_id, project_id, projects(name, client_id, clients(name)), work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', p.id).not('due_on', 'is', null).lte('due_on', addDays(t, 2)).order('due_on'),
       admin.from('calendar_busy').select('starts_at, ends_at, hours').eq('user_id', p.id).gte('starts_at', dayStart.toISOString()).lt('starts_at', dayEnd.toISOString()).order('starts_at'),
       admin.rpc('report_rollup', { p_from: monday, p_to: t, p_person: p.full_name }).single(),
       admin.rpc('report_rollup', { p_from: yesterday, p_to: yesterday, p_person: p.full_name }).single(),
@@ -47,8 +47,12 @@ export default defineEventHandler(async (event) => {
       // Weeks waiting on this person: their department's people, or everyone for approve_time holders.
       admin.from('time_entries').select('user_id, profiles!time_entries_user_id_fkey(full_name, department_id)').eq('status', 'submitted').is('deleted_at', null),
       admin.from('quotes').select('id, number, title, valid_until, clients(name)').eq('created_by', p.id).eq('status', 'sent'),
+      // Tasks this person is on that nobody is up on, overdue or due within a week.
+      admin.from('work_items').select('id, status, work_item_assignees!inner(user_id)').eq('work_item_assignees.user_id', p.id).is('assignee_id', null).is('deleted_at', null).not('due_on', 'is', null).lte('due_on', addDays(t, 7)),
     ])
-    const open = (mine ?? []).filter(w => !done.has(w.status))
+    // Up now: the lists are what this person is up on; the rest is a count.
+    const open = (mine ?? []).filter(w => !done.has(w.status) && w.assignee_id === p.id)
+    const nobodyUp = (unowned ?? []).filter(w => !done.has(w.status)).length
     const overdue = open.filter(w => w.due_on! < t)
     const dueToday = open.filter(w => w.due_on === t)
     const dueSoon = open.filter(w => w.due_on! > t)
@@ -75,6 +79,7 @@ export default defineEventHandler(async (event) => {
       weeksToReview: reviewPeople,
       quotesAwaitingReply: (quotes ?? []).map(qq => ({ number: qq.number, id: qq.id, title: qq.title, client: qq.clients?.name, validUntil: qq.valid_until })),
       projectsLedPast80: led,
+      nobodyUp,
     }
     let text = ''
     if (cfg.anthropicApiKey) {
@@ -84,7 +89,7 @@ export default defineEventHandler(async (event) => {
           headers: { 'x-api-key': cfg.anthropicApiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
           body: {
             model: MODELS.fast, max_tokens: 500,
-            system: `You write a short morning note to one person at Gigantic Design Co., a design studio, from the facts given. Address them by first name once. Plain text, two or three short paragraphs, no headings, no bullet points, no em dashes, under 140 words. Lead with what needs attention today: overdue tasks (give the due date as a day like April 30, never as digits), tasks due today, weeks waiting for their approval, last week's unsubmitted time entries (a count of entries, not hours), quotes waiting on a client. Then today's meetings and how the week's hours stand against the target, in one line, hours written like 26.5. Skip anything with nothing in it. No pep talk or sign-off. If nothing needs attention, say so in one plain sentence. Do not invent facts, names, or numbers. Whenever you name a task, project, client, or quote from the facts, write it as a link using the ids given, in exactly this form and no other: [task title](/tasks/ID), [project name](/projects/ID), [client name](/clients/ID), [Q number](/quotes/ID). Link each one the first time it appears.`,
+            system: `You write a short morning note to one person at Gigantic Design Co., a design studio, from the facts given. Address them by first name once. Plain text, two or three short paragraphs, no headings, no bullet points, no em dashes, under 140 words. Lead with what needs attention today: overdue tasks (give the due date as a day like April 30, never as digits), tasks due today, weeks waiting for their approval, last week's unsubmitted time entries (a count of entries, not hours), quotes waiting on a client. Then today's meetings and how the week's hours stand against the target, in one line, hours written like 26.5. Skip anything with nothing in it. No pep talk or sign-off. If nothing needs attention, say so in one plain sentence. If nobodyUp is above zero, end with one short clause using those words, like: and 4 tasks you are on have nobody up. Say nobody up, not unassigned. Do not invent facts, names, or numbers. Whenever you name a task, project, client, or quote from the facts, write it as a link using the ids given, in exactly this form and no other: [task title](/tasks/ID), [project name](/projects/ID), [client name](/clients/ID), [Q number](/quotes/ID). Link each one the first time it appears.`,
             messages: [{ role: 'user', content: JSON.stringify(facts) }],
           },
         })
@@ -109,7 +114,7 @@ export default defineEventHandler(async (event) => {
 })
 
 // Without a model key, the facts still make a usable note.
-function plainBrief(f: { name: string, overdue: { title: string, id: string }[], dueToday: { title: string, id: string }[], weeksToReview: string[], lastWeekUnsubmittedEntries: number, quotesAwaitingReply: { number: string }[], meetingsToday: { from: string, to: string }[], hoursThisWeek: number, weeklyTarget: number }) {
+function plainBrief(f: { name: string, overdue: { title: string, id: string }[], dueToday: { title: string, id: string }[], weeksToReview: string[], lastWeekUnsubmittedEntries: number, quotesAwaitingReply: { number: string }[], meetingsToday: { from: string, to: string }[], hoursThisWeek: number, weeklyTarget: number, nobodyUp: number }) {
   const parts: string[] = []
   const link = (w: { title: string, id: string }) => `[${w.title}](/tasks/${w.id})`
   if (f.overdue.length) parts.push(`${f.overdue.length} overdue: ${f.overdue.map(link).slice(0, 4).join(', ')}.`)
@@ -119,7 +124,8 @@ function plainBrief(f: { name: string, overdue: { title: string, id: string }[],
   if (f.quotesAwaitingReply.length) parts.push(`${f.quotesAwaitingReply.length} ${f.quotesAwaitingReply.length === 1 ? 'quote is' : 'quotes are'} out with clients.`)
   const head = parts.length ? parts.join(' ') : `Nothing overdue and nothing waiting on you, ${f.name}.`
   const meetings = f.meetingsToday.length ? `${f.meetingsToday.length} ${f.meetingsToday.length === 1 ? 'meeting' : 'meetings'} today (${f.meetingsToday.map(m => m.from).join(', ')}). ` : ''
-  return `${head}\n\n${meetings}This week: ${hm(f.hoursThisWeek)} of ${hm(f.weeklyTarget)}.`
+  const unowned = f.nobodyUp ? ` ${f.nobodyUp} ${f.nobodyUp === 1 ? 'task' : 'tasks'} you are on ${f.nobodyUp === 1 ? 'has' : 'have'} nobody up.` : ''
+  return `${head}\n\n${meetings}This week: ${hm(f.hoursThisWeek)} of ${hm(f.weeklyTarget)}.${unowned}`
 }
 const hm = (h: number) => `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`
 const clock = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })
