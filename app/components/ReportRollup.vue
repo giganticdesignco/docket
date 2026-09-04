@@ -11,7 +11,12 @@ const props = withDefaults(defineProps<{
   person?: string
   title?: string
   compare?: boolean
-}>(), { title: 'This year', compare: true })
+  // 'tiles' draws each number in its own bordered box, for a page that
+  // wants a dashboard across the top. `extra` adds tiles the caller owns,
+  // so a page can put its own numbers in the same grid.
+  variant?: 'card' | 'tiles'
+  extra?: { label: string, value: string, sub?: string, subClass?: string }[]
+}>(), { title: 'This year', compare: true, variant: 'card' })
 
 const supabase = useSupabaseClient()
 const { can } = useCurrentUser()
@@ -60,6 +65,13 @@ function delta(st: Stat): { text: string, color: string } | null {
   return { text: `${pct >= 0 ? '+' : ''}${pct}% vs last year${toDate}`, color: pct >= 0 ? 'text-success' : 'text-error' }
 }
 
+// One list the tile layout renders: this component's own stats, then
+// whatever the page handed in.
+const tiles = computed(() => [
+  ...stats.value.map(st => ({ label: st.label, value: st.value, sub: delta(st)?.text, subClass: delta(st)?.color })),
+  ...(props.extra ?? []),
+])
+
 const reportLink = computed(() => ({
   path: '/reports',
   query: {
@@ -72,7 +84,23 @@ const reportLink = computed(() => ({
 </script>
 
 <template>
-  <UCard v-if="stats.length" :ui="{ body: 'p-3 sm:p-4' }">
+  <!-- Tiles: one box per number, so a page reads as a dashboard. -->
+  <div v-if="variant === 'tiles' && tiles.length" class="space-y-2">
+    <div class="flex items-baseline gap-3">
+      <h2 class="font-semibold">{{ title }}</h2>
+      <span v-if="!seeAll" class="text-xs text-muted">Your time</span>
+      <NuxtLink v-if="seeAll" :to="reportLink" class="ml-auto text-xs text-muted hover:underline">Full report</NuxtLink>
+    </div>
+    <div class="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div v-for="t in tiles" :key="t.label" class="rounded-lg border border-default bg-default p-3">
+        <div class="text-[10px] font-semibold uppercase tracking-wider text-dimmed">{{ t.label }}</div>
+        <div class="mt-0.5 text-xl font-semibold tabular-nums">{{ t.value }}</div>
+        <div v-if="t.sub" class="text-xs tabular-nums" :class="t.subClass ?? 'text-muted'">{{ t.sub }}</div>
+      </div>
+    </div>
+  </div>
+
+  <UCard v-else-if="stats.length" :ui="{ body: 'p-3 sm:p-4' }">
     <div class="flex items-baseline gap-3">
       <h2 class="font-semibold">{{ title }}</h2>
       <span v-if="!seeAll" class="text-xs text-muted">Your time</span>

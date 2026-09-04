@@ -183,6 +183,18 @@ const firstInvoiceYear = computed(() => {
   return dates[0]?.slice(0, 4) ?? null
 })
 
+// The billing numbers as tiles, so they sit in the same dashboard grid
+// as the hours across the top of the page.
+const billingTiles = computed(() => {
+  if (!canBill.value || !seeMoney.value) return []
+  const b = billing.value
+  return [
+    { label: 'Invoiced', value: money(b.year.invoiced), sub: `${money(b.all.invoiced)} all time` },
+    { label: 'Paid', value: money(b.year.paid), sub: `${money(b.all.paid)} all time` },
+    { label: 'Outstanding', value: money(b.all.outstanding), sub: b.year.outstanding ? `${money(b.year.outstanding)} from this year` : 'nothing from this year', subClass: b.all.outstanding > 0 ? 'text-warning' : 'text-muted' },
+  ]
+})
+
 const projectName = (projectId: string | null) => projects.value?.find(p => p.id === projectId)?.name ?? 'All projects'
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const qty = (r: RetainerRow, n: number) => (r.basis === 'hours' ? formatHours(n) : money(n))
@@ -263,76 +275,58 @@ const invoiceLabel = (inv: InvoiceLike) =>
       <dd>{{ client.qbo_customer_id }}</dd>
     </dl>
 
-    <ReportRollup :from="`${year}-01-01`" :to="`${year}-12-31`" :client="client.name" />
+    <ReportRollup variant="tiles" :from="`${year}-01-01`" :to="`${year}-12-31`" :client="client.name" :extra="billingTiles" />
+    <p v-if="billingTiles.length" class="-mt-4 text-xs text-muted">
+      Hours are this year. Invoiced and paid show this year with the lifetime figure under them, outstanding covers every year<template v-if="firstInvoiceYear"> back to {{ firstInvoiceYear }}</template>. Docket and Harvest invoices count together, and an invoice written off in Harvest counts as invoiced but never as outstanding.
+    </p>
 
-    <UCard v-if="canBill" :ui="{ body: 'p-3 sm:p-4' }">
-      <div class="flex items-baseline gap-3">
-        <h2 class="font-semibold">Billing</h2>
-        <span class="text-xs text-muted">Docket and Harvest invoices together<template v-if="firstInvoiceYear">, back to {{ firstInvoiceYear }}</template>. Written off invoices count as invoiced, never as outstanding.</span>
-      </div>
-      <div class="mt-3 grid grid-cols-3 gap-4">
-        <div>
-          <div class="text-xs text-muted">Invoiced</div>
-          <div class="text-lg font-semibold tabular-nums">{{ money(billing.year.invoiced) }} <span class="text-xs font-normal text-muted">this year</span></div>
-          <div class="text-xs tabular-nums text-muted">{{ money(billing.all.invoiced) }} all time</div>
+    <!-- Who can sign in, and who works on it: side by side, since both are short. -->
+    <div class="grid gap-6 lg:grid-cols-2">
+      <section v-if="canBill" class="space-y-2">
+        <div class="flex items-center gap-3">
+          <h2 class="text-lg font-semibold">Contacts</h2>
+          <UButton class="ml-auto shrink-0" size="xs" variant="outline" icon="i-lucide-user-plus" @click="inviting = true;">Invite a contact</UButton>
         </div>
-        <div>
-          <div class="text-xs text-muted">Paid</div>
-          <div class="text-lg font-semibold tabular-nums">{{ money(billing.year.paid) }} <span class="text-xs font-normal text-muted">this year</span></div>
-          <div class="text-xs tabular-nums text-muted">{{ money(billing.all.paid) }} all time</div>
-        </div>
-        <div>
-          <div class="text-xs text-muted">Outstanding</div>
-          <div class="text-lg font-semibold tabular-nums" :class="billing.all.outstanding > 0 ? 'text-warning' : ''">{{ money(billing.all.outstanding) }}</div>
-          <div class="text-xs tabular-nums text-muted">{{ money(billing.year.outstanding) }} from this year</div>
-        </div>
-      </div>
-    </UCard>
+        <p class="text-sm text-muted">People who can sign in to see this client's quotes, invoices, and reviews.</p>
+        <UCard :ui="{ body: 'p-0 sm:p-0' }">
+          <ul v-if="contacts?.length" class="divide-y divide-default text-sm">
+            <li v-for="c in contacts" :key="c.id" class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
+              <div class="min-w-0 flex-1">
+                <span class="font-medium">{{ c.full_name }}</span>
+                <span class="ml-2 text-muted">{{ c.email }}</span>
+              </div>
+              <UBadge :color="c.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ c.is_active ? 'Active' : 'Inactive' }}</UBadge>
+              <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-mail" :loading="inviteBusy" @click="sendInvite(c.email, c.full_name)">Send link</UButton>
+              <UButton size="xs" variant="ghost" color="neutral" @click="setContactActive(c.id, !c.is_active)">{{ c.is_active ? 'Deactivate' : 'Reactivate' }}</UButton>
+            </li>
+          </ul>
+          <p v-else class="px-4 py-6 text-center text-sm text-muted">No contacts have a login yet. Invite one and they get an email with a sign-in link.</p>
+        </UCard>
+      </section>
 
-    <template v-if="canBill">
-      <div class="flex items-center gap-4">
-        <h2 class="text-lg font-semibold">Contacts</h2>
-        <span class="text-sm text-muted">People who can sign in to see this client's quotes, invoices, and reviews.</span>
-        <UButton class="ml-auto" size="sm" variant="outline" icon="i-lucide-user-plus" @click="inviting = true;">Invite a contact</UButton>
-      </div>
-      <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <ul v-if="contacts?.length" class="divide-y divide-default text-sm">
-          <li v-for="c in contacts" :key="c.id" class="flex items-center gap-3 px-4 py-2">
-            <div class="min-w-0 flex-1">
-              <span class="font-medium">{{ c.full_name }}</span>
-              <span class="ml-2 text-muted">{{ c.email }}</span>
-            </div>
-            <UBadge :color="c.is_active ? 'success' : 'neutral'" variant="subtle" size="sm">{{ c.is_active ? 'Active' : 'Inactive' }}</UBadge>
-            <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-mail" :loading="inviteBusy" @click="sendInvite(c.email, c.full_name)">Send link</UButton>
-            <UButton size="xs" variant="ghost" color="neutral" @click="setContactActive(c.id, !c.is_active)">{{ c.is_active ? 'Deactivate' : 'Reactivate' }}</UButton>
-          </li>
-        </ul>
-        <p v-else class="px-4 py-6 text-center text-sm text-muted">No contacts have a login yet. Invite one and they get an email with a sign-in link.</p>
-      </UCard>
-    </template>
-
-    <div class="flex items-center gap-4">
-      <h2 class="text-lg font-semibold">Team</h2>
-      <span class="text-sm text-muted">Who works with this client: project leads, people on open tasks, and anyone with time here in the last 90 days.</span>
+      <section class="space-y-2">
+        <h2 class="text-lg font-semibold">Team</h2>
+        <p class="text-sm text-muted">Who works with this client: project leads, people on open tasks, and anyone with time here in the last 90 days.</p>
+        <UCard :ui="{ body: 'p-3 sm:p-4' }">
+          <ul v-if="team.length" class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
+            <li v-for="m in team" :key="m.id" class="flex items-center gap-2">
+              <span class="grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
+              <div>
+                <div class="font-medium">{{ m.name }}</div>
+                <div class="text-xs text-muted">
+                  <span v-if="m.leads.length" :title="m.leads.join(', ')">Lead on {{ m.leads.length }} {{ m.leads.length === 1 ? 'project' : 'projects' }}</span>
+                  <span v-if="m.leads.length && (m.tasks || m.hours)"> &middot; </span>
+                  <span v-if="m.tasks">{{ m.tasks }} open {{ m.tasks === 1 ? 'task' : 'tasks' }}</span>
+                  <span v-if="m.tasks && m.hours"> &middot; </span>
+                  <span v-if="m.hours" class="tabular-nums">{{ formatHours(m.hours) }} in 90 days</span>
+                </div>
+              </div>
+            </li>
+          </ul>
+          <p v-else class="text-sm text-muted">Nobody yet. People show up here once they lead a project, take a task, or log time for this client.</p>
+        </UCard>
+      </section>
     </div>
-    <UCard :ui="{ body: 'p-3 sm:p-4' }">
-      <ul v-if="team.length" class="flex flex-wrap gap-x-6 gap-y-3 text-sm">
-        <li v-for="m in team" :key="m.id" class="flex items-center gap-2">
-          <span class="grid size-7 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium">{{ initials(m.name) }}</span>
-          <div>
-            <div class="font-medium">{{ m.name }}</div>
-            <div class="text-xs text-muted">
-              <span v-if="m.leads.length" :title="m.leads.join(', ')">Lead on {{ m.leads.length }} {{ m.leads.length === 1 ? 'project' : 'projects' }}</span>
-              <span v-if="m.leads.length && (m.tasks || m.hours)"> &middot; </span>
-              <span v-if="m.tasks">{{ m.tasks }} open {{ m.tasks === 1 ? 'task' : 'tasks' }}</span>
-              <span v-if="m.tasks && m.hours"> &middot; </span>
-              <span v-if="m.hours" class="tabular-nums">{{ formatHours(m.hours) }} in 90 days</span>
-            </div>
-          </div>
-        </li>
-      </ul>
-      <p v-else class="text-sm text-muted">Nobody yet. People show up here once they lead a project, take a task, or log time for this client.</p>
-    </UCard>
 
     <div class="flex items-center gap-4">
       <h2 class="text-lg font-semibold">Projects</h2>

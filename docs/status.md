@@ -1977,3 +1977,15 @@ card uses the same rule, and both say so in their tooltip or subtitle.
 A see_money column on `/clients`. Note that `useColumns` appends a new
 column to the end of anyone's saved order, so people with a saved
 arrangement see Outstanding last until they drag it or reset.
+
+## Client page top as a dashboard (2026-09-04)
+
+`ReportRollup` gains `variant="tiles"` (one bordered box per number, a
+2 by 4 grid) and an `extra` prop so a page can put its own numbers in
+the same grid. The card layout is untouched, so the project page is
+unchanged. The client page now opens with eight tiles: hours, billable
+hours, billable amount, uninvoiced and expenses from the rollup, plus
+invoiced, paid and outstanding from `billingTiles`, with one line of
+copy under them explaining which figures are this year and which are
+lifetime. Contacts and Team moved into a two column row, since both are
+short.
