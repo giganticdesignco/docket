@@ -2316,3 +2316,12 @@ also applies that group's move (status, project, or due). Nesting and
 moves offer Undo. Verified with three simulated drags: reorder within
 a group, nest, un-nest; the test order rows and the task were put
 back. Guide updated.
+
+## Branch renamed to main (2026-09-04)
+
+The production branch had kept its first-session name,
+`claude/docket-schema-auth-i7jyom`. Renamed on GitHub to `main` (the
+default branch moved with it) and locally. Vercel deploys the
+default branch, so pushes to `main` are production from here on; if
+Vercel's Git settings named the old branch explicitly, the Production
+Branch field needs `main`.
