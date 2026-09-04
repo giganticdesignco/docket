@@ -752,7 +752,7 @@ function created(id: string) {
             <td class="hidden w-40 px-2 py-1.5 sm:table-cell">
               <button type="button" data-menu="assignees" class="flex rounded-full -space-x-1.5 hover:ring-2 hover:ring-accented" :title="peopleTitle(i) || 'Assign'" @click="openMenu(i, 'assignees', $event)">
                 <template v-if="i.work_item_assignees.length">
-                  <span v-if="!i.assignee_id" class="grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" title="Nobody is up" />
+                  <span v-if="!i.assignee_id" class="relative z-10 grid size-6 place-items-center rounded-full border border-dashed border-warning bg-default ring-2 ring-default" title="Nobody is up" />
                   <span v-for="a in cluster(i).slice(0, 4)" :key="a.user_id" class="grid size-6 place-items-center rounded-full text-[10px] font-medium ring-2 ring-default" :class="a.user_id === i.assignee_id ? 'relative z-10 bg-primary text-inverted' : 'bg-elevated opacity-50'">{{ initials(a.profiles?.full_name ?? '?') }}</span>
                   <span v-if="i.work_item_assignees.length > 4" class="grid size-6 place-items-center rounded-full bg-accented text-[10px] font-medium ring-2 ring-default">+{{ i.work_item_assignees.length - 4 }}</span>
                 </template>

@@ -2382,4 +2382,5 @@ From Luke's feedback. The status cell on `/tasks` is the same subtle
 badge every other screen uses, still a click to change it. In the
 faces stack the person who is up now sits on top of the others (it was
 first but underneath, since later avatars overlap earlier ones); same
-on the task page's subtask rows.
+on the task page's subtask rows. The dashed "nobody is up" ring sits
+on top the same way, so the empty slot always leads the stack.
