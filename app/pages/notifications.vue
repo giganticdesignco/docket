@@ -13,8 +13,8 @@ const toast = useToast()
 const KINDS = [
   { kind: 'assigned', label: 'Assigned to a task' },
   { kind: 'mentioned', label: 'Mentioned in a comment' },
-  { kind: 'comment', label: 'Comment on a task you are on or made' },
-  { kind: 'status', label: 'Status change on a task you are on' },
+  { kind: 'comment', label: 'Comment on a task you are on, made, or follow' },
+  { kind: 'status', label: 'Status change on a task you are on or follow' },
   { kind: 'due', label: 'Task due tomorrow, today, or overdue' },
   { kind: 'client_comment', label: 'Client commented' },
   { kind: 'client_decision', label: 'Client approved or requested changes' },
