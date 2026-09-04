@@ -1964,3 +1964,15 @@ the invoice importer already falls back to a name match, and the time
 importer's `ensureClient` adopts the harvest_id the first time it sees
 one of these clients. A rename in Harvest before that happens would
 create a second client, which is the one thing to watch.
+
+## Outstanding on the Clients list (2026-09-04)
+
+`client_money()` gains an `outstanding` column: Docket invoices with
+status 'sent' plus Harvest invoices with state 'open', all years. The
+function had to be dropped and recreated, since the return type gained
+a column. A Harvest invoice in the 'closed' state was written off, so
+it counts as billed but never as outstanding; the client page's Billing
+card uses the same rule, and both say so in their tooltip or subtitle.
+A see_money column on `/clients`. Note that `useColumns` appends a new
+column to the end of anyone's saved order, so people with a saved
+arrangement see Outstanding last until they drag it or reset.

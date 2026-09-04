@@ -3655,11 +3655,13 @@ create trigger time_entries_notify_submit after update on time_entries
   for each statement execute function public.notify_on_time_submit();
 
 -- Per client, for the Clients list: what is billable but not yet on a
--- batch or invoice, and what was invoiced this year (Docket and
--- Harvest). Security invoker; money is null without see_money, the
--- same rule as report_rollup.
+-- batch or invoice, what was invoiced this year (Docket and Harvest),
+-- and what is still owed across every year. Security invoker; money is
+-- null without see_money, the same rule as report_rollup. A Harvest
+-- invoice in the 'closed' state was written off, so it counts as billed
+-- but never as outstanding, matching the client page's Billing card.
 create or replace function public.client_money()
-returns table (client_id uuid, unbilled numeric, billed_year numeric)
+returns table (client_id uuid, unbilled numeric, billed_year numeric, outstanding numeric)
 language sql stable
 set search_path = ''
 as $$
@@ -3687,15 +3689,24 @@ as $$
     where hi.state <> 'draft'
       and hi.issue_date >= date_trunc('year', (now() at time zone 'America/Chicago'))::date
     group by hi.client_id
+  ), od as (
+    select i.client_id, coalesce(sum(i.due_amount), 0) as amount
+    from public.invoices i where i.status = 'sent' group by i.client_id
+  ), oh as (
+    select hi.client_id, coalesce(sum(hi.due_amount), 0) as amount
+    from public.harvest_invoices hi where hi.state = 'open' group by hi.client_id
   )
   select c.id,
          case when (select public.has_permission('see_money')) then coalesce(t.amount, 0) + coalesce(e.amount, 0) end,
-         case when (select public.has_permission('see_money')) then coalesce(d.amount, 0) + coalesce(h.amount, 0) end
+         case when (select public.has_permission('see_money')) then coalesce(d.amount, 0) + coalesce(h.amount, 0) end,
+         case when (select public.has_permission('see_money')) then coalesce(od.amount, 0) + coalesce(oh.amount, 0) end
   from public.clients c
   left join t on t.client_id = c.id
   left join e on e.client_id = c.id
   left join d on d.client_id = c.id
-  left join h on h.client_id = c.id;
+  left join h on h.client_id = c.id
+  left join od on od.client_id = c.id
+  left join oh on oh.client_id = c.id;
 $$;
 revoke execute on function public.client_money() from public, anon;
 

@@ -3214,6 +3214,7 @@ export type Database = {
           client_id: string
           unbilled: number | null
           billed_year: number | null
+          outstanding: number | null
         }[]
       }
       approver_of: {
