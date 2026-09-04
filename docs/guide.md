@@ -28,7 +28,7 @@ keyboard shortcuts alone.
 - **Drawers, not popups.** Forms open from the right so the page behind
   stays in view. Only short confirms (delete, void) use a popup.
 - **Found a bug, or want something?** Click the speech-bubble icon in
-  the rail, the Report pill beside the Assistant, or press
+  the rail, the Feedback pill beside the Assistant, or press
   `Cmd+Shift+F` on any screen. Click
   the thing that is wrong, or drag a box around an area, say whether
   it is a bug (it does something it should not), a change (it works,
@@ -212,24 +212,29 @@ and the morning brief.
   Unscheduled tasks sit under the chart with a Schedule button. Hover a
   bar or a cut-off name for the full details.
 - **Planner** is people as rows and weekdays as columns, one block for
-  every task on each day it is planned for. An estimate spreads evenly
-  across the weekdays of the task's span and across its assignees, so
-  a 10 hour task from Monday to Friday shows 2:00 a day. Meetings from
-  Google Calendar and time off sit in the cell too, and the footer
-  says how much of the day is planned and how much is left; over goes
-  red. Drag a task from "Needs a person" onto a person's day and it is
-  planned there: they are assigned and the task's dates move to start
-  that day, keeping their length. Drag a block to another day or
-  person to move it, or drag its right edge across the days to set the
-  due date; the hours re-spread as it stretches. Click the hours on a
-  block to type what that person does that day (a four hour task can
-  be 3:00 Monday and 1:00 Tuesday); set days show in bold, the other
-  days share what is left, and clearing a day puts it back on the even
-  split. Schedule's capacity strip counts set hours the same way. Undo has thirty seconds. The small assign button
-  on a card gives it a person without touching its dates. Switch
+  every task on each day it is planned for. A block sits in the row of
+  whoever is up on the task, and in the row of anyone with hours set
+  for it (dashed, "Not their turn yet"). What is left of the estimate
+  after everyone's set hours goes to the person up, spread across the
+  weekdays of the task's span, so a 10 hour task from Monday to Friday
+  shows 2:00 a day. Meetings from Google Calendar and time off sit in
+  the cell too, and the footer says how much of the day is planned and
+  how much is left; over goes red. Drag a task from "Nobody up" onto a
+  person's day and it is planned there: they are up on it and the
+  task's dates move to start that day, keeping their length. Drag a
+  block to another person to hand it to them (whoever it came from
+  stays on the task), or to another day to move it, or drag its right
+  edge across the days to set the due date; the hours re-spread as it
+  stretches. Click the hours on a block to type what that person does
+  that day (a four hour task can be 3:00 Monday and 1:00 Tuesday); set
+  days show in bold, the other days share what is left, and clearing a
+  day puts it back on the even split. Schedule's capacity strip counts
+  set hours the same way. Undo has thirty seconds. The small button on
+  a card puts someone up on it without touching its dates. Switch
   between one week and three, pick which people to show (Me is a
-  shortcut), and filter by project. Schedule stays the place for the Gantt view and
-  dependencies.
+  shortcut, and a department lead gets a button for their team, named
+  for the department), and filter by project. Schedule stays the place
+  for the Gantt view and dependencies.
 - **Time off** is logged by each person; admins log anyone's and company
   holidays. There is no approval step. It reduces capacity and silences
   the missing-time email.

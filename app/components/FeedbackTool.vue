@@ -135,12 +135,12 @@ async function send() {
       v-show="!picking && !assistantOpen"
       type="button"
       class="fixed bottom-6 right-20 z-40 flex h-10 items-center gap-2 rounded-full border border-default bg-default px-3 text-sm text-muted shadow-md transition hover:text-highlighted hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 print:hidden"
-      title="Report a bug or an idea (Cmd+Shift+F)"
-      aria-label="Report a bug or an idea"
+      title="Send feedback: a bug, a change, or an idea (Cmd+Shift+F)"
+      aria-label="Send feedback"
       @click="picking = true"
     >
       <UIcon name="i-lucide-message-square-warning" class="size-4" />
-      <span class="hidden sm:inline">Report</span>
+      <span class="hidden sm:inline">Feedback</span>
     </button>
 
     <Teleport to="body">

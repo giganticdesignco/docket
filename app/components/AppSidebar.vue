@@ -53,7 +53,7 @@ const helpItems = computed(() => [[
   { label: 'User guide', icon: 'i-lucide-book-open', to: '/help' },
   { label: 'Tour: Getting around', icon: 'i-lucide-compass', onSelect: () => tour.start('around') },
   { label: 'Keyboard shortcuts', icon: 'i-lucide-keyboard', kbds: ['?'], onSelect: () => { sheetOpen.value = true } },
-  { label: 'Report a bug or an idea', icon: 'i-lucide-message-square-warning', kbds: ['meta', 'shift', 'f'], onSelect: () => { feedbackPick.value = true } },
+  { label: 'Send feedback', icon: 'i-lucide-message-square-warning', kbds: ['meta', 'shift', 'f'], onSelect: () => { feedbackPick.value = true } },
 ]])
 const feedbackPick = useState('feedback-pick', () => false)
 
@@ -113,9 +113,9 @@ watch(() => route.path, () => { mobileOpen.value = false })
         <span class="hidden truncate group-hover:inline">{{ settings.label }}</span>
       </NuxtLink>
       <NotificationBell />
-      <button type="button" data-tour="feedback" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Report a bug or an idea (Cmd+Shift+F)" @click="feedbackPick = true;">
+      <button type="button" data-tour="feedback" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Send feedback: a bug, a change, or an idea (Cmd+Shift+F)" @click="feedbackPick = true;">
         <UIcon name="i-lucide-message-square-warning" class="size-5 shrink-0" />
-        <span class="hidden truncate group-hover:inline">Report a bug or idea</span>
+        <span class="hidden truncate group-hover:inline">Send feedback</span>
       </button>
       <UDropdownMenu :items="helpItems" :content="{ side: 'right', align: 'end' }">
         <button type="button" data-tour="help" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-sm text-muted hover:bg-elevated hover:text-highlighted" title="Help">
@@ -161,7 +161,7 @@ watch(() => route.path, () => { mobileOpen.value = false })
           <UIcon name="i-lucide-bell" class="size-5" />Notifications
         </NuxtLink>
         <button type="button" class="flex h-9 w-full items-center gap-3 rounded-md px-2 text-left text-sm text-muted" @click="feedbackPick = true;">
-          <UIcon name="i-lucide-message-square-warning" class="size-5" />Report a bug or idea
+          <UIcon name="i-lucide-message-square-warning" class="size-5" />Send feedback
         </button>
         <NuxtLink v-if="showSettings" :to="settings.to" class="flex h-9 items-center gap-3 rounded-md px-2 text-sm" :class="active(settings.to) ? 'bg-elevated text-highlighted' : 'text-muted'">
           <UIcon :name="settings.icon" class="size-5" />{{ settings.label }}

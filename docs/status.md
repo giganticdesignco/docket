@@ -2384,3 +2384,17 @@ faces stack the person who is up now sits on top of the others (it was
 first but underneath, since later avatars overlap earlier ones); same
 on the task page's subtask rows. The dashed "nobody is up" ring sits
 on top the same way, so the empty slot always leads the stack.
+
+## Feedback items: hand in the empty ring, a team button on Planner (2026-09-04)
+
+The dashed "nobody is up" ring on the task list holds a hand icon.
+Planner gains a team button beside Me for anyone who leads a
+department (named for the department when it is one, "My team" when
+several) or, failing that, anyone in a department; it selects those
+people in the filter. Verified by seeding Luke as lead of Web with two
+members and putting it back; no department has a lead or members yet,
+so the button waits on that setup. The Planner guide paragraph was
+still describing pre Up now behavior and is rewritten. The floating
+pill and the rail and help entries now say Feedback and Send feedback
+rather than Report, since Docket has a Reports section and the tool
+takes changes and ideas too.

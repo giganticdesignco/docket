@@ -62,8 +62,15 @@ const __ad5 = useAsyncData('planner-plans', async () => {
   if (error) throw error
   return data
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5])
+// Who is in which department, so a lead can look at just their team.
+const __ad6 = useAsyncData('planner-departments', async () => {
+  const { data, error } = await supabase.from('profiles').select('id, department_id').eq('is_active', true).neq('role', 'client')
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
 const { data: cap } = __ad1
+const { data: deptRows } = __ad6
 const { data: tasks, refresh: refreshTasks } = __ad2
 const { data: plans, refresh: refreshPlans } = __ad5
 const refreshAll = () => Promise.all([refreshTasks(), refreshPlans()])
@@ -89,6 +96,12 @@ const people = computed(() => allPeople.value.filter(p => !peopleFilter.value.le
 const peopleItems = computed(() => allPeople.value.map(p => ({ label: p.name, value: p.id })))
 const me = computed(() => user.value?.sub ?? '')
 const onlyMe = computed(() => peopleFilter.value.length === 1 && peopleFilter.value[0] === me.value)
+// My team: the departments you lead, or failing that the one you are in.
+const { profile, leads } = useCurrentUser()
+const teamDepts = computed(() => (leads.value.length ? leads.value.map(d => d.id) : profile.value?.department_id ? [profile.value.department_id] : []))
+const myTeam = computed(() => (deptRows.value ?? []).filter(p => p.department_id && teamDepts.value.includes(p.department_id)).map(p => p.id).sort())
+const onlyTeam = computed(() => myTeam.value.length > 0 && [...peopleFilter.value].sort().join() === myTeam.value.join())
+const teamLabel = computed(() => (leads.value.length === 1 ? leads.value[0]!.name : 'My team'))
 const key = (uid: string, d: string) => `${uid}|${d}`
 const weekOf = (d: string) => weekDays(d)[0]!
 const isWeekday = (d: string) => { const n = parseDateString(d).getDay(); return n >= 1 && n <= 5 }
@@ -404,6 +417,7 @@ const assignMenu = (t: Task) => [allPeople.value.map(p => ({ label: p.name, onSe
         </div>
         <USelectMenu v-model="peopleFilter" :items="peopleItems" value-key="value" multiple size="sm" placeholder="Everyone" class="w-48" />
         <UButton size="sm" :variant="onlyMe ? 'solid' : 'outline'" :color="onlyMe ? 'primary' : 'neutral'" @click="peopleFilter = onlyMe ? [] : [me];">Me</UButton>
+        <UButton v-if="myTeam.length > 1" size="sm" :variant="onlyTeam ? 'solid' : 'outline'" :color="onlyTeam ? 'primary' : 'neutral'" icon="i-lucide-users" :title="leads.length ? 'The people in the departments you lead' : 'The people in your department'" @click="peopleFilter = onlyTeam ? [] : [...myTeam];">{{ teamLabel }}</UButton>
         <USelect v-model="projectId" :items="projectItems" value-key="value" size="sm" class="w-56" />
         <UInput v-model="search" icon="i-lucide-search" placeholder="Search tasks" size="sm" class="w-48" />
       </div>
