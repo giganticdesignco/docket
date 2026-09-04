@@ -623,25 +623,30 @@ function created(id: string) {
 
 <template>
   <div class="space-y-4">
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="flex flex-wrap items-start gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Tasks</h1>
         <p class="text-sm text-muted">{{ focusMode ? 'The short list you keep for yourself, in the order you mean to work it. Drag a row to move it. Only you see it.' : `${everyone ? 'Everything across the team.' : 'What is on your plate.'} Drag a row to put it where you want it, onto another task to make it a subtask, or onto another group to move it.` }}</p>
       </div>
-      <div class="ml-auto flex flex-wrap items-center gap-3">
-        <UInput v-if="!focusMode" v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
-        <USelect v-if="!focusMode && viewMode === 'list'" v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
-        <USwitch v-if="!focusMode" v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />
-        <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
-          <UButton size="xs" icon="i-lucide-list" :variant="!focusMode && viewMode === 'list' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="focusMode = false; viewMode = 'list';" />
-          <UButton size="xs" icon="i-lucide-layout-grid" :variant="!focusMode && viewMode === 'cards' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="focusMode = false; viewMode = 'cards';" />
-          <UButton size="xs" icon="i-lucide-star" :variant="focusMode ? 'solid' : 'ghost'" :color="focusMode ? 'primary' : 'neutral'" aria-label="Focus" title="Just your focus list" @click="focusMode = true;" />
-        </div>
+      <UButton icon="i-lucide-plus" data-tour="new-task" class="ml-auto" @click="creating = true;">New task</UButton>
+    </div>
+    <!-- Controls, left to right: how you look at it, what is in it, then the odd jobs. -->
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div class="flex gap-0.5 rounded-md bg-elevated p-0.5">
+        <UButton size="xs" icon="i-lucide-list" :variant="!focusMode && viewMode === 'list' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'list' ? 'primary' : 'neutral'" aria-label="List" title="List" @click="focusMode = false; viewMode = 'list';" />
+        <UButton size="xs" icon="i-lucide-layout-grid" :variant="!focusMode && viewMode === 'cards' ? 'solid' : 'ghost'" :color="!focusMode && viewMode === 'cards' ? 'primary' : 'neutral'" aria-label="Cards" title="Cards by client" @click="focusMode = false; viewMode = 'cards';" />
+        <UButton size="xs" icon="i-lucide-star" :variant="focusMode ? 'solid' : 'ghost'" :color="focusMode ? 'primary' : 'neutral'" aria-label="Focus" title="Just your focus list" @click="focusMode = true;" />
+      </div>
+      <USelect v-if="!focusMode && viewMode === 'list'" v-model="groupBy" :items="[{ label: 'By status', value: 'status' }, { label: 'By project', value: 'project' }, { label: 'By due date', value: 'due' }]" size="sm" class="w-36" data-tour="group-by" />
+      <div v-if="!focusMode" class="flex items-center gap-4">
+        <USwitch v-model="everyone" label="Everyone" size="sm" data-tour="everyone" />
+        <USwitch v-model="showCompleted" label="Completed" size="sm" />
+      </div>
+      <UInput v-if="!focusMode" v-model="search" icon="i-lucide-search" placeholder="Search" size="sm" class="w-44" />
+      <div class="flex items-center gap-2">
         <UButton v-if="focusMode && finished.length" size="xs" variant="ghost" color="neutral" @click="clearFinished">Clear finished</UButton>
-        <USwitch v-if="!focusMode" v-model="showCompleted" label="Completed" size="sm" />
         <UButton v-if="!focusMode" size="xs" variant="ghost" color="neutral" title="Back to the default list" @click="resetView">Reset view</UButton>
-        <UButton v-if="!focusMode && unsorted && can('manage_tasks')" to="/tasks/triage" size="sm" variant="outline" color="neutral" icon="i-lucide-folder-input" title="Tasks the ClickUp import could not tie to a project">{{ unsorted }} unsorted</UButton>
-        <UButton icon="i-lucide-plus" data-tour="new-task" @click="creating = true;">New task</UButton>
+        <UButton v-if="!focusMode && unsorted && can('manage_tasks')" to="/tasks/triage" size="xs" variant="outline" color="neutral" icon="i-lucide-folder-input" title="Tasks the ClickUp import could not tie to a project">{{ unsorted }} unsorted</UButton>
       </div>
     </div>
 

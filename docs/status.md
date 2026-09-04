@@ -2341,3 +2341,12 @@ different (migration `feedback_kind_change` widens the check). The
 picker opens on whatever kind you last sent, kept per person in
 `user_views` under `feedback`. Admin badge, MCP description and guide
 updated.
+
+## First two feedback items (2026-09-04)
+
+Filed by Luke with the new tool and closed the same hour. Tasks page:
+the controls now sit in one left-aligned row under the title, in the
+order you look at it (list, cards, focus), what is in it (grouping,
+Everyone, Completed, search), then the odd jobs (Reset view, unsorted);
+New task alone on the right. Unsorted tasks: the back arrow leads the
+title on the left, and the client filter and search sit under it.
