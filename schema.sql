@@ -1269,7 +1269,10 @@ create table saved_reports (
 -- ============================================================
 
 -- Every hour with its frozen rate resolved to money. Excludes running timers.
-create view time_detail with (security_invoker = true) as
+-- Security definer, not invoker: authenticated has no column-level
+-- select on time_entries.rate_snapshot, so the view reads the rate on
+-- the caller's behalf and does its own visibility filtering below.
+create view time_detail with (security_invoker = false) as
 select
   te.id,
   te.spent_on,
@@ -1297,7 +1300,23 @@ join projects p  on p.id = te.project_id
 join clients  c  on c.id = p.client_id
 join tasks    t  on t.id = te.task_id
 join profiles pr on pr.id = te.user_id
-where te.ended_at is not null or te.started_at is null;
+-- These are time_entry_readable()'s branches, in its order, written out
+-- rather than called. Calling it would pass te.user_id in, which makes
+-- it correlated, and the planner then runs the whole security definer
+-- function once per row: 9,847 loops, 3.9 seconds, most of what a
+-- client or project page spent waiting on report_rollup. Written this
+-- way the three expensive checks are uncorrelated (select ...) so they
+-- are InitPlans evaluated once, and the per-row work is a uuid compare.
+where (te.ended_at is not null or te.started_at is null)
+  and te.deleted_at is null
+  and ((select auth.uid()) is null
+       or te.user_id = (select auth.uid())
+       or (select public.has_permission('see_all_time'))
+       or (select public.has_permission('approve_time'))
+       or te.user_id in (select p2.id
+                         from profiles p2
+                         join departments d on d.id = p2.department_id
+                         where d.lead_id = (select auth.uid())));
 
 -- Live + archived history in one shape, so year-over-year reports work
 -- across the Harvest cutover.

@@ -2903,3 +2903,47 @@ The first-load sketch (`app/spa-loading-template.html`) draws the
 right rail too: a strip down the right edge with six dots at the
 bottom, so the page that appears matches the sketch that stood in for
 it. Verified with a cold load of /tasks.
+
+## Detail pages sat on the skeleton for five seconds (2026-09-04)
+
+Luke: "none of my sub pages are loading." They were loading, just
+slowly enough that the page skeleton was all you saw. A client page
+took about eleven seconds; every query on it returned 200, and one of
+them, `report_rollup`, accounted for 4.9 of those seconds on its own.
+
+`time_detail` filtered with `time_entry_readable(te.user_id)`. Passing
+a column in makes the call correlated, so Postgres runs the whole
+security definer function once per row rather than once per query. The
+plan said it plainly:
+
+```
+SubPlan 1
+  ->  Result (actual time=0.394..0.394 rows=1 loops=9847)
+```
+
+9,847 loops at 0.394 ms is 3.9 seconds, and `time_entry_readable`
+itself calls `has_permission` up to twice, each of which scans
+profiles, permission_overrides and permissions.
+
+Fixed by writing that function's branches out in the view's WHERE
+instead of calling it, so the three expensive checks are uncorrelated
+`(select ...)` InitPlans evaluated once and the only per-row work is
+comparing two uuids. This is the rule already in CLAUDE.md; the view
+was the one place still breaking it, which the money-off-base-tables
+work did not introduce but did make hotter.
+
+`report_rollup` for one client went from 3,400 ms to 66 ms measured in
+the database, and 4,903 ms to 225 ms measured in the browser. Nothing
+else on a client page now takes more than 280 ms. Reports, Time and
+Home were on the same path and are equally quick.
+
+Visibility is unchanged, checked per person against the old rule: Luke
+and the other admins still see all 9,847 entries, Kylee still sees only
+her own 744, and every other active person's count matches what
+`time_entry_readable` would have returned. The `see_money` gate on the
+amount column was not touched.
+
+The fix is a database change, so production was fixed the moment the
+migration applied; no deploy was involved. `schema.sql` also gained the
+`security_invoker = false` and the `deleted_at` filter that the live
+view had picked up without being mirrored.
