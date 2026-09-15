@@ -3411,3 +3411,12 @@ upsert body.
 
 These go to Luke as a follow-up. Migration 2 still runs after this
 deploys.
+
+**Migration 2.** Once ba72116 was live on Vercel, a pre-drop check
+confirmed that no function, view, or policy read the old columns.
+Migration `drop_site_plan_v1_columns` then dropped
+`site_plan_pages.hours` and `page_templates.hours`, `rate` and
+`task_id`, along with `page_templates_task_id_fkey`. The 21 template
+parts were untouched. `schema.sql` matches the result, including a page
+templates seed with no hours, and `shared/types/database.ts` was
+regenerated. Typecheck is clean.

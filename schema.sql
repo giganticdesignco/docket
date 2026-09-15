@@ -897,23 +897,20 @@ create trigger quotes_tax_recalc
 create table page_templates (
   id          uuid primary key default gen_random_uuid(),
   name        text not null unique,
-  hours       numeric(8,2) not null default 0,                -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
-  rate        numeric(10,2),                                  -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
-  task_id     uuid references tasks(id) on delete set null,   -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
   description text,
   color       text not null default 'neutral',
   position    int not null default 0,
   is_active   boolean not null default true,
   created_at  timestamptz not null default now()
 );
-insert into page_templates (name, hours, description, color, position) values
-  ('Home',         8, 'The front page: hero, sections, calls to action.',            'primary', 1),
-  ('Landing',      6, 'A campaign or product page with its own layout.',              'info',    2),
-  ('Interior',     3, 'A standard content page on the site template.',                'neutral', 3),
-  ('Listing',      4, 'A page that lists things: services, team, locations, posts.', 'success', 4),
-  ('Detail',       3, 'One item from a listing: a service, a person, a location.',    'success', 5),
-  ('Form',         3, 'Contact, application, or request form with its handling.',     'warning', 6),
-  ('Blog post',    1, 'A post or article on the blog template.',                      'neutral', 7)
+insert into page_templates (name, description, color, position) values
+  ('Home',      'The front page: hero, sections, calls to action.',            'primary', 1),
+  ('Landing',   'A campaign or product page with its own layout.',              'info',    2),
+  ('Interior',  'A standard content page on the site template.',                'neutral', 3),
+  ('Listing',   'A page that lists things: services, team, locations, posts.', 'success', 4),
+  ('Detail',    'One item from a listing: a service, a person, a location.',    'success', 5),
+  ('Form',      'Contact, application, or request form with its handling.',     'warning', 6),
+  ('Blog post', 'A post or article on the blog template.',                      'neutral', 7)
 on conflict (name) do nothing;
 
 -- Parts of a page template (2026-09-15, site_plan_parts).
@@ -982,7 +979,6 @@ create table site_plan_pages (
   path         text,                            -- /about/team
   template     text,                            -- template name as picked
   template_id  uuid references page_templates(id) on delete set null,
-  hours        numeric(8,2),                    -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
   -- A page's own hours for a part, keyed by page_template_parts.id. A number
   -- types over the template's hours for this page only; 0 skips the part; a
   -- missing key means the template's hours. Keys for parts the page's

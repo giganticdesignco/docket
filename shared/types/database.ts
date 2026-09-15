@@ -1961,47 +1961,30 @@ export type Database = {
           color: string
           created_at: string
           description: string | null
-          hours: number
           id: string
           is_active: boolean
           name: string
           position: number
-          rate: number | null
-          task_id: string | null
         }
         Insert: {
           color?: string
           created_at?: string
           description?: string | null
-          hours?: number
           id?: string
           is_active?: boolean
           name: string
           position?: number
-          rate?: number | null
-          task_id?: string | null
         }
         Update: {
           color?: string
           created_at?: string
           description?: string | null
-          hours?: number
           id?: string
           is_active?: boolean
           name?: string
           position?: number
-          rate?: number | null
-          task_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "page_templates_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "tasks"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       permission_overrides: {
         Row: {
@@ -3041,7 +3024,6 @@ export type Database = {
       site_plan_pages: {
         Row: {
           created_at: string
-          hours: number | null
           id: string
           parent_id: string | null
           part_hours: Json
@@ -3055,7 +3037,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          hours?: number | null
           id?: string
           parent_id?: string | null
           part_hours?: Json
@@ -3069,7 +3050,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          hours?: number | null
           id?: string
           parent_id?: string | null
           part_hours?: Json
