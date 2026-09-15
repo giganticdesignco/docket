@@ -76,3 +76,10 @@ html.arcade body::after {
 }
 html.arcade aside[data-tour="rail"] img { filter: drop-shadow(0 0 6px #00ba73) saturate(1.6); }
 @keyframes arcade-flicker { from { opacity: 0.94; } to { opacity: 1; } }
+
+/* Touch screens: text fields at 16px, so iOS does not zoom the page
+   when one gets focus. Unlayered, so it wins over the text-sm and
+   text-xs utilities on Nuxt UI inputs. Desktop sizes are unchanged. */
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px; }
+}

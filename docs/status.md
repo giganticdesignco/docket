@@ -3233,3 +3233,19 @@ starting zoom, small toolbar buttons, and a page's path not following a
 move). Those go into the page parts build, which rewrites the canvas.
 Whether to make text fields 16px app-wide, so iOS stops zooming on
 focus, is still Luke's call.
+
+## Text fields at 16px on touch screens (2026-09-15)
+
+Luke's call, following the phone-width check. iOS Safari zooms the page
+whenever a text field under 16px gets focus, and Docket's Nuxt UI
+inputs are 12px to 14px. `main.css` now sets `input`, `textarea` and
+`select` to 16px under `@media (pointer: coarse)`. The rule is
+unlayered, so it wins over the `text-sm` and `text-xs` utilities.
+Phones and tablets get 16px fields, and desktop keeps its sizes. The
+viewport meta is left alone, so pinch zoom still works.
+
+Verified two ways. The in-app browser, emulating a 375px touch phone,
+showed `(pointer: coarse)` matching, and the review page's name and
+comment fields computed to 16px despite `text-sm`. In Luke's desktop
+Chrome the query did not match, and the quote editor's fields stayed
+at 14px. Not tried on a real iPhone.
