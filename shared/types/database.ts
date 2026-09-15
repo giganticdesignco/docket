@@ -2492,6 +2492,57 @@ export type Database = {
           },
         ]
       }
+      quote_pages: {
+        Row: {
+          depth: number
+          hours: number | null
+          id: string
+          path: string | null
+          quote_id: string
+          sort_order: number
+          template: string | null
+          template_id: string | null
+          title: string
+        }
+        Insert: {
+          depth?: number
+          hours?: number | null
+          id?: string
+          path?: string | null
+          quote_id: string
+          sort_order: number
+          template?: string | null
+          template_id?: string | null
+          title: string
+        }
+        Update: {
+          depth?: number
+          hours?: number | null
+          id?: string
+          path?: string | null
+          quote_id?: string
+          sort_order?: number
+          template?: string | null
+          template_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_pages_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_pages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "page_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quote_sitemap_nodes: {
         Row: {
           created_at: string
@@ -2584,6 +2635,7 @@ export type Database = {
           public_token: string
           search: unknown
           sent_at: string | null
+          site_plan_id: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal: number
           tax_amount: number
@@ -2611,6 +2663,7 @@ export type Database = {
           public_token?: string
           search?: unknown
           sent_at?: string | null
+          site_plan_id?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
           tax_amount?: number
@@ -2638,6 +2691,7 @@ export type Database = {
           public_token?: string
           search?: unknown
           sent_at?: string | null
+          site_plan_id?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
           tax_amount?: number
@@ -2739,6 +2793,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "quotes_site_plan_id_fkey"
+            columns: ["site_plan_id"]
+            isOneToOne: false
+            referencedRelation: "site_plans"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2997,6 +3058,158 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "unbilled_time"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      site_plan_pages: {
+        Row: {
+          created_at: string
+          hours: number | null
+          id: string
+          parent_id: string | null
+          path: string | null
+          plan_id: string
+          sort_order: number
+          template: string | null
+          template_id: string | null
+          title: string
+          work_item_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          hours?: number | null
+          id?: string
+          parent_id?: string | null
+          path?: string | null
+          plan_id: string
+          sort_order?: number
+          template?: string | null
+          template_id?: string | null
+          title: string
+          work_item_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          hours?: number | null
+          id?: string
+          parent_id?: string | null
+          path?: string | null
+          plan_id?: string
+          sort_order?: number
+          template?: string | null
+          template_id?: string | null
+          title?: string
+          work_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_plan_pages_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "site_plan_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_plan_pages_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "site_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_plan_pages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "page_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_plan_pages_work_item_id_fkey"
+            columns: ["work_item_id"]
+            isOneToOne: false
+            referencedRelation: "work_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_plans: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          name: string
+          project_id: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          name: string
+          project_id?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_plans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_plans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "time_detail"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "site_plans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_expenses"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "site_plans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "site_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "project_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "time_detail"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "site_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "unbilled_time"
+            referencedColumns: ["project_id"]
           },
         ]
       }
@@ -4727,6 +4940,7 @@ export type Database = {
       hours_text: { Args: { h: number }; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_client: { Args: never; Returns: boolean }
+      make_site_plan_tasks: { Args: { p_plan_id: string }; Returns: number }
       my_client_id: { Args: never; Returns: string }
       next_invoice_number: { Args: never; Returns: string }
       next_quote_number: { Args: never; Returns: string }

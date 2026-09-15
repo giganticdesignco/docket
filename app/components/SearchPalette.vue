@@ -77,6 +77,7 @@ const actions = computed<CommandPaletteItem[]>(() => {
     nav('Go to Expenses', '/expenses', 'i-lucide-receipt'),
     nav('Go to Schedule', '/schedule', 'i-lucide-gantt-chart'),
     nav('Go to Estimator', '/estimator', 'i-lucide-calculator'),
+    ...(can('screen:site_plans') ? [nav('Go to Site plans', '/site-plans', 'i-lucide-list-tree')] : []),
     ...(can('see_all_time') ? [nav('Go to Reports', '/reports', 'i-lucide-chart-column')] : []),
     ...(can('see_capacity') ? [nav('Go to Planner', '/planner', 'i-lucide-move')] : []),
     ...(can('manage_quotes') ? [nav('Go to Quotes', '/quotes', 'i-lucide-file-signature')] : []),

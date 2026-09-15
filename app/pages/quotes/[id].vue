@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { QuoteDoc } from '~~/shared/types/quote'
+import { groupPages } from '~~/shared/sitePlan'
 
-// One quote. While draft or sent: edit the header, scope lines, and the
-// page sitemap; preview; send; accept or decline on the client's behalf.
-// Accepted quotes link to the project they made.
+// One quote. While draft or sent: edit the header and scope lines, link a
+// site plan and price it; preview; send; accept or decline on the client's
+// behalf. Accepted quotes link to the project they made.
 definePageMeta({ middleware: 'can', permission: 'manage_quotes' })
 
 const route = useRoute()
@@ -22,10 +23,15 @@ const __ad2 = useAsyncData(`quote-${id}-lines`, async () => {
   if (error) throw error
   return data
 }, fresh)
-const __ad3 = useAsyncData(`quote-${id}-nodes`, async () => {
-  const { data, error } = await supabase.from('quote_sitemap_nodes').select('*').eq('quote_id', id).order('sort_order').order('created_at')
+// The linked site plan and its live pages. Not in loadEditor's watch, so
+// a refetch never throws away drafts.
+const __ad3 = useAsyncData(`quote-${id}-plan`, async () => {
+  const { data: q, error } = await supabase.from('quotes').select('site_plan_id, site_plans(id, name, client_id, project_id, projects(id, name))').eq('id', id).single()
   if (error) throw error
-  return data
+  if (!q.site_plan_id || !q.site_plans) return { plan: null, pages: [] }
+  const { data: pages, error: pErr } = await supabase.from('site_plan_pages').select('id, parent_id, sort_order, title, path, template, template_id, hours').eq('plan_id', q.site_plan_id).order('sort_order').order('created_at')
+  if (pErr) throw pErr
+  return { plan: q.site_plans, pages }
 }, fresh)
 const __ad4 = useAsyncData('task-types-for-quotes', async () => {
   const { data, error } = await supabase.from('tasks').select('id, name, default_rate, default_description').eq('is_active', true).order('name')
@@ -33,7 +39,7 @@ const __ad4 = useAsyncData('task-types-for-quotes', async () => {
   return data
 }, fresh)
 const __ad5 = useAsyncData('page-templates', async () => {
-  const { data, error } = await supabase.from('page_templates').select('id, name, hours, rate, task_id, color').eq('is_active', true).order('position').order('name')
+  const { data, error } = await supabase.from('page_templates').select('id, name, hours, rate, task_id, color').order('position').order('name')
   if (error) throw error
   return data
 }, fresh)
@@ -50,7 +56,7 @@ await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
 const { data: templates } = __ad5
 const { data: quote, refresh: refreshQuote } = __ad1
 const { data: lines, refresh: refreshLines } = __ad2
-const { data: nodes, refresh: refreshNodes } = __ad3
+const { data: planData, refresh: refreshPlan } = __ad3
 const { data: taskTypes } = __ad4
 const { data: people } = __ad6
 const { data: margins, refresh: refreshMargins } = __ad7
@@ -59,7 +65,7 @@ const { data: doc, refresh: refreshDoc } = await useAsyncData(`quote-${id}-doc`,
 useHead({ title: () => (quote.value ? `Quote ${quote.value.number}` : 'Quote') })
 useAssistantScreen(() => ({ quote: quote.value ? `Quote ${quote.value.number}` : undefined, client: quote.value?.clients?.name }))
 async function refreshAll() {
-  await Promise.all([refreshQuote(), refreshLines(), refreshNodes(), refreshMargins()])
+  await Promise.all([refreshQuote(), refreshLines(), refreshPlan(), refreshMargins()])
   await refreshDoc()
 }
 // The margin column is cost and margin; rates and amounts on lines are the quote itself.
@@ -77,13 +83,10 @@ const stampYear = (iso: string) => stamp(iso, { year: true })
 // ---------- editor ----------
 
 type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null, assignee_id: string | null, target_week: string }
-type NodeDraft = { id: string, parent_id: string | null, line_item_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
 const form = reactive({ title: '', intro: '', terms: '', valid_until: '', tax_rate: 0 as number | string })
 const draftLines = ref<LineDraft[]>([])
-const draftNodes = ref<NodeDraft[]>([])
 const snapshot = ref('')
 const removedLines = new Set<string>()
-const removedNodes = new Set<string>()
 
 function loadEditor() {
   const q = quote.value
@@ -94,14 +97,12 @@ function loadEditor() {
   form.valid_until = q.valid_until ?? ''
   form.tax_rate = q.tax_rate ?? 0
   draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id, assignee_id: l.assignee_id, target_week: l.target_week ?? '' }))
-  draftNodes.value = (nodes.value ?? []).map(n => ({ id: n.id, parent_id: n.parent_id, line_item_id: n.line_item_id, title: n.title, path: n.path ?? '', template: n.template ?? '', template_id: n.template_id, hours: n.hours }))
   removedLines.clear()
-  removedNodes.clear()
-  snapshot.value = JSON.stringify([form, draftLines.value, draftNodes.value])
+  snapshot.value = JSON.stringify([form, draftLines.value])
 }
 loadEditor()
-watch([quote, lines, nodes], loadEditor)
-const dirty = computed(() => JSON.stringify([form, draftLines.value, draftNodes.value]) !== snapshot.value)
+watch([quote, lines], loadEditor)
+const dirty = computed(() => JSON.stringify([form, draftLines.value]) !== snapshot.value)
 
 const lineAmount = (l: LineDraft) => (l.hours !== '' && l.rate !== '' ? round2(Number(l.hours) * Number(l.rate)) : Number(l.amount) || 0)
 const editorSubtotal = computed(() => round2(draftLines.value.reduce((s, l) => s + lineAmount(l), 0)))
@@ -164,67 +165,111 @@ function removeLine(i: number) {
   const l = draftLines.value[i]!
   removedLines.add(l.id)
   draftLines.value.splice(i, 1)
-  for (const n of draftNodes.value) if (n.line_item_id === l.id) n.line_item_id = null
 }
 
-// Sitemap: a flat list with parent links; the canvas edits it in place
-// and reports what it removed. Saving writes parents before children.
-type Flat = { node: NodeDraft, depth: number }
-const flatNodes = computed<Flat[]>(() => {
-  const byParent = new Map<string | null, NodeDraft[]>()
-  for (const n of draftNodes.value) byParent.set(n.parent_id, [...(byParent.get(n.parent_id) ?? []), n])
-  const walk = (parent: string | null, depth: number): Flat[] => (byParent.get(parent) ?? []).flatMap(n => [{ node: n, depth }, ...walk(n.id, depth + 1)])
-  return walk(null, 0)
-})
-function nodesRemoved(ids: string[]) { for (const x of ids) removedNodes.add(x) }
-const templateById = computed(() => new Map((templates.value ?? []).map(t => [t.id, t])))
-const nodeHours = (n: NodeDraft) => (n.hours !== null && n.hours !== '' ? Number(n.hours) : (n.template_id ? templateById.value.get(n.template_id)?.hours ?? 0 : 0))
-// Pages grouped by template, for the summary and for pricing.
-const pageGroups = computed(() => {
-  const g = new Map<string | null, { template: { id: string, name: string, task_id: string | null, rate: number | null } | null, pages: NodeDraft[], hours: number }>()
-  for (const n of draftNodes.value) {
-    const t = n.template_id ? templateById.value.get(n.template_id) ?? null : null
-    const key = t?.id ?? null
-    const e = g.get(key) ?? { template: t, pages: [], hours: 0 }
-    e.pages.push(n)
-    e.hours += nodeHours(n)
-    g.set(key, e)
-  }
-  return [...g.values()].sort((a, b) => b.hours - a.hours)
-})
+// Site plan: the linked plan's live pages, grouped by template.
+const planGroups = computed(() => groupPages(planData.value?.pages ?? [], templates.value ?? []))
+const planHours = computed(() => planGroups.value.reduce((s, g) => s + g.hours, 0))
 // One scope line per template: "4 x Interior pages", the pages' hours,
 // the template's rate (or the rate already used for that task type on
-// this quote). Run again after changing the sitemap and it updates the
-// same lines instead of adding more.
-function priceSitemap() {
+// this quote). It reads the plan fresh first, and run again it updates
+// the same lines instead of adding more. Lines are drafts until Save.
+async function pricePlan() {
+  await refreshPlan()
+  const pages = planData.value?.pages ?? []
+  if (!pages.length) {
+    toast.add({ title: 'The site plan has no pages yet', color: 'neutral' })
+    return
+  }
+  const groups = groupPages(pages, templates.value ?? [])
   let made = 0, updated = 0
-  for (const g of pageGroups.value) {
+  for (const g of groups) {
     if (!g.template || !g.pages.length) continue
     const desc = `${g.pages.length} x ${g.template.name} ${g.pages.length === 1 ? 'page' : 'pages'}`
     const hours = round2(g.hours)
-    let line = draftLines.value.find(l => l.template_id === g.template!.id)
+    const line = draftLines.value.find(l => l.template_id === g.template!.id)
     if (line) {
       line.description = desc
       line.hours = hours
       updated++
     } else {
       const sameTask = draftLines.value.find(l => l.task_id && l.task_id === g.template!.task_id && l.rate !== '')
-      line = { id: crypto.randomUUID(), description: desc, task_id: g.template.task_id, hours, rate: g.template.rate ?? (sameTask ? sameTask.rate : ''), amount: '', template_id: g.template.id, assignee_id: null, target_week: '' }
-      draftLines.value.push(line)
+      draftLines.value.push({ id: crypto.randomUUID(), description: desc, task_id: g.template.task_id, hours, rate: g.template.rate ?? (sameTask ? sameTask.rate : ''), amount: '', template_id: g.template.id, assignee_id: null, target_week: '' })
       made++
     }
-    for (const n of g.pages) n.line_item_id = line.id
   }
-  const untyped = pageGroups.value.find(g => !g.template)?.pages.length ?? 0
+  const untyped = groups.find(g => !g.template)?.pages.length ?? 0
   toast.add({ title: `${made} ${made === 1 ? 'line' : 'lines'} added, ${updated} updated`, description: untyped ? `${untyped} ${untyped === 1 ? 'page has' : 'pages have'} no template and ${untyped === 1 ? 'was' : 'were'} left out.` : 'Check the rates, then save.', color: 'success' })
 }
-const pagesFor = (lineId: string) => draftNodes.value.filter(n => n.line_item_id === lineId).length
+const pagesFor = (l: LineDraft) => (l.template_id ? (planData.value?.pages ?? []).filter(p => p.template_id === l.template_id).length : 0)
+
+// Link a site plan of this client that is not on a project yet, start a
+// new one, or take the link off. Unsaved edits are saved first.
+const planOpen = ref(false)
+const planChoice = ref('__new__')
+const planList = ref<{ id: string, name: string, site_plan_pages: { count: number }[] }[]>([])
+const planBusy = ref<'use' | 'remove' | null>(null)
+const planItems = computed(() => [
+  ...planList.value.map((p) => {
+    const count = p.site_plan_pages[0]?.count ?? 0
+    return { label: `${p.name} (${count} ${count === 1 ? 'page' : 'pages'})`, value: p.id }
+  }),
+  { label: 'Start a new site plan', value: '__new__' },
+])
+async function openPlanDrawer() {
+  const { data, error } = await supabase.from('site_plans').select('id, name, site_plan_pages(count)').eq('client_id', quote.value!.client_id).is('project_id', null).order('created_at', { ascending: false })
+  if (error) { toast.add({ title: 'Could not load the site plans', description: error.message, color: 'error' }); return }
+  planList.value = data
+  const current = planData.value?.plan?.id
+  planChoice.value = current && data.some(p => p.id === current) ? current : data[0]?.id ?? '__new__'
+  planOpen.value = true
+}
+async function usePlan() {
+  if (dirty.value && !(await save())) return
+  planBusy.value = 'use'
+  try {
+    let planId = planChoice.value
+    if (planId === '__new__') {
+      const { data, error } = await supabase.from('site_plans').insert({ client_id: quote.value!.client_id, name: form.title.trim() || quote.value!.title }).select('id').single()
+      if (error) throw error
+      planId = data.id
+    }
+    const { error } = await supabase.from('quotes').update({ site_plan_id: planId, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) throw error
+    if (planChoice.value === '__new__') {
+      toast.add({ title: 'Site plan started', color: 'success' })
+      await navigateTo(`/site-plans/${planId}`)
+      return
+    }
+    planOpen.value = false
+    await refreshAll()
+    toast.add({ title: 'Site plan added', color: 'success' })
+  } catch (e) {
+    fail((e as Error).message)
+  } finally {
+    planBusy.value = null
+  }
+}
+async function removePlan() {
+  if (dirty.value && !(await save())) return
+  planBusy.value = 'remove'
+  try {
+    const { error } = await supabase.from('quotes').update({ site_plan_id: null, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) throw error
+    planOpen.value = false
+    await refreshAll()
+    toast.add({ title: 'Site plan removed from the quote', color: 'success' })
+  } catch (e) {
+    fail((e as Error).message)
+  } finally {
+    planBusy.value = null
+  }
+}
 
 const saving = ref(false)
 async function save(): Promise<boolean> {
   if (!form.title.trim()) return fail('Give the quote a title')
   if (draftLines.value.some(l => !l.description.trim())) return fail('Every scope line needs a description')
-  if (draftNodes.value.some(n => !n.title.trim())) return fail('Every page needs a title')
   saving.value = true
   try {
     const { error: qErr } = await supabase.from('quotes').update({
@@ -232,10 +277,6 @@ async function save(): Promise<boolean> {
       tax_rate: Number(form.tax_rate) || 0, updated_at: new Date().toISOString(),
     }).eq('id', id)
     if (qErr) throw qErr
-    if (removedNodes.size) {
-      const { error } = await supabase.from('quote_sitemap_nodes').delete().in('id', [...removedNodes])
-      if (error) throw error
-    }
     if (removedLines.size) {
       const { error } = await supabase.from('quote_line_items').delete().in('id', [...removedLines])
       if (error) throw error
@@ -245,16 +286,6 @@ async function save(): Promise<boolean> {
         id: l.id, quote_id: id, sort_order: i + 1, description: l.description.trim(), task_id: l.task_id, template_id: l.template_id,
         hours: l.hours === '' ? null : Number(l.hours), rate: l.rate === '' ? null : Number(l.rate), amount: lineAmount(l),
         assignee_id: l.assignee_id, target_week: l.assignee_id && l.target_week ? l.target_week : null,
-      })), { onConflict: 'id' })
-      if (error) throw error
-    }
-    if (draftNodes.value.length) {
-      // Parents before children, so a new child never points at an unsaved parent.
-      const ordered = flatNodes.value.map((f, i) => ({ ...f.node, sort_order: i + 1 }))
-      const { error } = await supabase.from('quote_sitemap_nodes').upsert(ordered.map(n => ({
-        id: n.id, quote_id: id, parent_id: n.parent_id, line_item_id: n.line_item_id, sort_order: n.sort_order,
-        title: n.title.trim(), path: n.path.trim() || null, template: n.template.trim() || null,
-        template_id: n.template_id, hours: n.hours === null || n.hours === '' ? null : Number(n.hours),
       })), { onConflict: 'id' })
       if (error) throw error
     }
@@ -356,7 +387,7 @@ async function deleteQuote() {
         ]"
         :more="[
           { label: 'Mark as sent', icon: 'i-lucide-check', show: quote.status === 'draft', onSelect: markSent },
-          { label: 'Accept on their behalf', icon: 'i-lucide-check-check', show: editable, onSelect: () => { decideName = ''; decideNote = ''; decideOpen = 'accept' } },
+          { label: 'Accept on their behalf', icon: 'i-lucide-check-check', show: editable, onSelect: () => { decideName = ''; decideNote = ''; decideOpen = 'accept'; refreshPlan() } },
           { label: 'Decline on their behalf', icon: 'i-lucide-x', show: editable, onSelect: () => { decideName = ''; decideNote = ''; decideOpen = 'decline' } },
           { label: 'Delete quote', icon: 'i-lucide-trash-2', color: 'error', show: quote.status === 'draft', onSelect: () => { deleting = true } },
         ]"
@@ -368,6 +399,7 @@ async function deleteQuote() {
       <span v-if="quote.status === 'accepted'">Accepted by {{ quote.accepted_by }}<span v-if="quote.accepted_email"> ({{ quote.accepted_email }})</span>, {{ stampYear(quote.accepted_at!) }}.
         <NuxtLink v-if="quote.projects" :to="`/projects/${quote.projects.id}`" class="underline">Open the project</NuxtLink>.</span>
       <span v-if="quote.status === 'declined'">Declined<span v-if="quote.declined_by"> by {{ quote.declined_by }}</span>, {{ stampYear(quote.declined_at!) }}.<span v-if="quote.decline_reason"> "{{ quote.decline_reason }}"</span></span>
+      <span v-if="(quote.status === 'accepted' || quote.status === 'declined') && quote.site_plan_id"> <NuxtLink :to="`/site-plans/${quote.site_plan_id}`" class="underline">Open the site plan</NuxtLink>.</span>
     </p>
 
     <template v-if="editable">
@@ -397,6 +429,7 @@ async function deleteQuote() {
         <h2 class="text-lg font-semibold">Scope</h2>
         <span class="text-sm text-muted">Hours x rate, or a flat amount.</span>
         <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-sparkles" class="ml-auto" @click="briefOpen = true;">Draft lines</UButton>
+        <UButton v-if="!planData?.plan" size="xs" variant="outline" color="neutral" icon="i-lucide-list-tree" @click="openPlanDrawer">Add site plan</UButton>
         <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" :to="`/estimator?quote=${id}`">Add signage job</UButton>
         <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="addLine">Add line</UButton>
       </div>
@@ -418,7 +451,7 @@ async function deleteQuote() {
             <tr v-for="(l, i) in draftLines" :key="l.id" class="border-b border-default last:border-0 align-top">
               <td class="px-4 py-1.5">
                 <UInput v-model="l.description" class="w-full" size="sm" />
-                <div v-if="pagesFor(l.id)" class="mt-0.5 text-xs text-muted">{{ pagesFor(l.id) }} page{{ pagesFor(l.id) === 1 ? '' : 's' }} in the sitemap</div>
+                <div v-if="pagesFor(l)" class="mt-0.5 text-xs text-muted">{{ pagesFor(l) }} page{{ pagesFor(l) === 1 ? '' : 's' }} in the site plan</div>
               </td>
               <td class="px-2 py-1.5"><USelectMenu :model-value="l.task_id ?? '__none__'" :items="taskOptions" value-key="value" size="sm" class="w-full" @update:model-value="setTask(l, $event as string)" /></td>
               <td class="px-2 py-1.5">
@@ -463,20 +496,29 @@ async function deleteQuote() {
         </table>
       </UCard>
 
-      <div class="flex flex-wrap items-center gap-4">
-        <h2 class="text-lg font-semibold">Sitemap</h2>
-        <span class="text-sm text-muted">The pages the site will have, as a tree. Give each a template and the hours follow.</span>
-        <UButton v-if="editable && draftNodes.length" size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" @click="priceSitemap">Price the sitemap</UButton>
-      </div>
-      <UCard>
-        <SitemapCanvas :nodes="draftNodes" :templates="templates ?? []" :editable="editable" @removed="nodesRemoved" />
-        <div v-if="draftNodes.length" class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-          <span v-for="g in pageGroups" :key="g.template?.id ?? 'none'">
-            <span class="font-medium text-default">{{ g.pages.length }}</span> {{ g.template?.name ?? 'untyped' }}, {{ formatHours(g.hours) }}
-          </span>
-          <span class="ml-auto">Pages become tasks on the project when the quote is accepted.</span>
+      <template v-if="planData?.plan">
+        <div class="flex flex-wrap items-center gap-4">
+          <h2 class="text-lg font-semibold">Site plan</h2>
+          <span class="text-sm text-muted">The pages the site will have. Price the plan writes one scope line per template.</span>
+          <UButton v-if="planData.pages.length" size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" @click="pricePlan">Price the plan</UButton>
+          <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-link" :class="planData.pages.length ? '' : 'ml-auto'" @click="openPlanDrawer">Change</UButton>
         </div>
-      </UCard>
+        <UCard>
+          <div class="text-sm">
+            <NuxtLink :to="`/site-plans/${planData.plan.id}`" class="font-medium hover:underline">{{ planData.plan.name }}</NuxtLink>
+            <span class="text-muted">, {{ planData.pages.length }} {{ planData.pages.length === 1 ? 'page' : 'pages' }}, {{ formatHours(planHours) }}</span>
+          </div>
+          <div v-if="planData.pages.length" class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+            <span v-for="g in planGroups" :key="g.template?.id ?? 'none'">
+              <span class="font-medium text-default">{{ g.pages.length }}</span> {{ g.template?.name ?? 'untyped' }}, {{ formatHours(g.hours) }}
+            </span>
+          </div>
+          <p v-else class="mt-2 text-sm text-muted">No pages yet. Build the tree on the site plan.</p>
+          <p v-if="planData.plan.project_id" class="mt-2 text-sm text-warning">
+            This site plan is on <NuxtLink :to="`/projects/${planData.plan.project_id}`" class="underline">{{ planData.plan.projects?.name ?? 'a project' }}</NuxtLink> now.
+          </p>
+        </UCard>
+      </template>
       <p v-if="dirty" class="text-sm text-warning">Unsaved changes. Save before sending; the preview shows the saved version.</p>
     </template>
 
@@ -512,6 +554,7 @@ async function deleteQuote() {
             <UInput v-model="decideNote" class="w-full" />
           </UFormField>
           <p v-if="decideOpen === 'accept'" class="text-sm text-muted">Accepting creates the project with the quoted hours as its budget and assigns the task types on the lines.</p>
+          <p v-if="decideOpen === 'accept' && planData?.plan?.project_id" class="text-sm text-warning">This site plan is already on {{ planData.plan.projects?.name }}. Accepting copies its pages onto this quote but makes no tasks from them.</p>
         </div>
       </template>
       <template #footer>
@@ -523,7 +566,7 @@ async function deleteQuote() {
     </UModal>
 
     <UModal v-model:open="deleting" title="Delete this draft?">
-      <template #body><p class="text-sm">Its lines and sitemap go with it. The quote number is not reused.</p></template>
+      <template #body><p class="text-sm">Its lines go with it. Its site plan stays. The quote number is not reused.</p></template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton variant="ghost" color="neutral" @click="deleting = false;">Cancel</UButton>
@@ -531,6 +574,21 @@ async function deleteQuote() {
         </div>
       </template>
     </UModal>
+
+    <AppDrawer v-model:open="planOpen" title="Site plan" :description="`Site plans for ${quote.clients?.name ?? 'this client'} that are not on a project yet. One plan can be on more than one open quote.`">
+      <template #body>
+        <UFormField label="Plan">
+          <USelectMenu v-model="planChoice" :items="planItems" value-key="value" class="w-full" />
+        </UFormField>
+      </template>
+      <template #footer>
+        <div class="flex w-full items-center gap-2">
+          <UButton v-if="planData?.plan" variant="ghost" color="neutral" :loading="planBusy === 'remove'" @click="removePlan">Remove from this quote</UButton>
+          <UButton variant="ghost" color="neutral" class="ml-auto" @click="planOpen = false;">Cancel</UButton>
+          <UButton :loading="planBusy === 'use'" :disabled="planChoice === planData?.plan?.id" @click="usePlan">Use this plan</UButton>
+        </div>
+      </template>
+    </AppDrawer>
 
     <AppDrawer v-model:open="briefOpen" title="Draft scope lines" description="Describe the project in a few sentences. The assistant proposes lines with hours based on this client's history; you edit and save.">
       <template #body>

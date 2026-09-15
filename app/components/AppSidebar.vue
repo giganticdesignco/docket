@@ -31,6 +31,7 @@ const sections = computed<Section[]>(() => {
     links: [
       ...(can('screen:schedule') ? [{ label: 'Schedule', to: '/schedule', icon: 'i-lucide-gantt-chart' }] : []),
       ...(can('screen:estimator') ? [{ label: 'Estimator', to: '/estimator', icon: 'i-lucide-calculator' }] : []),
+      ...(can('screen:site_plans') ? [{ label: 'Site plans', to: '/site-plans', icon: 'i-lucide-list-tree' }] : []),
       ...(can('screen:expenses') ? [{ label: 'Expenses', to: '/expenses', icon: 'i-lucide-receipt' }] : []),
       ...(can('screen:time_off') ? [{ label: 'Time off', to: '/time-off', icon: 'i-lucide-palmtree' }] : []),
       ...(can('screen:quotes') ? [{ label: 'Quotes', to: '/quotes', icon: 'i-lucide-file-signature' }] : []),

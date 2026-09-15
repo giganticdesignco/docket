@@ -3014,3 +3014,148 @@ Also updated the orchestrator kit to pick up two new agents
 (`fullstack-nuxt-specialist`, `nuxt-ui-designer`) added upstream since
 the 2026-09-15 install; everything else the kit ships was already
 present.
+
+## Site plans (2026-09-15)
+
+The quote sitemap became a site plan: a website's page tree on its own
+screens, priced on quotes, copied onto a quote when the client accepts,
+and moved to the project, where it stays editable and can make tasks
+for new pages. The build spec is `docs/site-plans.md`; Luke's four
+decisions are its section 1 (freeze at acceptance, `manage_quotes`
+edits at every stage, make tasks on request, start from a project).
+
+**Migration 1, `site_plans`**, applied before the code, with
+`schema.sql` mirrored and `shared/types/database.ts` regenerated:
+
+- `site_plans` (client, name, and a unique nullable `project_id`),
+  `site_plan_pages` (the tree, plus `work_item_id`, a page's task, on
+  delete set null), `quote_pages` (the pages as accepted, written only
+  by `accept_quote()`), and `quotes.site_plan_id` (on delete set null).
+  Non-client staff read all three; `manage_quotes` writes the two plan
+  tables; nobody writes `quote_pages` through the API; clients and anon
+  read none of them. No money columns.
+- `accept_quote()` keeps its guards and project creation. With a plan of
+  the quote's own client it always copies the pages into `quote_pages`,
+  and only when the plan has no project yet moves it to the new project
+  and makes a task per page, assigned to the person on the scope line
+  with the matching template.
+- New `make_site_plan_tasks(plan)` makes an unassigned task, with the
+  page's hours as the estimate, for every page with no live task (never
+  linked, or its task soft-deleted), and returns how many.
+- `screen:site_plans` was seeded from `manage_quotes`, from roles and
+  from per-person overrides.
+- The `create_quote()` drift: live still checked `manage_billing`, a
+  leftover of the 2026-09-03 permission split, so only admins passed.
+  Re-created from `schema.sql` to check `manage_quotes`.
+
+**Migration 2, `drop_quote_sitemap_nodes`**, runs after this is
+deployed and only drops the old table (its 4 rows were test pages on
+Q-2026-002). Types are regenerated again after it.
+
+**Screens.**
+
+- `/site-plans` lists every plan with its client, page count, and the
+  quote or project it is on, with New site plan. It sits under More
+  after Estimator, in Cmd+K, and on the Permissions page.
+- `/site-plans/<id>` holds the canvas with Save, Add to a quote (before
+  a project), Make tasks for new pages (on a project), Edit site plan
+  (the client locks once a quote links the plan or it is on a project),
+  and Delete site plan.
+- The quote editor lost the inline sitemap. It has a Site plan card
+  instead: Add site plan, Change, Remove from this quote, and Price the
+  plan, which reads the saved plan fresh, writes one draft line per
+  template, and no longer stamps pages or deletes lines. The Accept box
+  warns when the plan is already on a project.
+- The project page action row shows Site plan, or Start a site plan
+  under the menu, for people with the screen. Edit project and Task
+  types and rates stay admin only.
+- `shared/sitePlan.ts` holds `flattenPages`, `pageHours` and
+  `groupPages` for the plan screen, pricing and the client document.
+
+**The client document by status.** `loadQuoteDoc()` picks the pages
+itself, since `/q` runs as the service role. Draft and sent (and
+declined, while still linked) read the linked plan's live pages when
+that plan belongs to the quote's client; accepted reads `quote_pages`.
+The payload carries title, path, template and depth only. A line's page
+count comes from matching `template_id`.
+
+**Removed.** The inline sitemap on `/quotes/[id]`, every use of
+`quote_sitemap_nodes`, the `SitemapNode` type, and `line_item_id` on
+pages. The page-to-line link is gone; both a line's page count and the
+acceptance assignee match by template.
+
+**Known limitations.**
+
+- A declined quote that is still linked shows the live plan, so later
+  plan edits change what it shows.
+- Deleting a page template sets `template_id` null on lines, plan pages
+  and `quote_pages`, so an accepted document loses the page count on that
+  line (its page list stays). Retire templates with `is_active` instead.
+- Q-2026-002 (accepted, a test quote) shows no page list once this is
+  deployed.
+- The linking rules (same client, no project) live in the drawers.
+  `accept_quote` ignores a plan of another client and `loadQuoteDoc`
+  shows no pages for one.
+- Pricing does not warn when the plan changed after lines were priced
+  (decision 1). Acceptance copies the plan as it stands.
+- If a page's task is deleted, Make tasks for new pages makes a new one.
+  Restoring the old task afterwards leaves two tasks for that page, the
+  restored one linked to no page.
+- `site_plan_pages.work_item_id` is only set by the two functions, but
+  the table grant lets a `manage_quotes` holder write it through the
+  API; a page pointed at an unrelated task gets no task from Make tasks.
+  Nothing reaches clients.
+- On the plan screen, a `manage_quotes` holder without `see_all_tasks`
+  may not see every live task, so the "pages have no task yet" count can
+  read high. The function is the authority and its toast says how many
+  it made.
+
+**Still open.** Live `billing_people`, `void_billing_batch` and
+`void_invoice` still check `manage_billing`, the same leftover as
+`create_quote`. Out of scope here; worth its own item.
+
+Docs: the guide's quote steps 4 and 7, the Who, week note, and a new
+Site plans section; the seeds paragraph in `docs/permissions.md`; the
+routes in `docs/structure.md`; a Schema bullet in `CLAUDE.md`.
+
+**Verified.** In the database, each check ran inside a rolled-back
+transaction, after a probe confirmed rollback holds. Staff without the
+Quotes permission can read plans but not write them or run
+`make_site_plan_tasks`. anon gets nothing, and nobody can write
+`quote_pages` directly. Acceptance copies the pages in tree order, with
+tied sort orders handled. It moves the plan and makes one task per page
+with the line's person, or makes no tasks when the plan is already on a
+project. Make tasks replaces a soft-deleted task and makes nothing the
+second time. Decline writes no copy.
+
+In Luke's Chrome, 14 of the 15 flows in `docs/site-plans.md` 10.4
+passed: nav and search, building and editing a plan, Add to a quote,
+pricing and re-pricing, two quotes on one plan, acceptance, the frozen
+copy after later plan edits, Make tasks, Start a site plan from a
+project, View as staff, deleting plans, the `/api/q` payload shape, and
+no PGRST201 on any screen. An independent audit confirmed all 17
+database claims the run made.
+
+Flow 10 was not run: declining a quote in the browser would email the
+billing people again (see below). Decline behavior rests on the code
+(`loadQuoteDoc` reads the live plan for any status but accepted) and on
+the rolled-back decline check.
+
+The ZZ TEST data (53 rows) was removed afterward. Quote numbers
+Q-2026-003 to Q-2026-005 were used by the test and are not reused.
+
+**A test side effect.** Accepting ZZ TEST quotes A and B fired
+`notify_on_quote`, which emails everyone `billing_people()` returns. It
+emailed Carrie, Sean, Tom, Jay, Jen and Luke twice, and those emails
+cannot be recalled. From now on, acceptance and decline are tested only
+inside a rolled-back transaction.
+
+**Found along the way, handed off as their own items.** Signed-in staff
+get a 500 on `/q/<token>`, and probably `/i` and `/r`, because
+`EasterEggs.vue` touches `document` during server rendering. After
+ClientPicker creates a client inline, the select shows its id until
+reload. An empty plan on a project no longer says "Every page has a
+task."
+
+**Still to do.** Migration 2 (`drop table quote_sitemap_nodes`) runs
+once this is deployed, then the types are regenerated.

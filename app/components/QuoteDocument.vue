@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { QuoteDoc, SitemapNode } from '~~/shared/types/quote'
+import type { QuoteDoc } from '~~/shared/types/quote'
 
 // The quote as the client sees it: public page, admin preview, print.
 // Plain HTML on a white sheet, like the invoice.
@@ -17,9 +17,6 @@ const stamp = computed(() => {
   if (q.status === 'draft') return { text: 'Draft', cls: 'border-gray-400 text-gray-500' }
   return null
 })
-const flat = (nodes: SitemapNode[], depth = 0): { node: SitemapNode, depth: number }[] =>
-  nodes.flatMap(n => [{ node: n, depth }, ...flat(n.children, depth + 1)])
-const pageCount = (nodes: SitemapNode[]): number => nodes.reduce((s, n) => s + 1 + pageCount(n.children), 0)
 </script>
 
 <template>
@@ -98,13 +95,13 @@ const pageCount = (nodes: SitemapNode[]): number => nodes.reduce((s, n) => s + 1
       </tfoot>
     </table>
 
-    <div v-if="doc.sitemap.length" class="mt-8">
-      <div class="text-xs uppercase tracking-wide text-gray-500">Pages <span class="normal-case">({{ pageCount(doc.sitemap) }})</span></div>
+    <div v-if="doc.pages.length" class="mt-8">
+      <div class="text-xs uppercase tracking-wide text-gray-500">Pages <span class="normal-case">({{ doc.pages.length }})</span></div>
       <ul class="mt-2 text-sm">
-        <li v-for="{ node, depth } in flat(doc.sitemap)" :key="node.id" class="flex gap-3 border-b border-gray-100 py-1" :style="{ paddingLeft: `${depth * 1.25}rem` }">
-          <span class="font-medium">{{ node.title }}</span>
-          <span v-if="node.path" class="text-gray-500">{{ node.path }}</span>
-          <span v-if="node.template" class="ml-auto text-xs text-gray-400">{{ node.template }}</span>
+        <li v-for="(p, i) in doc.pages" :key="i" class="flex gap-3 border-b border-gray-100 py-1" :style="{ paddingLeft: `${p.depth * 1.25}rem` }">
+          <span class="font-medium">{{ p.title }}</span>
+          <span v-if="p.path" class="text-gray-500">{{ p.path }}</span>
+          <span v-if="p.template" class="ml-auto text-xs text-gray-400">{{ p.template }}</span>
         </li>
       </ul>
     </div>

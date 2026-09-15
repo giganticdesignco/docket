@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// The kinds of page a website quote is built from, each with the hours
-// it usually takes, an optional rate, and the task type its time logs
-// under. The sitemap canvas offers these; "Price the sitemap" makes a
-// scope line per template.
+// The kinds of page a site plan is built from, each with the hours it
+// usually takes, an optional rate, and the task type its time logs
+// under. The site plan canvas offers these; "Price the plan" on a quote
+// makes a scope line per template.
 definePageMeta({ middleware: 'can', permission: 'manage_settings' })
 useHead({ title: 'Page templates' })
 
@@ -73,7 +73,7 @@ async function move(r: Row, dir: -1 | 1) {
     <div class="flex flex-wrap items-center gap-3">
       <div>
         <h1 class="text-2xl font-semibold">Page templates</h1>
-        <p class="text-sm text-muted">The kinds of page a website quote is built from, with the hours each usually takes. The sitemap on a quote picks from these.</p>
+        <p class="text-sm text-muted">The kinds of page a site plan is built from, with the hours each usually takes. The site plan canvas picks from these.</p>
       </div>
       <UButton class="ml-auto" icon="i-lucide-plus" @click="openAdd">New template</UButton>
     </div>
@@ -122,7 +122,7 @@ async function move(r: Row, dir: -1 | 1) {
           </div>
           <UFormField label="Task type" help="Where the time logs when the pages become work."><USelectMenu v-model="form.task_id" :items="taskOptions" value-key="value" class="w-full" /></UFormField>
           <UFormField label="Color"><USelect v-model="form.color" :items="COLORS" class="w-full" /></UFormField>
-          <USwitch v-model="form.is_active" label="Offered on the sitemap" />
+          <USwitch v-model="form.is_active" label="Offered on site plans" />
         </div>
       </template>
       <template #footer>

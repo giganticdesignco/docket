@@ -154,7 +154,7 @@ export function docketTools(c: Caller): Tool[] {
     },
     {
       name: 'quote',
-      description: 'A quote with its lines and sitemap.',
+      description: 'A quote with its lines.',
       input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
       run: async (i) => {
         const [{ data: q }, { data: lines }] = await Promise.all([

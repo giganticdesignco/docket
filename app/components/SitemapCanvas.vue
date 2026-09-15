@@ -1,12 +1,12 @@
 <script setup lang="ts">
-// The sitemap as a tree on a canvas, Octopus style: a card per page,
+// The pages of a site plan as a tree on a canvas, Octopus style: a card per page,
 // children under their parent, lines between them. Type on the card to
 // name the page and set its path, pick a template for its hours (or
 // type your own), add a child or a sibling from the card, drag a card
 // onto another to move it there. The array handed in is edited in
 // place; removed ids are reported so the page can delete them on save.
-export type CanvasNode = { id: string, parent_id: string | null, line_item_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
-export type PageTemplate = { id: string, name: string, hours: number, color: string }
+export type CanvasNode = { id: string, parent_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
+export type PageTemplate = { id: string, name: string, hours: number, color: string, is_active?: boolean }
 
 const props = defineProps<{ nodes: CanvasNode[], templates: PageTemplate[], editable: boolean }>()
 onMounted(() => { for (const n of props.nodes) if (n.path) pathTouched.add(n.id) })
@@ -64,7 +64,8 @@ const links = computed(() => placed.value.filter(p => p.node.parent_id && byId.v
 // ---------- editing ----------
 const templateById = computed(() => new Map(props.templates.map(t => [t.id, t])))
 const hoursOf = (n: CanvasNode) => (n.hours !== null && n.hours !== '' ? Number(n.hours) : (n.template_id ? templateById.value.get(n.template_id)?.hours ?? 0 : 0))
-const templateOptions = computed(() => [{ label: 'No template', value: '__none__' }, ...props.templates.map(t => ({ label: `${t.name} (${formatHours(t.hours)})`, value: t.id }))])
+// Retired templates are offered only where a page already uses one.
+const templateOptions = computed(() => [{ label: 'No template', value: '__none__' }, ...props.templates.filter(t => t.is_active !== false || props.nodes.some(n => n.template_id === t.id)).map(t => ({ label: `${t.name} (${formatHours(t.hours)})`, value: t.id }))])
 const selected = ref<string | null>(null)
 // The path follows the title (/about-us) until someone edits it by hand.
 const pathTouched = new Set<string>()
@@ -77,7 +78,7 @@ function autoPath(n: CanvasNode) {
   n.path = isHome ? '/' : n.title.trim() ? `${base}/${slug(n.title)}` : (parent ? `${base}/` : '/')
 }
 function add(parent: CanvasNode | null, after?: CanvasNode) {
-  const n: CanvasNode = { id: crypto.randomUUID(), parent_id: parent?.id ?? null, line_item_id: parent?.line_item_id ?? null, title: '', path: parent ? `${(parent.path || '').replace(/\/$/, '')}/` : '/', template: '', template_id: null, hours: null }
+  const n: CanvasNode = { id: crypto.randomUUID(), parent_id: parent?.id ?? null, title: '', path: parent ? `${(parent.path || '').replace(/\/$/, '')}/` : '/', template: '', template_id: null, hours: null }
   if (after) {
     const i = props.nodes.indexOf(after)
     props.nodes.splice(i + 1, 0, n)

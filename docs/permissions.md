@@ -30,10 +30,13 @@ the role, so RLS and the views follow it. Admins keep everything.
 Seeds on day one: every non-client role got the everyday screens
 (Time, Tasks, Projects, Clients, Schedule, Estimator, Expenses, Time
 off, Retainers); gated screens followed the key that gated them
-(Reports from see_all_time, Quotes from manage_quotes, Planner from
-see_capacity, Approvals from approve_time, Billing and Invoices from
-manage_invoices, Settings from manage_settings or manage_people); every
-role with see_money got all four fields. So nothing changed for anyone.
+(Reports from see_all_time, Quotes and Site plans from manage_quotes,
+Planner from see_capacity, Approvals from approve_time, Billing and
+Invoices from manage_invoices, Settings from manage_settings or
+manage_people); every role with see_money got all four fields. So
+nothing changed for anyone. Site plans came later (2026-09-15) and
+copied manage_quotes from roles and from per-person overrides, so it
+opens for exactly the people who have quotes.
 
 ## The page
 

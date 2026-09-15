@@ -25,16 +25,8 @@ export type QuoteDoc = {
   client: { name: string }
   company: { name: string, address: string | null, email: string | null, phone: string | null }
   lines: { id: string, description: string, hours: number | null, rate: number | null, amount: number, task: string | null, pages: number }[]
-  sitemap: SitemapNode[]
+  pages: QuotePage[]
   expired: boolean
 }
 
-export type SitemapNode = {
-  id: string
-  title: string
-  path: string | null
-  template: string | null
-  notes: string | null
-  line_item_id: string | null
-  children: SitemapNode[]
-}
+export type QuotePage = { title: string, path: string | null, template: string | null, depth: number }

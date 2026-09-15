@@ -72,8 +72,11 @@ pages/
     index.vue                  # internal list
     [id]/
       index.vue                # edit line items
-      sitemap.vue              # the Octopus.do tree builder
       preview.vue              # renders same component as public view
+
+  site-plans/
+    index.vue                  # every site plan, New site plan
+    [id].vue                   # the page tree canvas, Add to a quote, Make tasks for new pages
 
   admin/
     users.vue                  # roles, default_rate, availability

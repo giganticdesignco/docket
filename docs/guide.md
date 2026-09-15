@@ -49,7 +49,7 @@ keyboard shortcuts alone.
 - **Long lists are searchable.** A dropdown that lists projects,
   people, task types or templates opens with a search box; type a few
   letters instead of scrolling.
-- **The sitemap on a quote** sits centered in its card, and the
+- **The canvas on a site plan** sits centered in its card, and the
   full-screen button in its toolbar gives it the whole window (Esc
   brings the page back).
 - **There are a few easter eggs.** Seven of them, give or take. One is
@@ -309,7 +309,7 @@ and the morning brief.
   of tasks for a kind of job: title, task type, hours, and a suggested
   role. Pick one under "Start from" on the New project form and the
   tasks are made with those hours as estimates once the project exists.
-  Quoted websites get their tasks from the sitemap instead.
+  Quoted websites get their tasks from the site plan instead.
 - **Departments** (Settings, Departments) label a project Web, Creative,
   Photo/Video, and so on. Set one on the project form; the Projects
   list has a filter for it next to the client filter.
@@ -377,15 +377,17 @@ the next one what it needs, so nothing is typed twice.
    Add an intro, terms, and a valid-until date. A tax rate is optional:
    leave it at 0 for no tax line, or set a percent and the quote shows
    a subtotal, tax, and total, applied to the whole quote.
-4. **Map the site.** For web work, build the sitemap as a tree on the
-   quote: a card per page with its title and path, a child or a sibling
-   from the card, drag a card onto another to move it. Give each page a
-   template (Home, Landing, Interior, Listing, Detail, Form, Blog post,
-   set up in Settings with the hours each usually takes) and the hours
-   follow; type over them on a page that is bigger or smaller. "Price
-   the sitemap" writes one scope line per template ("6 x Interior
-   pages", 18 hours) and keeps those lines in step if the tree changes.
-   The client sees the page list on the quote.
+4. **Plan the site.** For web work the pages live in a site plan. Start
+   one from Site plans (under More in the rail), or with Add site plan on
+   the quote. Build the tree there: a card per page with its title and
+   path, a child or a sibling from the card, drag a card onto another to
+   move it. Give each page a template (Home, Landing, Interior, Listing,
+   Detail, Form, Blog post, set up in Settings with the hours each
+   usually takes) and the hours follow; type over them on a page that is
+   bigger or smaller. Save the plan. Then "Price the plan" on the quote
+   writes one scope line per template ("6 x Interior pages", 18 hours)
+   and updates those same lines when you price again. A draft or sent
+   quote shows the plan's pages as they are saved.
 5. **Send it.** Send emails the client a link to the quote page, which
    opens without a sign-in. The quote moves from Draft to Sent. It shows
    as Expired once the valid-until date passes.
@@ -398,6 +400,9 @@ the next one what it needs, so nothing is typed twice.
    the client with the quote's title, sets its budget to the quoted
    hours and amount, and copies each quoted task type and rate into the
    project's rate table. The quote and the project link to each other.
+   With a site plan, each page becomes a task on the project, the plan
+   moves to the project, and the quote keeps a copy of the pages as they
+   were accepted.
 8. **Work and log time.** Time logs against the project like any
    other, at the quoted rates, and the project's budget bar shows how
    much of the quote has been used. Tasks for the job live on the
@@ -412,6 +417,46 @@ the next one what it needs, so nothing is typed twice.
 Nothing along this path is recomputed later: the estimate is frozen in
 the quote line, the quote's rates are frozen in the project, and each
 time entry freezes its rate when it is saved.
+
+### Site plans
+
+- **A site plan is the page tree for a website.** It belongs to a
+  client, gets priced on a quote, and moves to the project when the
+  quote is accepted. Anyone with the Quotes permission can make and edit
+  plans, at any stage. No one else has a screen for them. Clients never
+  see a plan, only the page list on their quote.
+- **The list and the plan.** Site plans lists every plan with its
+  client, page count, and the quote or project it is on. New site plan
+  picks the client and a name. On a plan, Save keeps the tree. Edit
+  changes the name, and the client too until a quote uses the plan or it
+  is on a project.
+- **On a quote.** Add to a quote on the plan, or Add site plan on the
+  quote, links them. Only a plan for the same client that is not on a
+  project yet can be linked, and one plan can be on more than one open
+  quote (a revision, or a fresh quote after one expired). Price the plan
+  on the quote reads the plan as last saved and writes the scope lines.
+  Lines for a template you no longer use stay until you delete them.
+- **What the client sees.** A draft or sent quote shows the plan's pages
+  as they are now, so the client's link follows your edits. When the
+  client accepts, the quote keeps a copy of the pages, and the accepted
+  quote shows that copy from then on. A declined quote still shows the
+  plan while it is linked.
+- **Acceptance.** The plan moves to the new project and each page
+  becomes a task, with the page's hours as its estimate and the person
+  on the matching scope line assigned. If another quote on the same plan
+  was accepted first, the plan stays on that project and this quote makes
+  no page tasks; the Accept box says so.
+- **On a project.** The plan stays editable. Editing, moving, or
+  removing a page never changes its task or a quote. Make tasks for new
+  pages adds a task for each page that has none, including a page whose
+  task was deleted. The new tasks are unassigned, with the page's hours
+  as the estimate. Restoring a deleted page task after that leaves the
+  page with two tasks; delete one.
+- **A project without a quote.** Start a site plan on the project page
+  makes a plan for that project's client, already on the project. Build
+  it, then use Make tasks for new pages.
+- **Deleting a plan** removes its pages. Quotes lose the link (an
+  accepted quote keeps its copy) and tasks made from it stay.
 
 ### The Quotes page
 
@@ -431,8 +476,9 @@ time entry freezes its rate when it is saved.
 - **Who, week.** A scope line can name the person who will do it and
   the week it should land. The week shows on Planner as "quoted" hours
   beside that person's name, on top of what is already planned, until
-  the quote is accepted or declined. When it is accepted, the sitemap pages tied to
-  that line become tasks assigned to that person.
+  the quote is accepted or declined. When it is accepted, the site plan
+  pages whose template matches that line become tasks assigned to that
+  person.
 - **Margin** (people who see money only) is the line's amount minus its
   hours at the person's cost rate, as last saved. Cost rates are set on
   the People page and never appear anywhere a client can see.
@@ -599,7 +645,7 @@ top and a way back; the data is still your own.
 
 Settings also holds people (add, deactivate, default rates, cost
 rates, department), the permissions matrix, departments (with their
-lead), project templates, page templates for sitemaps, task statuses,
+lead), project templates, page templates for site plans, task statuses,
 task types, expense categories, invoice settings (numbering, terms,
 tax, notes, the project folder roots), estimator materials and
 pricing, imports, and Feedback: the bugs, changes and ideas the team sent from

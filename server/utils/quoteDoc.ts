@@ -1,41 +1,45 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '~~/shared/types/database'
-import type { QuoteDoc, SitemapNode } from '~~/shared/types/quote'
+import type { QuoteDoc } from '~~/shared/types/quote'
+import { flattenPages } from '~~/shared/sitePlan'
 
 export const QUOTE_TOKEN = /^[0-9a-f]{64}$/
 
-// The quote as the client sees it. The caller picks the client: service
-// role for /q/<token>, the signed-in admin (through RLS) for previews.
+// The quote as the client sees it. The caller picks the client: the service
+// role for /q/<token> (the editor preview fetches the same route), the
+// signed-in staff member through RLS for send. The page list is chosen here,
+// by status, since the service role skips RLS.
 export async function loadQuoteDoc(supabase: SupabaseClient<Database>, where: { id?: string, token?: string }): Promise<QuoteDoc | null> {
   if (where.token && !QUOTE_TOKEN.test(where.token)) return null
-  let q = supabase.from('quotes').select('*, clients(name)')
+  let q = supabase.from('quotes').select('*, clients(name), site_plans(client_id)')
   q = where.token ? q.eq('public_token', where.token) : q.eq('id', where.id!)
   const { data: quote, error } = await q.maybeSingle()
   if (error) throw createError({ statusCode: 500, statusMessage: error.message })
   if (!quote) return null
 
-  const [lines, nodes, settings] = await Promise.all([
-    supabase.from('quote_line_items').select('id, description, hours, rate, amount, tasks(name)').eq('quote_id', quote.id).order('sort_order').order('created_at'),
-    supabase.from('quote_sitemap_nodes').select('id, parent_id, line_item_id, sort_order, title, path, template, notes').eq('quote_id', quote.id).order('sort_order').order('created_at'),
-    supabase.from('invoice_settings').select('company_name, company_address, company_email, company_phone').eq('id', true).single(),
-  ])
-  for (const r of [lines, nodes, settings]) {
-    if (r.error) throw createError({ statusCode: 500, statusMessage: r.error.message })
+  // Accepted quotes read the copy frozen at acceptance. Others read the
+  // linked plan live, but only a plan of the quote's own client.
+  type Page = { title: string, path: string | null, template: string | null, template_id: string | null, depth: number }
+  const loadPages = async (): Promise<Page[]> => {
+    if (quote.status === 'accepted') {
+      const { data, error } = await supabase.from('quote_pages').select('title, path, template, template_id, depth').eq('quote_id', quote.id).order('sort_order')
+      if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+      return data ?? []
+    }
+    if (!quote.site_plan_id || quote.site_plans?.client_id !== quote.client_id) return []
+    const { data, error } = await supabase.from('site_plan_pages').select('id, parent_id, title, path, template, template_id').eq('plan_id', quote.site_plan_id).order('sort_order').order('created_at')
+    if (error) throw createError({ statusCode: 500, statusMessage: error.message })
+    return flattenPages(data ?? []).map(({ page: p, depth }) => ({ title: p.title, path: p.path, template: p.template, template_id: p.template_id, depth }))
   }
 
-  const pagesByLine = new Map<string, number>()
-  for (const n of nodes.data ?? []) {
-    if (n.line_item_id) pagesByLine.set(n.line_item_id, (pagesByLine.get(n.line_item_id) ?? 0) + 1)
+  const [lines, pages, settings] = await Promise.all([
+    supabase.from('quote_line_items').select('id, description, hours, rate, amount, template_id, tasks(name)').eq('quote_id', quote.id).order('sort_order').order('created_at'),
+    loadPages(),
+    supabase.from('invoice_settings').select('company_name, company_address, company_email, company_phone').eq('id', true).single(),
+  ])
+  for (const r of [lines, settings]) {
+    if (r.error) throw createError({ statusCode: 500, statusMessage: r.error.message })
   }
-  const byParent = new Map<string | null, typeof nodes.data>()
-  for (const n of nodes.data ?? []) {
-    const list = byParent.get(n.parent_id) ?? []
-    list.push(n)
-    byParent.set(n.parent_id, list)
-  }
-  const build = (parent: string | null): SitemapNode[] => (byParent.get(parent) ?? []).map(n => ({
-    id: n.id, title: n.title, path: n.path, template: n.template, notes: n.notes, line_item_id: n.line_item_id, children: build(n.id),
-  }))
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
   return {
@@ -65,8 +69,8 @@ export async function loadQuoteDoc(supabase: SupabaseClient<Database>, where: { 
       email: settings.data?.company_email ?? null,
       phone: settings.data?.company_phone ?? null,
     },
-    lines: (lines.data ?? []).map(l => ({ id: l.id, description: l.description, hours: l.hours, rate: l.rate, amount: l.amount, task: l.tasks?.name ?? null, pages: pagesByLine.get(l.id) ?? 0 })),
-    sitemap: build(null),
+    lines: (lines.data ?? []).map(l => ({ id: l.id, description: l.description, hours: l.hours, rate: l.rate, amount: l.amount, task: l.tasks?.name ?? null, pages: l.template_id ? pages.filter(p => p.template_id === l.template_id).length : 0 })),
+    pages: pages.map(({ title, path, template, depth }) => ({ title, path, template, depth })),
     expired: quote.status === 'sent' && !!quote.valid_until && quote.valid_until < today,
   }
 }

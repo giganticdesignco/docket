@@ -18,7 +18,7 @@ const variant = computed<Variant>(() => {
   if (p.startsWith('/reports')) return 'report'
   if (p === '/estimator') return 'estimator'
   if (/^\/(quotes|invoices|billing)\/[^/]+$/.test(p) && !p.endsWith('/new')) return 'document'
-  if (/^\/(projects|clients|retainers)\/[^/]+/.test(p)) return 'detail'
+  if (/^\/(projects|clients|retainers|site-plans)\/[^/]+/.test(p)) return 'detail'
   if (p.startsWith('/admin')) return 'settings'
   return 'list'
 })

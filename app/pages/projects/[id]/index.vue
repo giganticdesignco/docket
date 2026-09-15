@@ -97,7 +97,14 @@ const __ad11 = useAsyncData(`project-${id}-invoices`, async () => {
   const seen = new Set<string>()
   return data.map(l => l.invoices).filter((inv): inv is NonNullable<typeof inv> => !!inv && !seen.has(inv.id) && (seen.add(inv.id), true))
 }, fresh)
-await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8, __ad9, __ad10, __ad11])
+// The project's site plan, if it has one. Staff can read plans; only
+// Quotes holders see the actions for it.
+const __ad12 = useAsyncData(`project-${id}-site-plan`, async () => {
+  const { data, error } = await supabase.from('site_plans').select('id, name').eq('project_id', id).maybeSingle()
+  if (error) throw error
+  return data
+}, fresh)
+await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7, __ad8, __ad9, __ad10, __ad11, __ad12])
 const { data: project, refresh } = __ad1
 const { data: projectTasks } = __ad2
 const { data: clients } = __ad3
@@ -109,6 +116,7 @@ const { data: recent } = __ad8
 const { data: itemHours } = __ad9
 const { data: quotes } = __ad10
 const { data: invoices } = __ad11
+const { data: sitePlan, refresh: refreshSitePlan } = __ad12
 const canBill = computed(() => can('manage_invoices') || can('manage_quotes'))
 const hoursByItem = computed(() => {
   const m = new Map<string, number>()
@@ -163,6 +171,24 @@ function timeLogged() {
 }
 
 const toast = useToast()
+
+// A plan for this project's client, already on the project, so Make
+// tasks for new pages works from the start.
+async function startSitePlan() {
+  const p = project.value
+  if (!p) return
+  const { data, error } = await supabase.from('site_plans').insert({ client_id: p.client_id, project_id: id, name: p.name }).select('id').single()
+  if (error) {
+    if (error.code === '23505') {
+      toast.add({ title: 'This project already has a site plan', color: 'warning' })
+      refreshSitePlan()
+    } else {
+      toast.add({ title: 'Could not start the site plan', description: error.message, color: 'error' })
+    }
+    return
+  }
+  await navigateTo(`/site-plans/${data.id}`)
+}
 async function copyFolder() {
   if (!project.value?.server_path) return
   try {
@@ -184,7 +210,15 @@ async function copyFolder() {
       </div>
       <UBadge v-if="!project.is_active" color="neutral" variant="subtle">Inactive</UBadge>
       <UBadge v-if="project.client_visible" color="info" variant="subtle" title="Every task on this project shows on the client portal">Visible to client</UBadge>
-      <PageActions v-if="isAdmin" class="ml-auto" :items="[{ label: 'Edit project', icon: 'i-lucide-pencil', onSelect: () => { editing = true } }, { label: 'Task types and rates', icon: 'i-lucide-settings', to: `/projects/${id}/settings` }]" />
+      <PageActions
+        class="ml-auto"
+        :items="[
+          { label: 'Edit project', icon: 'i-lucide-pencil', show: isAdmin, onSelect: () => { editing = true } },
+          { label: 'Task types and rates', icon: 'i-lucide-settings', show: isAdmin, to: `/projects/${id}/settings` },
+          { label: 'Site plan', icon: 'i-lucide-list-tree', show: !!sitePlan && can('screen:site_plans'), to: `/site-plans/${sitePlan?.id}` },
+        ]"
+        :more="[{ label: 'Start a site plan', icon: 'i-lucide-list-tree', show: !sitePlan && can('screen:site_plans'), onSelect: startSitePlan }]"
+      />
     </div>
 
     <UCard>

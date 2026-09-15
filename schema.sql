@@ -422,7 +422,7 @@ create trigger profiles_protect_columns
 --   see_all_tasks    every task, not just assigned ones
 --   manage_tasks     delete any task or comment
 --   manage_reference clients, projects, task types, project rates
---   manage_quotes    quotes, their lines and sitemaps
+--   manage_quotes    quotes, their lines, and site plans
 --   manage_invoices  batches, invoices, lines, payments, Harvest history
 --   manage_retainers retainers
 --   approve_time     review, approve, or send back submitted timesheets
@@ -847,10 +847,10 @@ create table invoice_payments (
 create index invoice_payments_invoice on invoice_payments (invoice_id, paid_on);
 
 -- ---------- Quoting (step 12) ----------
--- Replaces PandaDoc. A quote is accepted from /q/<public_token> (or by an
--- admin) -> accept_quote() makes the project, its hour total becomes
--- budget_hours, its subtotal budget_amount, and each line's task type is
--- assigned to the project at the quoted rate.
+-- Replaces PandaDoc. A quote is accepted from /q/<public_token> (or by
+-- someone with manage_quotes) -> accept_quote() makes the project, its
+-- hour total becomes budget_hours, its subtotal budget_amount, and each
+-- line's task type is assigned to the project at the quoted rate.
 
 create table quotes (
   id             uuid primary key default gen_random_uuid(),
@@ -887,10 +887,10 @@ create trigger quotes_tax_recalc
   for each row when (old.tax_rate is distinct from new.tax_rate)
   execute function public.quote_tax_changed();
 
--- Page templates: what a kind of page usually takes. A sitemap page
+-- Page templates: what a kind of page usually takes. A site plan page
 -- picks one and inherits its hours (or overrides them), and "Price the
--- sitemap" turns the pages into scope lines per template. On accept,
--- every page becomes a task on the new project.
+-- plan" on a quote turns the pages into scope lines per template. On
+-- accept, the pages become tasks on the new project.
 create table page_templates (
   id          uuid primary key default gen_random_uuid(),
   name        text not null unique,
@@ -923,7 +923,7 @@ create table quote_line_items (
   rate        numeric(10,2),
   amount      numeric(12,2) not null default 0,  -- hours * rate, or flat
   details     jsonb,                              -- the estimator job behind a signage line
-  template_id uuid references page_templates(id) on delete set null,  -- made by "Price the sitemap"
+  template_id uuid references page_templates(id) on delete set null,  -- made by "Price the plan"
   created_at  timestamptz not null default now()
 );
 
@@ -933,25 +933,53 @@ create trigger quote_line_items_amount before insert or update on quote_line_ite
 create trigger quote_line_items_recalc after insert or update or delete on quote_line_items
   for each row execute function public.quote_lines_changed();
 
--- Sitemap / page inventory (the Octopus.do part).
--- Self-referencing tree. A node can roll up into a quote line item
--- so page counts price themselves.
-create table quote_sitemap_nodes (
+-- Site plans (2026-09-15; replaced quote_sitemap_nodes).
+-- The pages a website will have, as a tree. A plan belongs to a client,
+-- is linked from quotes (quotes.site_plan_id), and moves to the project
+-- the accepted quote makes (site_plans.project_id). Hours only, no money.
+create table site_plans (
+  id         uuid primary key default gen_random_uuid(),
+  client_id  uuid not null references clients(id) on delete restrict,
+  project_id uuid unique references projects(id) on delete set null,  -- one plan per project
+  name       text not null check (btrim(name) <> ''),
+  created_at timestamptz not null default now()
+);
+create index site_plans_client on site_plans (client_id);
+
+create table site_plan_pages (
   id           uuid primary key default gen_random_uuid(),
-  quote_id     uuid not null references quotes(id) on delete cascade,
-  parent_id    uuid references quote_sitemap_nodes(id) on delete cascade,
-  line_item_id uuid references quote_line_items(id) on delete set null,
-  sort_order   int not null default 0,
+  plan_id      uuid not null references site_plans(id) on delete cascade,
+  parent_id    uuid references site_plan_pages(id) on delete cascade,
+  sort_order   int not null default 0,          -- pre-order position across the tree, parents first
   title        text not null,
-  path         text,                    -- /about/team
-  template     text,                    -- template name, for dedupe
-  notes        text,
-  template_id  uuid references page_templates(id) on delete set null,  -- the page's kind
-  hours        numeric(8,2),                                          -- override; null = the template's
+  path         text,                            -- /about/team
+  template     text,                            -- template name as picked
+  template_id  uuid references page_templates(id) on delete set null,
+  hours        numeric(8,2),                    -- override; null = the template's
+  work_item_id uuid references work_items(id) on delete set null,  -- the task made for this page
   created_at   timestamptz not null default now()
 );
+create index site_plan_pages_plan on site_plan_pages (plan_id, parent_id, sort_order);
+create index site_plan_pages_work_item on site_plan_pages (work_item_id) where work_item_id is not null;
 
-create index quote_sitemap_quote on quote_sitemap_nodes (quote_id, parent_id, sort_order);
+-- The plan a quote prices. Several open quotes may point at one plan.
+alter table quotes add column site_plan_id uuid references site_plans(id) on delete set null;
+create index quotes_site_plan on quotes (site_plan_id) where site_plan_id is not null;
+
+-- The pages as the client accepted them, written only by accept_quote().
+-- The accepted quote's document reads this, never the live plan.
+create table quote_pages (
+  id          uuid primary key default gen_random_uuid(),
+  quote_id    uuid not null references quotes(id) on delete cascade,
+  sort_order  int not null,                     -- pre-order position
+  depth       int not null default 0,           -- indent on the client's list
+  title       text not null,
+  path        text,
+  template    text,
+  template_id uuid references page_templates(id) on delete set null,  -- counts pages per scope line
+  hours       numeric(8,2)                      -- resolved: the page's own, else its template's
+);
+create index quote_pages_quote on quote_pages (quote_id, sort_order);
 
 -- ---------- Harvest archive ----------
 -- Pre-cutover history, rolled up to month. Individual entries live
@@ -2547,12 +2575,17 @@ begin
 end $$;
 
 -- Acceptance, by the client from /q/<token> (service role, no session) or
--- by an admin on their behalf. Makes the project: hours from the lines
--- become budget_hours, the subtotal becomes budget_amount, and each line's
--- task type is assigned to the project with the quoted rate.
+-- by someone with the Quotes permission on their behalf. Makes the
+-- project: hours from the lines become budget_hours, the subtotal becomes
+-- budget_amount, and each line's task type is assigned to the project
+-- with the quoted rate. With a site plan: its pages as they stand are
+-- copied onto the quote (quote_pages), and if the plan is not on a project
+-- yet it moves to this one and every page becomes a task, assigned to
+-- whoever this quote's scope line for that template names.
 create or replace function public.accept_quote(p_quote_id uuid, p_name text, p_email text default null) returns uuid
 language plpgsql security definer set search_path = '' as $$
 declare q record; v_project uuid; v_item uuid; v_hours numeric; r record;
+        v_plan_id uuid; v_plan_project uuid; v_ord int := 0;
 begin
   if auth.uid() is not null and not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
   if coalesce(trim(p_name), '') = '' then raise exception 'A name is required to accept'; end if;
@@ -2573,28 +2606,68 @@ begin
     on conflict do nothing;
   end loop;
 
-  -- Every sitemap page becomes a task, with the page's hours as the
-  -- estimate, assigned to whoever the page's scope line names. That
-  -- person is also up on it: the scope line is a statement of whose
-  -- turn it is first.
-  for r in
-    select n.title, n.path, coalesce(n.hours, t.hours) as hours, t.name as template_name, n.sort_order, l.assignee_id
-    from public.quote_sitemap_nodes n
-    left join public.page_templates t on t.id = n.template_id
-    left join public.quote_line_items l on l.id = n.line_item_id
-    where n.quote_id = q.id
-    order by n.sort_order
-  loop
-    insert into public.work_items (project_id, title, description, estimate_hours, created_by)
-    values (v_project, r.title,
-            concat_ws(E'\n', nullif(r.path, ''), case when r.template_name is not null then r.template_name || ' page' end, 'From quote ' || q.number),
-            nullif(r.hours, 0), q.created_by)
-    returning id into v_item;
-    if r.assignee_id is not null then
-      insert into public.work_item_assignees (work_item_id, user_id) values (v_item, r.assignee_id) on conflict do nothing;
-      update public.work_items set assignee_id = r.assignee_id where id = v_item;
+  -- The site plan, locked so make_site_plan_tasks() on it waits. Only a
+  -- plan of this quote's client counts; the drawers only offer those.
+  if q.site_plan_id is not null then
+    select id, project_id into v_plan_id, v_plan_project
+    from public.site_plans where id = q.site_plan_id and client_id = q.client_id
+    for update;
+  end if;
+
+  if v_plan_id is not null then
+    if v_plan_project is null then
+      update public.site_plans set project_id = v_project where id = v_plan_id;
     end if;
-  end loop;
+    -- One read of the tree, parents first, feeds both the copy and the
+    -- tasks, so they always hold the same pages.
+    for r in
+      with recursive ranked as (
+        -- Siblings numbered in the app's order (flattenPages), so tied
+        -- sort_order values cannot interleave two subtrees.
+        select id, parent_id, row_number() over (partition by parent_id order by sort_order, created_at, id) as rn
+        from public.site_plan_pages
+        where plan_id = v_plan_id
+      ), tree as (
+        select s.id, 0 as depth, array[s.rn] as ord
+        from ranked s
+        where s.parent_id is null
+        union all
+        select c.id, t.depth + 1, t.ord || c.rn
+        from ranked c
+        join tree t on c.parent_id = t.id
+      )
+      select p.id, t.depth, p.title, nullif(p.path, '') as path,
+             coalesce(pt.name, nullif(p.template, '')) as template, p.template_id,
+             coalesce(p.hours, pt.hours) as hours,
+             (select l.assignee_id from public.quote_line_items l
+               where l.quote_id = q.id and l.template_id = p.template_id and l.assignee_id is not null
+               order by l.sort_order, l.created_at limit 1) as assignee_id
+      from tree t
+      join public.site_plan_pages p on p.id = t.id
+      left join public.page_templates pt on pt.id = p.template_id
+      order by t.ord
+    loop
+      v_ord := v_ord + 1;
+      insert into public.quote_pages (quote_id, sort_order, depth, title, path, template, template_id, hours)
+      values (q.id, v_ord, r.depth, r.title, r.path, r.template, r.template_id, r.hours);
+
+      -- Tasks only when this acceptance moved the plan. If another quote
+      -- on the same plan was accepted first, the plan and its tasks stay
+      -- on that project.
+      if v_plan_project is null then
+        insert into public.work_items (project_id, title, description, estimate_hours, created_by)
+        values (v_project, r.title,
+                concat_ws(E'\n', r.path, case when r.template is not null then r.template || ' page' end, 'From quote ' || q.number),
+                nullif(r.hours, 0), q.created_by)
+        returning id into v_item;
+        if r.assignee_id is not null then
+          insert into public.work_item_assignees (work_item_id, user_id) values (v_item, r.assignee_id) on conflict do nothing;
+          update public.work_items set assignee_id = r.assignee_id where id = v_item;
+        end if;
+        update public.site_plan_pages set work_item_id = v_item where id = r.id;
+      end if;
+    end loop;
+  end if;
 
   update public.quotes set status = 'accepted', accepted_at = now(), accepted_by = trim(p_name),
     accepted_email = nullif(trim(coalesce(p_email, '')), ''), project_id = v_project, updated_at = now()
@@ -2613,6 +2686,54 @@ begin
   update public.quotes set status = 'declined', declined_at = now(), declined_by = nullif(trim(coalesce(p_name, '')), ''),
     decline_reason = nullif(trim(coalesce(p_reason, '')), ''), updated_at = now()
   where id = p_quote_id;
+end $$;
+
+-- A plan on a project: one task for every page with no live task (never
+-- linked, or its task was deleted), unassigned, with the page's hours (or
+-- its template's) as the estimate. Returns how many it made. Reads
+-- work_items as definer, so it filters deleted_at itself.
+create or replace function public.make_site_plan_tasks(p_plan_id uuid) returns int
+language plpgsql security definer set search_path = '' as $$
+declare v_plan record; r record; v_item uuid; v_count int := 0;
+begin
+  if not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
+  select id, name, project_id into v_plan from public.site_plans where id = p_plan_id for update;
+  if not found then raise exception 'Site plan not found'; end if;
+  if v_plan.project_id is null then raise exception 'This site plan is not on a project yet'; end if;
+
+  for r in
+    with recursive ranked as (
+      -- Siblings numbered in the app's order, as in accept_quote().
+      select id, parent_id, row_number() over (partition by parent_id order by sort_order, created_at, id) as rn
+      from public.site_plan_pages
+      where plan_id = p_plan_id
+    ), tree as (
+      select s.id, array[s.rn] as ord
+      from ranked s
+      where s.parent_id is null
+      union all
+      select c.id, t.ord || c.rn
+      from ranked c
+      join tree t on c.parent_id = t.id
+    )
+    select p.id, p.title, nullif(p.path, '') as path,
+           coalesce(pt.name, nullif(p.template, '')) as template,
+           coalesce(p.hours, pt.hours) as hours
+    from tree t
+    join public.site_plan_pages p on p.id = t.id
+    left join public.page_templates pt on pt.id = p.template_id
+    where not exists (select 1 from public.work_items w where w.id = p.work_item_id and w.deleted_at is null)
+    order by t.ord
+  loop
+    insert into public.work_items (project_id, title, description, estimate_hours, created_by)
+    values (v_plan.project_id, r.title,
+            concat_ws(E'\n', r.path, case when r.template is not null then r.template || ' page' end, 'From site plan ' || v_plan.name),
+            nullif(r.hours, 0), auth.uid())
+    returning id into v_item;
+    update public.site_plan_pages set work_item_id = v_item where id = r.id;
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
 end $$;
 
 -- ============================================================
@@ -2640,7 +2761,9 @@ alter table expense_categories     enable row level security;
 alter table expenses               enable row level security;
 alter table quotes                 enable row level security;
 alter table quote_line_items       enable row level security;
-alter table quote_sitemap_nodes    enable row level security;
+alter table site_plans             enable row level security;
+alter table site_plan_pages        enable row level security;
+alter table quote_pages            enable row level security;
 alter table harvest_archive_monthly enable row level security;
 alter table harvest_invoices       enable row level security;
 alter table invoice_settings       enable row level security;
@@ -2748,11 +2871,24 @@ create policy manage_invoices on invoice_payments for all to authenticated using
 
 create policy read_all on quotes              for select to authenticated using (not (select is_client()) or (client_id = (select my_client_id()) and status <> 'draft'));
 create policy read_all on quote_line_items    for select to authenticated using (not (select is_client()) or exists (select 1 from quotes q where q.id = quote_id));
-create policy read_all on quote_sitemap_nodes for select to authenticated using (not (select is_client()) or exists (select 1 from quotes q where q.id = quote_id));
 
 create policy manage_quotes on quotes              for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
 create policy manage_quotes on quote_line_items    for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
-create policy manage_quotes on quote_sitemap_nodes for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
+
+-- Site plans: all staff read, the Quotes permission writes. Clients read
+-- none of it; their quote document gets its pages from the service role.
+create policy read_all on site_plans      for select to authenticated using (not (select is_client()));
+create policy read_all on site_plan_pages for select to authenticated using (not (select is_client()));
+create policy read_all on quote_pages     for select to authenticated using (not (select is_client()));
+
+create policy manage_quotes on site_plans      for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
+create policy manage_quotes on site_plan_pages for all to authenticated using ((select has_permission('manage_quotes'))) with check ((select has_permission('manage_quotes')));
+-- quote_pages has no write policy and no write grant: only accept_quote()
+-- (security definer) and the quote delete cascade write it.
+
+revoke all on site_plans, site_plan_pages, quote_pages from anon, authenticated;
+grant select, insert, update, delete on site_plans, site_plan_pages to authenticated;
+grant select on quote_pages to authenticated;
 
 -- ---------- Harvest archive ----------
 
@@ -2871,6 +3007,8 @@ revoke execute on function public.next_quote_number()        from public, anon, 
 revoke execute on function public.create_quote(uuid, text)   from public, anon;
 revoke execute on function public.accept_quote(uuid, text, text)  from public, anon;
 revoke execute on function public.decline_quote(uuid, text, text) from public, anon;
+revoke execute on function public.make_site_plan_tasks(uuid)    from public, anon;
+grant  execute on function public.make_site_plan_tasks(uuid)    to authenticated;
 revoke execute on function public.is_admin()                 from public, anon;
 revoke execute on function public.has_permission(text)        from public, anon;
 
@@ -4296,9 +4434,15 @@ on conflict do nothing;
 insert into permissions (role, key)
 select p.role, m.screen
 from permissions p
-join (values ('see_all_time', 'screen:reports'), ('manage_quotes', 'screen:quotes'), ('see_capacity', 'screen:planner'),
-             ('approve_time', 'screen:approvals'), ('manage_invoices', 'screen:billing'), ('manage_invoices', 'screen:invoices'),
-             ('manage_settings', 'screen:settings'), ('manage_people', 'screen:settings')) as m(key, screen) on m.key = p.key
+join (values ('see_all_time', 'screen:reports'), ('manage_quotes', 'screen:quotes'), ('manage_quotes', 'screen:site_plans'),
+             ('see_capacity', 'screen:planner'), ('approve_time', 'screen:approvals'), ('manage_invoices', 'screen:billing'),
+             ('manage_invoices', 'screen:invoices'), ('manage_settings', 'screen:settings'), ('manage_people', 'screen:settings')) as m(key, screen) on m.key = p.key
+on conflict do nothing;
+
+-- Site plans (2026-09-15) follow manage_quotes for per-person overrides
+-- too, so the screen opens for exactly the people who have quotes.
+insert into permission_overrides (user_id, key, allowed)
+select user_id, 'screen:site_plans', allowed from permission_overrides where key = 'manage_quotes'
 on conflict do nothing;
 
 -- Fields: whoever sees money today sees every money field.

@@ -62,6 +62,12 @@ migration; change both. Read it before writing queries. Not obvious:
   Money columns on invoices come from `recalc_invoice()` triggers.
   Public pages: `/i/<token>` invoice, `/q/<token>` quote, `/r/<token>`
   task review.
+- `site_plans` / `site_plan_pages` are a website's live page tree,
+  linked from `quotes.site_plan_id` and moved to `site_plans.project_id`
+  by `accept_quote()`. Draft and sent quotes show the live pages;
+  acceptance copies them into `quote_pages`, which the accepted document
+  reads forever. `site_plan_pages.work_item_id` is a page's task;
+  `make_site_plan_tasks()` fills gaps and treats a soft-deleted task as none.
 - **Security definer functions in policies and views must be wrapped**
   as `(select public.fn())` so they run once per query, not per row.
   Per-row `has_permission()` and `task_visible()` made pages take
