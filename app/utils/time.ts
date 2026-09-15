@@ -39,6 +39,15 @@ export function weekDays(s: string): string[] {
   return Array.from({ length: 7 }, (_, i) => addDays(monday, i))
 }
 
+// Google Calendar's day view for a date. No event id to jump to (busy
+// blocks come from the free/busy API, not the events API, on purpose:
+// see server/utils/google.ts), so this opens the day and the person
+// finds their own entry.
+export function calendarDayLink(s: string): string {
+  const [y, m, d] = s.split('-').map(Number)
+  return `https://calendar.google.com/calendar/u/0/r/day/${y}/${m}/${d}`
+}
+
 const fmt = (s: string, opts: Intl.DateTimeFormatOptions) => parseDateString(s).toLocaleDateString('en-US', opts)
 export const dayName = (s: string) => fmt(s, { weekday: 'short' })
 export const shortDate = (s: string) => fmt(s, { month: 'short', day: 'numeric' })

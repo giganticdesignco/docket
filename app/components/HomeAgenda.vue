@@ -60,10 +60,16 @@ const busyHours = (d: { busy: { hours: number }[] }) => d.busy.reduce((s, b) => 
           <span v-if="busyHours(d)" class="text-muted">{{ formatHours(busyHours(d)) }} in meetings</span>
         </div>
         <ul v-if="d.busy.length || d.due.length" class="space-y-1">
-          <li v-for="b in d.busy" :key="b.id" class="flex items-center gap-2 rounded bg-elevated/60 px-2 py-1">
-            <UIcon name="i-lucide-calendar" class="size-3.5 shrink-0 text-muted" />
-            <span class="tabular-nums">{{ clock(b.starts_at) }} to {{ clock(b.ends_at) }}</span>
-            <span class="text-muted">Busy</span>
+          <li v-for="b in d.busy" :key="b.id">
+            <a
+              :href="calendarDayLink(d.day)" target="_blank" rel="noopener"
+              class="flex items-center gap-2 rounded bg-elevated/60 px-2 py-1 hover:bg-elevated"
+              title="Open this day in Google Calendar"
+            >
+              <UIcon name="i-lucide-calendar" class="size-3.5 shrink-0 text-muted" />
+              <span class="tabular-nums">{{ clock(b.starts_at) }} to {{ clock(b.ends_at) }}</span>
+              <span class="text-muted">Busy</span>
+            </a>
           </li>
           <li v-for="w in d.due" :key="w.id" class="flex items-center gap-2 px-2 py-1" :class="w.assignee_id ? '' : 'opacity-70'">
             <UIcon :name="w.is_milestone ? 'i-lucide-flag' : 'i-lucide-circle-dot'" class="size-3.5 shrink-0" :class="w.due_on! < today ? 'text-error' : w.assignee_id ? 'text-primary' : 'text-warning'" />
