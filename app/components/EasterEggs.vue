@@ -34,8 +34,12 @@ function onKey(e: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
-watch(party, v => document.documentElement.classList.toggle('party', v), { immediate: true })
-watch(arcade, v => document.documentElement.classList.toggle('arcade', v), { immediate: true })
+// Browser only: /q, /i and /r render on the server for a signed-in
+// person too, and there is no document there.
+if (import.meta.client) {
+  watch(party, v => document.documentElement.classList.toggle('party', v), { immediate: true })
+  watch(arcade, v => document.documentElement.classList.toggle('arcade', v), { immediate: true })
+}
 
 // ---------- the coin ----------
 const coinHeads = ref(true)

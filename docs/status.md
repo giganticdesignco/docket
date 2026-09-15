@@ -3183,3 +3183,23 @@ showed its id before the fix, and "ZZ TEST picker 2" showed its name
 after. On Invoices (Blank invoice), "ZZ TEST picker 3" showed its name,
 with Create draft enabled. No quote or invoice was made. The three test
 clients were deleted afterward.
+
+## Public document links gave signed-in staff a 500 (2026-09-15)
+
+Opening `/q/<token>`, `/i/<token>` or `/r/<token>` while signed in to
+Docket returned a 500: "Cannot read properties of undefined (reading
+documentElement)". Signed out, the same links worked. These three routes
+(and `/login`) render on the server. For a signed-in staff member,
+`app.vue` mounts `EasterEggs`, and its two watches that put the party and
+arcade classes on the page used `immediate: true`. So they touched
+`document` during server rendering, where it does not exist.
+
+Fixed in `EasterEggs.vue`: the two watches register only in the browser
+(`import.meta.client`). The keyboard listener was already inside
+`onMounted`, and nothing else in the component runs at setup.
+
+Verified in Luke's Chrome, before and after. All three links gave the
+500 before the fix: quote Q-2026-002, invoice 2, and a task review link.
+After it, all three render. On Home, the cheat code turns on arcade mode
+(the PLAYER 1 overlay and the `arcade` class on the page), and Escape
+turns it off. Nothing was accepted, paid, or sent.
