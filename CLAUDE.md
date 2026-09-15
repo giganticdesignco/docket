@@ -158,3 +158,134 @@ are set yet, so money is mostly blank).
 - The desktop shell is unsigned until there is an Apple Developer
   account; `desktop/release.sh` cuts a build and the app shows a banner
   from `public/desktop/latest.json`.
+
+## Orchestrator kit
+
+`.claude/` holds the Gigantic orchestrator kit: agents, skills and slash
+commands from `giganticdesignco/claude-code-orchestrator-kit`, installed
+2026-09-15. The pattern below is the kit's, adapted for Docket. Where it
+disagrees with anything above, the sections above win: smallest change,
+verify in the browser, one commit per item.
+
+### Main Pattern: You Are The Orchestrator
+
+The default pattern for feature development, bug fixes, refactoring, and
+general coding tasks.
+
+**1. Gather full context first (mandatory)**
+
+Before delegating or implementing any task:
+- Read existing code in related files
+- Search the codebase for similar patterns
+- Review relevant documentation (`docs/handoff.md`, `docs/status.md`,
+  `schema.sql`, the spec for the area)
+- Check recent commits in related areas
+- Understand dependencies and integration points
+
+Never delegate or implement blindly.
+
+**2. Delegate to subagents**
+
+Before delegation:
+- Provide complete context (code snippets, file paths, patterns, docs)
+- Specify the exact expected output and validation criteria
+
+After delegation (critical):
+- Always verify results (read modified files, run `npx nuxt typecheck`)
+- Never skip verification
+- If incorrect: re-delegate with the corrections and errors
+- If TypeScript errors: re-delegate to the same agent or
+  `typescript-types-specialist`
+
+**3. Execute directly (minimal only)**
+
+Direct execution only for:
+- A single dependency install
+- Single-line fixes (typos, obvious bugs)
+- Simple imports
+- Minimal config changes
+
+Everything else: delegate.
+
+**4. Track progress**
+
+- Create todos at task start
+- Mark in_progress before starting
+- Mark completed after verification only
+
+**5. Commit strategy**
+
+Follow Docket's rule under Non-negotiables: commit and push after each
+verified item, one item per commit, `package-lock.json` left out.
+**Do not run the kit's `/push`.** It bumps package versions, writes
+`CHANGELOG.md` and `RELEASE_NOTES.md`, and creates git tags, and a push
+here deploys production.
+
+**6. Execution pattern**
+
+```
+FOR EACH TASK:
+1. Read task description
+2. GATHER FULL CONTEXT (code + docs + patterns + history)
+3. Delegate to subagent OR execute directly (trivial only)
+4. VERIFY results (read files + typecheck + browser) - NEVER skip
+5. Accept/reject loop (re-delegate if needed)
+6. Update todos to completed
+7. Commit and push (Non-negotiables)
+8. Move to next task
+```
+
+**7. Handling contradictions**
+
+If contradictions occur:
+- Gather context, analyze project patterns
+- If truly ambiguous: ask the user with specific options
+- Only ask when unable to determine best practice
+
+**8. Library-first approach**
+
+Before writing new code (>20 lines), search for existing libraries:
+- WebSearch: "npm {functionality} library"
+- Context7: documentation for candidate libraries
+- Check: weekly downloads >1000, commits in the last 6 months,
+  TypeScript types
+
+Use a library when it covers >70% of the need, is actively maintained
+with no critical vulnerabilities, and has a reasonable bundle size.
+Write custom code when it is <20 lines of simple logic, every library is
+abandoned or insecure, or it is core business logic needing full control.
+
+### Planning phase (always first)
+
+Before implementing tasks:
+- Analyze the execution model (parallel or sequential)
+- Assign executors: MAIN for trivial, an existing agent if a 100% match,
+  FUTURE otherwise
+- Create FUTURE agents: launch N `meta-agent-v3` calls in a single
+  message, then ask for a restart
+- Resolve research (simple: solve now; complex: a deep research prompt)
+- Atomicity: 1 task = 1 agent call
+- Parallel: launch N calls in a single message, not sequentially
+
+See `.claude/commands/speckit.implement.md` for details.
+
+### Health workflows
+
+Slash commands: `/health-bugs`, `/health-security`, `/health-cleanup`,
+`/health-deps`. Follow each command's instructions. They mention Beads
+integration; Docket does not use Beads, so skip those steps.
+
+### Kit conventions
+
+- Agents: `.claude/agents/{domain}/workers/`
+- Commands: `.claude/commands/`
+- Skills: `.claude/skills/{skill-name}/SKILL.md`
+- Temporary: `.tmp/current/` (gitignored)
+- Reports: `docs/reports/{domain}/{YYYY-MM}/`
+- Type-check must pass before commit: `npx nuxt typecheck`; the vue-router
+  volar warning stack it prints is noise, check for `error TS` lines
+- No hardcoded credentials
+- Supabase: the Supabase MCP is configured at user scope, not in
+  `.mcp.json`. `execute_sql` runs as postgres and bypasses RLS, so check
+  RLS through the browser's Supabase client
+- `.mcp.json` has context7, sequential-thinking and playwright

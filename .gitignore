@@ -11,3 +11,6 @@ logs
 .DS_Store
 .vercel
 .env*
+
+# Orchestrator kit scratch space (plan files, agent reports)
+.tmp/
