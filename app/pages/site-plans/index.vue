@@ -47,12 +47,12 @@ async function create() {
 
 <template>
   <div class="space-y-6">
-    <div class="flex items-center gap-4">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
       <div>
         <h1 class="text-2xl font-semibold">Site plans</h1>
         <p class="text-sm text-muted">The pages a website will have. Start one here or from a quote, price it on the quote, and it moves to the project when the quote is accepted.</p>
       </div>
-      <UButton v-if="can('manage_quotes')" icon="i-lucide-plus" class="ml-auto" @click="openNew">New site plan</UButton>
+      <UButton v-if="can('manage_quotes')" icon="i-lucide-plus" class="ml-auto shrink-0" @click="openNew">New site plan</UButton>
     </div>
 
     <UCard :ui="{ body: 'p-0 sm:p-0' }">

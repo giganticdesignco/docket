@@ -3203,3 +3203,33 @@ Verified in Luke's Chrome, before and after. All three links gave the
 After it, all three render. On Home, the cheat code turns on arcade mode
 (the PLAYER 1 overlay and the `arcade` class on the page), and Escape
 turns it off. Nothing was accepted, paid, or sent.
+
+## Phone width: the quote's scope table and three header rows (2026-09-15)
+
+A phone-width check of the site plan screens found the quote's scope
+table cut off. It had no scroll wrapper inside a card that hides
+overflow, so Rate, Amount and each line's remove button could not be
+reached. Three header rows also did not wrap, which squeezed their
+buttons.
+
+- `quotes/[id].vue`: the scope table sits in `table-scroll` and the
+  Description column keeps a minimum width. The Scope header row and
+  the Site plan drawer footer wrap.
+- `site-plans/index.vue`: the header row wraps, and New site plan no
+  longer shrinks.
+- `projects/[id]/index.vue`: the header row wraps, so the action
+  buttons drop below the title at full size.
+
+Verified in Luke's Chrome inside a 390px and a 360px same-origin frame.
+None of the three pages scrolls sideways. The scope table scrolls
+inside its card, 716px of table in a 358px box. The Scope buttons wrap
+to two rows and stay on screen. New site plan is 135 by 32 on its own
+row. The project's action buttons sit on their own row. The drawer
+footer wrap was not seen, because no test plan was linked.
+
+Not in this commit: the canvas problems from the same check (card
+buttons only on hover, no way to nest or move a page by touch, a 40%
+starting zoom, small toolbar buttons, and a page's path not following a
+move). Those go into the page parts build, which rewrites the canvas.
+Whether to make text fields 16px app-wide, so iOS stops zooming on
+focus, is still Luke's call.

@@ -425,7 +425,7 @@ async function deleteQuote() {
         </div>
       </UCard>
 
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h2 class="text-lg font-semibold">Scope</h2>
         <span class="text-sm text-muted">Hours x rate, or a flat amount.</span>
         <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-sparkles" class="ml-auto" @click="briefOpen = true;">Draft lines</UButton>
@@ -434,10 +434,10 @@ async function deleteQuote() {
         <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="addLine">Add line</UButton>
       </div>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
-        <table class="w-full text-sm">
+        <div class="table-scroll"><table class="w-full text-sm">
           <thead class="text-left text-muted">
             <tr class="border-b border-default">
-              <th class="px-4 py-2 font-medium">Description</th>
+              <th class="min-w-48 px-4 py-2 font-medium">Description</th>
               <th class="w-40 px-2 py-2 font-medium">Task type</th>
               <th class="w-40 px-2 py-2 font-medium" title="Who will do it. Their week shows on Planner as quoted, not yet won.">Who, week</th>
               <th class="w-20 px-2 py-2 text-right font-medium">Hours</th>
@@ -493,7 +493,7 @@ async function deleteQuote() {
               <td />
             </tr>
           </tfoot>
-        </table>
+        </table></div>
       </UCard>
 
       <template v-if="planData?.plan">
@@ -582,7 +582,7 @@ async function deleteQuote() {
         </UFormField>
       </template>
       <template #footer>
-        <div class="flex w-full items-center gap-2">
+        <div class="flex w-full flex-wrap items-center gap-2">
           <UButton v-if="planData?.plan" variant="ghost" color="neutral" :loading="planBusy === 'remove'" @click="removePlan">Remove from this quote</UButton>
           <UButton variant="ghost" color="neutral" class="ml-auto" @click="planOpen = false;">Cancel</UButton>
           <UButton :loading="planBusy === 'use'" :disabled="planChoice === planData?.plan?.id" @click="usePlan">Use this plan</UButton>
