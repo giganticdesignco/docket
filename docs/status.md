@@ -3157,5 +3157,6 @@ ClientPicker creates a client inline, the select shows its id until
 reload. An empty plan on a project no longer says "Every page has a
 task."
 
-**Still to do.** Migration 2 (`drop table quote_sitemap_nodes`) runs
-once this is deployed, then the types are regenerated.
+**Migration 2.** Once commit 0725cae was live on Vercel, migration
+`drop_quote_sitemap_nodes` dropped the old table, and
+`shared/types/database.ts` was regenerated without it.
