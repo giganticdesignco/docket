@@ -93,7 +93,7 @@ export const SETTINGS_PAGES = [
   { section: 'Work', label: 'Task statuses', to: '/admin/task-statuses', icon: 'i-lucide-circle-dot', text: 'The status list tasks move through, and which ones mean done, paused, or with the client.', needs: 'manage_settings' },
   { section: 'Work', label: 'Task types', to: '/admin/tasks', icon: 'i-lucide-tags', text: 'The billing task types (Design, Development, and so on) and whether they bill by default.', needs: 'manage_reference' },
   { section: 'Money', label: 'Invoices and quotes', to: '/admin/invoice-settings', icon: 'i-lucide-file-text', text: 'Company block, payment instructions, numbering, terms, and overdue reminders.', needs: 'manage_settings' },
-  { section: 'Money', label: 'Page templates', to: '/admin/page-templates', icon: 'i-lucide-panels-top-left', text: 'The kinds of page a site plan is built from, with the hours each usually takes.', needs: 'manage_settings' },
+  { section: 'Money', label: 'Page templates', to: '/admin/page-templates', icon: 'i-lucide-panels-top-left', text: 'The kinds of page a site plan is built from, and the parts and hours each is quoted in.', needs: 'manage_settings' },
   { section: 'Money', label: 'Estimator', to: '/admin/estimator', icon: 'i-lucide-calculator', text: 'Materials, roll sizes, costs, and the markup rules behind signage estimates.', needs: 'manage_settings' },
   { section: 'Money', label: 'Expense categories', to: '/admin/expense-categories', icon: 'i-lucide-receipt', text: 'Categories for expenses and receipts.', needs: 'manage_settings' },
   { section: 'Data', label: 'Imports', to: '/admin/imports', icon: 'i-lucide-download', text: 'Bring history in from Harvest and ClickUp.', needs: 'manage_settings', also: ['/admin/harvest', '/admin/clickup'] },

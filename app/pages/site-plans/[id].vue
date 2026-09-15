@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { flattenPages, groupPages } from '~~/shared/sitePlan'
+import { cleanPartHours, flattenPages, groupPages, pageParts, typedHours } from '~~/shared/sitePlan'
 
 // One site plan: the page tree on a canvas, saved with Save. Before it is
 // on a project it can go onto a quote (priced there). On a project, Make
-// tasks for new pages adds a task for each page without one. Editing a
-// page never changes its task or a quote.
+// tasks for new pages adds a task for each page without one, with a subtask
+// for each part the page does not skip. Editing a page never changes its
+// task or a quote.
 const route = useRoute()
 const id = route.params.id as string
 const supabase = useSupabaseClient()
@@ -16,7 +17,7 @@ const __ad1 = useAsyncData(`site-plan-${id}`, async () => {
   return data
 }, fresh)
 const __ad2 = useAsyncData(`site-plan-${id}-pages`, async () => {
-  const { data, error } = await supabase.from('site_plan_pages').select('id, parent_id, sort_order, title, path, template, template_id, hours, work_item_id').eq('plan_id', id).order('sort_order').order('created_at')
+  const { data, error } = await supabase.from('site_plan_pages').select('id, parent_id, sort_order, title, path, template, template_id, part_hours, work_item_id').eq('plan_id', id).order('sort_order').order('created_at')
   if (error) throw error
   return data
 }, fresh)
@@ -27,12 +28,12 @@ const __ad3 = useAsyncData(`site-plan-${id}-quotes`, async () => {
 }, fresh)
 // Its own key, so it does not share the quote editor's entry, and no rate:
 // this screen prices nothing. Retired templates too, so a page on one keeps
-// its hours as accept_quote and make_site_plan_tasks give them; the canvas
-// offers only active ones.
+// its parts' hours as accept_quote and make_site_plan_tasks give them; the
+// canvas offers only active ones. Parts in the template's order.
 const __ad4 = useAsyncData('site-plan-page-templates', async () => {
-  const { data, error } = await supabase.from('page_templates').select('id, name, hours, color, is_active').order('position').order('name')
+  const { data, error } = await supabase.from('page_templates').select('id, name, color, is_active, page_template_parts(id, name, hours, position)').order('position').order('name')
   if (error) throw error
-  return data
+  return data.map(({ page_template_parts: parts, ...t }) => ({ ...t, parts: [...parts].sort((a, b) => a.position - b.position) }))
 }, fresh)
 // The linked tasks that are still live. RLS hides deleted ones (and, for
 // someone without see_all_tasks, some live ones, so the count can read
@@ -61,13 +62,13 @@ const today = todayString()
 
 // ---------- editor ----------
 
-type PageDraft = { id: string, parent_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
+type PageDraft = { id: string, parent_id: string | null, title: string, path: string, template: string, template_id: string | null, part_hours: Record<string, number | string> }
 const draftPages = ref<PageDraft[]>([])
 const removed = new Set<string>()
 const snapshot = ref('')
 
 function loadEditor() {
-  draftPages.value = (pages.value ?? []).map(p => ({ id: p.id, parent_id: p.parent_id, title: p.title, path: p.path ?? '', template: p.template ?? '', template_id: p.template_id, hours: p.hours }))
+  draftPages.value = (pages.value ?? []).map(p => ({ id: p.id, parent_id: p.parent_id, title: p.title, path: p.path ?? '', template: p.template ?? '', template_id: p.template_id, part_hours: { ...typedHours(p) } }))
   removed.clear()
   snapshot.value = JSON.stringify(draftPages.value)
 }
@@ -76,6 +77,7 @@ watch(pages, loadEditor)
 const dirty = computed(() => JSON.stringify(draftPages.value) !== snapshot.value)
 function pagesRemoved(ids: string[]) { for (const x of ids) removed.add(x) }
 
+const templateById = computed(() => new Map((templates.value ?? []).map(t => [t.id, t])))
 const groups = computed(() => groupPages(draftPages.value, templates.value ?? []))
 const linkedIds = computed(() => new Set(liveTasks.value ?? []))
 // Counted from saved pages: a page with no task, or whose task is gone.
@@ -85,6 +87,8 @@ const clientLocked = computed(() => !!plan.value?.project_id || (quotes.value?.l
 const saving = ref(false)
 async function save(): Promise<boolean> {
   if (draftPages.value.some(p => !p.title.trim())) return fail('Every page needs a title')
+  // The database takes 0 to 9999 hours a part; say so instead of dropping or failing on a typed value.
+  if (draftPages.value.some(p => pageParts(p, templateById.value).some(({ part }) => { const v = p.part_hours[part.id]; return v !== undefined && v !== '' && !(Number(v) >= 0 && Number(v) <= 9999) }))) return fail('Part hours go from 0 to 9999')
   saving.value = true
   try {
     if (draftPages.value.length) {
@@ -95,7 +99,7 @@ async function save(): Promise<boolean> {
       const { error } = await supabase.from('site_plan_pages').upsert(flattenPages(draftPages.value).map(({ page: p }, i) => ({
         id: p.id, plan_id: id, parent_id: p.parent_id, sort_order: i + 1,
         title: p.title.trim(), path: p.path.trim() || null, template: p.template.trim() || null,
-        template_id: p.template_id, hours: p.hours === null || p.hours === '' ? null : Number(p.hours),
+        template_id: p.template_id, part_hours: cleanPartHours(p, templateById.value),
       })), { onConflict: 'id' })
       if (error) throw error
     }
@@ -138,7 +142,7 @@ async function makeTasks() {
     if (error) throw error
     const n = data ?? 0
     makeOpen.value = false
-    toast.add({ title: `${plural(n)} made on ${plan.value?.projects?.name ?? 'the project'}`, description: 'Assign them on the project.', color: 'success' })
+    toast.add({ title: `${plural(n)} made on ${plan.value?.projects?.name ?? 'the project'}`, description: 'Each has its parts as subtasks. Check who is up on the project.', color: 'success' })
     await Promise.all([refreshPages(), refreshLive()])
   } catch (e) {
     toast.add({ title: 'Could not make the tasks', description: (e as Error).message, color: 'error' })
@@ -266,7 +270,7 @@ async function deletePlan() {
       </p>
     </div>
 
-    <UCard>
+    <UCard :ui="{ body: 'p-2 sm:p-4' }">
       <SitemapCanvas :nodes="draftPages" :templates="templates ?? []" :editable="true" @removed="pagesRemoved" />
       <div v-if="draftPages.length" class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
         <span v-for="g in groups" :key="g.template?.id ?? 'none'">
@@ -280,7 +284,7 @@ async function deletePlan() {
 
     <UModal v-model:open="makeOpen" title="Make tasks for new pages?">
       <template #body>
-        <p class="text-sm">{{ plural(missing) }} on {{ plan.projects?.name }}, one for each page with no task yet, with the page's hours as the estimate. Nobody is assigned.</p>
+        <p class="text-sm">{{ plural(missing) }} on {{ plan.projects?.name }}, one for each page with no task yet. Each gets a subtask for every part the page does not skip, with that part's hours as its estimate, up to the person on the accepted quote's line for that part. Each of those people gets one notification, not one per subtask. Where there is no such person, nobody is up.</p>
       </template>
       <template #footer>
         <div class="flex w-full justify-end gap-2">

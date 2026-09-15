@@ -887,16 +887,19 @@ create trigger quotes_tax_recalc
   for each row when (old.tax_rate is distinct from new.tax_rate)
   execute function public.quote_tax_changed();
 
--- Page templates: what a kind of page usually takes. A site plan page
--- picks one and inherits its hours (or overrides them), and "Price the
--- plan" on a quote turns the pages into scope lines per template. On
--- accept, the pages become tasks on the new project.
+-- Page templates: the kinds of page a site plan is built from. Each is
+-- quoted in parts (page_template_parts), each part under a task type with
+-- its usual hours. A site plan page picks a template and can type over any
+-- part's hours; "Price the plan" on a quote writes a scope line per
+-- template per part, and on accept each page becomes a task with a subtask
+-- per part. A part's scope line takes its task type's usual rate;
+-- templates carry none.
 create table page_templates (
   id          uuid primary key default gen_random_uuid(),
   name        text not null unique,
-  hours       numeric(8,2) not null default 0,
-  rate        numeric(10,2),
-  task_id     uuid references tasks(id) on delete set null,
+  hours       numeric(8,2) not null default 0,                -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
+  rate        numeric(10,2),                                  -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
+  task_id     uuid references tasks(id) on delete set null,   -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
   description text,
   color       text not null default 'neutral',
   position    int not null default 0,
@@ -913,6 +916,29 @@ insert into page_templates (name, hours, description, color, position) values
   ('Blog post',    1, 'A post or article on the blog template.',                      'neutral', 7)
 on conflict (name) do nothing;
 
+-- Parts of a page template (2026-09-15, site_plan_parts).
+-- A page template is quoted in parts (usually Content, Design,
+-- Development), in order, each under a task type with the hours one page
+-- usually takes. A part at 0 hours is off unless a page types hours in.
+create table page_template_parts (
+  id          uuid primary key default gen_random_uuid(),
+  template_id uuid not null references page_templates(id) on delete cascade,
+  position    int not null default 0,
+  name        text not null check (btrim(name) <> ''),
+  task_id     uuid not null references tasks(id) on delete restrict,
+  hours       numeric(6,2) not null default 0 check (hours >= 0),   -- fits work_items.estimate_hours
+  created_at  timestamptz not null default now()
+);
+create index page_template_parts_template on page_template_parts (template_id, position);
+
+-- Seed: Content, Design, Development at 0 hours on every template.
+-- Luke's call (2026-09-15). Exact task type names; a missing one is left out.
+insert into page_template_parts (template_id, position, name, task_id, hours)
+select t.id, d.position, d.name, k.id, 0
+from page_templates t
+cross join (values (1, 'Content', 'Copywriting'), (2, 'Design', 'Design/Production'), (3, 'Development', 'Web Development')) as d(position, name, task_name)
+join tasks k on k.name = d.task_name and k.is_active;
+
 create table quote_line_items (
   id          uuid primary key default gen_random_uuid(),
   quote_id    uuid not null references quotes(id) on delete cascade,
@@ -924,6 +950,7 @@ create table quote_line_items (
   amount      numeric(12,2) not null default 0,  -- hours * rate, or flat
   details     jsonb,                              -- the estimator job behind a signage line
   template_id uuid references page_templates(id) on delete set null,  -- made by "Price the plan"
+  part_id uuid,  -- with template_id, the part "Price the plan" priced; no foreign key, so removing a part never changes a quote
   created_at  timestamptz not null default now()
 );
 
@@ -955,7 +982,17 @@ create table site_plan_pages (
   path         text,                            -- /about/team
   template     text,                            -- template name as picked
   template_id  uuid references page_templates(id) on delete set null,
-  hours        numeric(8,2),                    -- override; null = the template's
+  hours        numeric(8,2),                    -- v1; dropped by drop_site_plan_v1_columns after the parts deploy
+  -- A page's own hours for a part, keyed by page_template_parts.id. A number
+  -- types over the template's hours for this page only; 0 skips the part; a
+  -- missing key means the template's hours. Keys for parts the page's
+  -- template does not have are ignored. The path is strict and silent: a lax
+  -- path unwraps arrays, so {"<part>": [5]} would pass and the ::numeric
+  -- casts in accept_quote and make_site_plan_tasks would then fail.
+  part_hours   jsonb not null default '{}'::jsonb
+    constraint site_plan_pages_part_hours check (
+      jsonb_typeof(part_hours) = 'object'
+      and not jsonb_path_exists(part_hours, 'strict $.* ? (@.type() != "number" || @ < 0 || @ > 9999)', '{}', true)),
   work_item_id uuid references work_items(id) on delete set null,  -- the task made for this page
   created_at   timestamptz not null default now()
 );
@@ -977,7 +1014,11 @@ create table quote_pages (
   path        text,
   template    text,
   template_id uuid references page_templates(id) on delete set null,  -- counts pages per scope line
-  hours       numeric(8,2)                      -- resolved: the page's own, else its template's
+  hours       numeric(8,2),                     -- the page's parts added up, as accepted
+  -- The page's parts as resolved at acceptance, in the template's order:
+  -- [{"part_id": ..., "name": ..., "hours": ...}], hours 0 where skipped.
+  parts       jsonb not null default '[]'::jsonb
+    constraint quote_pages_parts check (jsonb_typeof(parts) = 'array')
 );
 create index quote_pages_quote on quote_pages (quote_id, sort_order);
 
@@ -2578,14 +2619,17 @@ end $$;
 -- by someone with the Quotes permission on their behalf. Makes the
 -- project: hours from the lines become budget_hours, the subtotal becomes
 -- budget_amount, and each line's task type is assigned to the project
--- with the quoted rate. With a site plan: its pages as they stand are
--- copied onto the quote (quote_pages), and if the plan is not on a project
--- yet it moves to this one and every page becomes a task, assigned to
--- whoever this quote's scope line for that template names.
+-- with the quoted rate. With a site plan: its pages as they stand, parts
+-- resolved, are copied onto the quote (quote_pages), and if the plan is
+-- not on a project yet it moves to this one and every page becomes a task
+-- with a subtask for each part the page does not skip, assigned to whoever
+-- this quote's scope line for that template and part names. Each person
+-- put on subtasks gets one "assigned" notification for the lot. Reads
+-- work_items as definer for that bell, so it filters deleted_at itself.
 create or replace function public.accept_quote(p_quote_id uuid, p_name text, p_email text default null) returns uuid
 language plpgsql security definer set search_path = '' as $$
-declare q record; v_project uuid; v_item uuid; v_hours numeric; r record;
-        v_plan_id uuid; v_plan_project uuid; v_ord int := 0;
+declare q record; v_project uuid; v_page uuid; v_hours numeric; r record; v_part record; v_who record;
+        v_plan_id uuid; v_plan_project uuid; v_ord int := 0; v_pages uuid[] := '{}';
 begin
   if auth.uid() is not null and not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
   if coalesce(trim(p_name), '') = '' then raise exception 'A name is required to accept'; end if;
@@ -2618,8 +2662,8 @@ begin
     if v_plan_project is null then
       update public.site_plans set project_id = v_project where id = v_plan_id;
     end if;
-    -- One read of the tree, parents first, feeds both the copy and the
-    -- tasks, so they always hold the same pages.
+    -- One read of the tree and the parts, parents first, feeds both the
+    -- copy and the tasks, so they always hold the same pages and hours.
     for r in
       with recursive ranked as (
         -- Siblings numbered in the app's order (flattenPages), so tied
@@ -2638,34 +2682,79 @@ begin
       )
       select p.id, t.depth, p.title, nullif(p.path, '') as path,
              coalesce(pt.name, nullif(p.template, '')) as template, p.template_id,
-             coalesce(p.hours, pt.hours) as hours,
-             (select l.assignee_id from public.quote_line_items l
-               where l.quote_id = q.id and l.template_id = p.template_id and l.assignee_id is not null
-               order by l.sort_order, l.created_at limit 1) as assignee_id
+             coalesce(h.parts, '[]'::jsonb) as parts, h.hours
       from tree t
       join public.site_plan_pages p on p.id = t.id
       left join public.page_templates pt on pt.id = p.template_id
+      left join lateral (
+        -- The template's parts in order, each with this page's hours:
+        -- what the page typed, else the template's. 0 means skipped.
+        select jsonb_agg(jsonb_build_object('part_id', pp.id, 'name', pp.name, 'hours', x.hours)
+                         order by pp.position, pp.created_at, pp.id) as parts,
+               sum(x.hours) as hours
+        from public.page_template_parts pp
+        cross join lateral (select coalesce((p.part_hours ->> pp.id::text)::numeric, pp.hours) as hours) x
+        where pp.template_id = p.template_id
+      ) h on true
       order by t.ord
     loop
       v_ord := v_ord + 1;
-      insert into public.quote_pages (quote_id, sort_order, depth, title, path, template, template_id, hours)
-      values (q.id, v_ord, r.depth, r.title, r.path, r.template, r.template_id, r.hours);
+      insert into public.quote_pages (quote_id, sort_order, depth, title, path, template, template_id, hours, parts)
+      values (q.id, v_ord, r.depth, r.title, r.path, r.template, r.template_id, r.hours, r.parts);
 
       -- Tasks only when this acceptance moved the plan. If another quote
       -- on the same plan was accepted first, the plan and its tasks stay
       -- on that project.
       if v_plan_project is null then
-        insert into public.work_items (project_id, title, description, estimate_hours, created_by)
+        -- The page task: no estimate, because its subtasks carry the hours
+        -- and Planner and capacity count every task's estimate; nobody up.
+        insert into public.work_items (project_id, title, description, created_by)
         values (v_project, r.title,
                 concat_ws(E'\n', r.path, case when r.template is not null then r.template || ' page' end, 'From quote ' || q.number),
-                nullif(r.hours, 0), q.created_by)
-        returning id into v_item;
-        if r.assignee_id is not null then
-          insert into public.work_item_assignees (work_item_id, user_id) values (v_item, r.assignee_id) on conflict do nothing;
-          update public.work_items set assignee_id = r.assignee_id where id = v_item;
-        end if;
-        update public.site_plan_pages set work_item_id = v_item where id = r.id;
+                q.created_by)
+        returning id into v_page;
+        v_pages := v_pages || v_page;
+
+        -- A subtask per part the page does not skip, in the template's
+        -- order, up to the person on this quote's line for that template
+        -- and part. assignee_id goes in with the insert, so the owner
+        -- trigger puts them on the task with no "assigned" bell per
+        -- subtask; one bell per person follows the page loop.
+        -- The loop variable is v_part, not s: the tree query above aliases
+        -- "ranked s", and PL/pgSQL would read s.id there as this record.
+        for v_part in
+          select e.n, e.v ->> 'name' as name, (e.v ->> 'hours')::numeric as hours,
+                 (select l.assignee_id from public.quote_line_items l
+                   where l.quote_id = q.id and l.template_id = r.template_id
+                     and l.part_id = (e.v ->> 'part_id')::uuid and l.assignee_id is not null
+                   order by l.sort_order, l.created_at limit 1) as assignee_id
+          from jsonb_array_elements(r.parts) with ordinality as e(v, n)
+          where (e.v ->> 'hours')::numeric > 0
+          order by e.n
+        loop
+          insert into public.work_items (project_id, parent_id, title, estimate_hours, assignee_id, position, created_by)
+          values (v_project, v_page, r.title || ', ' || v_part.name, v_part.hours, v_part.assignee_id, v_part.n, q.created_by);
+        end loop;
+
+        update public.site_plan_pages set work_item_id = v_page where id = r.id;
       end if;
+    end loop;
+
+    -- One "assigned" bell per person put on subtasks here, not one per
+    -- subtask: "You have 12 parts on Carter's Website", to the project.
+    -- notify() applies the person's own setting for that kind and skips
+    -- the actor (whoever accepted on the client's behalf; a client on
+    -- /q/<token> has no session, so nobody is skipped), inactive people
+    -- and clients.
+    for v_who in
+      select w.assignee_id, count(*) as n
+      from public.work_items w
+      where w.parent_id = any(v_pages) and w.assignee_id is not null and w.deleted_at is null
+      group by w.assignee_id
+    loop
+      perform public.notify(v_who.assignee_id, 'assigned',
+        'You have ' || v_who.n || case when v_who.n = 1 then ' part on ' else ' parts on ' end || q.title,
+        'From quote ' || q.number, '/projects/' || v_project, auth.uid());
     end loop;
   end if;
 
@@ -2688,18 +2777,30 @@ begin
   where id = p_quote_id;
 end $$;
 
--- A plan on a project: one task for every page with no live task (never
--- linked, or its task was deleted), unassigned, with the page's hours (or
--- its template's) as the estimate. Returns how many it made. Reads
+-- A plan on a project: for every page with no live task (never linked, or
+-- its task was deleted), a page task with no estimate and a subtask for
+-- each part the page does not skip, with that part's hours as its
+-- estimate, up to the person on the line for that template and part on
+-- the accepted quote that moved the plan onto this project, else nobody.
+-- A page that already has a live task gets nothing, even if its template
+-- gained a part since. Each person put on subtasks gets one "assigned"
+-- notification for the lot. Returns how many page tasks it made. Reads
 -- work_items as definer, so it filters deleted_at itself.
 create or replace function public.make_site_plan_tasks(p_plan_id uuid) returns int
 language plpgsql security definer set search_path = '' as $$
-declare v_plan record; r record; v_item uuid; v_count int := 0;
+declare v_plan record; r record; v_page uuid; v_count int := 0; v_quote uuid;
+        v_pages uuid[] := '{}'; v_who record; v_project_name text;
 begin
   if not public.has_permission('manage_quotes') then raise exception 'Quotes permission needed'; end if;
   select id, name, project_id into v_plan from public.site_plans where id = p_plan_id for update;
   if not found then raise exception 'Site plan not found'; end if;
   if v_plan.project_id is null then raise exception 'This site plan is not on a project yet'; end if;
+
+  -- The accepted quote that moved this plan onto its project, if any. A
+  -- plan started from a project has none, and its subtasks go to nobody.
+  select id into v_quote from public.quotes
+  where site_plan_id = p_plan_id and project_id = v_plan.project_id and status = 'accepted'
+  order by accepted_at, id limit 1;
 
   for r in
     with recursive ranked as (
@@ -2718,20 +2819,55 @@ begin
     )
     select p.id, p.title, nullif(p.path, '') as path,
            coalesce(pt.name, nullif(p.template, '')) as template,
-           coalesce(p.hours, pt.hours) as hours
+           coalesce(h.parts, '[]'::jsonb) as parts
     from tree t
     join public.site_plan_pages p on p.id = t.id
     left join public.page_templates pt on pt.id = p.template_id
+    left join lateral (
+      select jsonb_agg(jsonb_build_object('part_id', pp.id, 'name', pp.name, 'hours', x.hours)
+                       order by pp.position, pp.created_at, pp.id) as parts
+      from public.page_template_parts pp
+      cross join lateral (select coalesce((p.part_hours ->> pp.id::text)::numeric, pp.hours) as hours) x
+      where pp.template_id = p.template_id
+    ) h on true
     where not exists (select 1 from public.work_items w where w.id = p.work_item_id and w.deleted_at is null)
     order by t.ord
   loop
-    insert into public.work_items (project_id, title, description, estimate_hours, created_by)
+    insert into public.work_items (project_id, title, description, created_by)
     values (v_plan.project_id, r.title,
             concat_ws(E'\n', r.path, case when r.template is not null then r.template || ' page' end, 'From site plan ' || v_plan.name),
-            nullif(r.hours, 0), auth.uid())
-    returning id into v_item;
-    update public.site_plan_pages set work_item_id = v_item where id = r.id;
+            auth.uid())
+    returning id into v_page;
+    v_pages := v_pages || v_page;
+
+    -- As in accept_quote(), assignee_id goes in with the insert, so the
+    -- owner trigger puts the person on the task with no bell per subtask.
+    insert into public.work_items (project_id, parent_id, title, estimate_hours, assignee_id, position, created_by)
+    select v_plan.project_id, v_page, r.title || ', ' || (e.v ->> 'name'), (e.v ->> 'hours')::numeric,
+           (select l.assignee_id from public.quote_line_items l
+             where l.quote_id = v_quote and l.part_id = (e.v ->> 'part_id')::uuid and l.assignee_id is not null
+             order by l.sort_order, l.created_at limit 1),
+           e.n, auth.uid()
+    from jsonb_array_elements(r.parts) with ordinality as e(v, n)
+    where (e.v ->> 'hours')::numeric > 0
+    order by e.n;
+
+    update public.site_plan_pages set work_item_id = v_page where id = r.id;
     v_count := v_count + 1;
+  end loop;
+
+  -- One "assigned" bell per person put on subtasks here, as in
+  -- accept_quote(). The caller is the actor, so they get none for their own.
+  select name into v_project_name from public.projects where id = v_plan.project_id;
+  for v_who in
+    select w.assignee_id, count(*) as n
+    from public.work_items w
+    where w.parent_id = any(v_pages) and w.assignee_id is not null and w.deleted_at is null
+    group by w.assignee_id
+  loop
+    perform public.notify(v_who.assignee_id, 'assigned',
+      'You have ' || v_who.n || case when v_who.n = 1 then ' part on ' else ' parts on ' end || v_project_name,
+      'From site plan ' || v_plan.name, '/projects/' || v_plan.project_id, auth.uid());
   end loop;
   return v_count;
 end $$;
@@ -3569,6 +3705,13 @@ create policy read_all on page_templates for select to authenticated using (not 
 create policy manage_settings on page_templates for all to authenticated
   using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
 grant select, insert, update, delete on page_templates to authenticated;
+
+alter table page_template_parts enable row level security;
+create policy read_all on page_template_parts for select to authenticated using (not (select is_client()));
+create policy manage_settings on page_template_parts for all to authenticated
+  using ((select has_permission('manage_settings'))) with check ((select has_permission('manage_settings')));
+revoke all on page_template_parts from anon, authenticated;
+grant select, insert, update, delete on page_template_parts to authenticated;
 
 -- Who owns a project day to day. One person, optional.
 alter table projects add column lead_id uuid references profiles(id) on delete set null;

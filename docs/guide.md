@@ -51,7 +51,12 @@ keyboard shortcuts alone.
   letters instead of scrolling.
 - **The canvas on a site plan** sits centered in its card, and the
   full-screen button in its toolbar gives it the whole window (Esc
-  brings the page back).
+  brings the page back; with a page's parts open, the first Esc closes
+  them). Click or tap a card to select it, and its actions show in a row
+  above the canvas: add a page under it or beside it, nest it under the page
+  above, move it out a level, or remove it, so the tree can be built on
+  a phone without hovering or dragging. A page's path follows it when it
+  moves. On a phone the canvas opens at 100%; scroll to move around.
 - **There are a few easter eggs.** Seven of them, give or take. One is
   older than the web, one needs a coin, and two only turn up on the
   right day. We are not saying more.
@@ -253,7 +258,9 @@ and the morning brief.
   the cell too, and the footer says how much of the day is planned and
   how much is left; over goes red. Drag a task from "Nobody up" onto a
   person's day and it is planned there: they are up on it and the
-  task's dates move to start that day, keeping their length. Drag a
+  task's dates move to start that day, keeping their length. A task
+  with open subtasks, like a site plan page's task, stays out of Nobody
+  up; its subtasks are listed instead. Drag a
   block to another person to hand it to them (whoever it came from
   stays on the task), or to another day to move it, or drag its right
   edge across the days to set the due date; the hours re-spread as it
@@ -381,13 +388,15 @@ the next one what it needs, so nothing is typed twice.
    one from Site plans (under More in the rail), or with Add site plan on
    the quote. Build the tree there: a card per page with its title and
    path, a child or a sibling from the card, drag a card onto another to
-   move it. Give each page a template (Home, Landing, Interior, Listing,
-   Detail, Form, Blog post, set up in Settings with the hours each
-   usually takes) and the hours follow; type over them on a page that is
-   bigger or smaller. Save the plan. Then "Price the plan" on the quote
-   writes one scope line per template ("6 x Interior pages", 18 hours)
-   and updates those same lines when you price again. A draft or sent
-   quote shows the plan's pages as they are saved.
+   move it. Give each page a template (Home, Interior, and so on, set up
+   in Settings). A template is quoted in parts, usually Content, Design,
+   and Development, each with the hours it usually takes, and the card
+   shows the page's total. Click the hours on a card to change a part for
+   that page, or type 0 to skip it. Save the plan. Then "Price the plan"
+   on the quote writes one scope line per template and part ("6 x
+   Interior pages, Design", with those pages' Design hours and the part's
+   task type's usual rate) and updates those same lines when you price
+   again. A draft or sent quote shows the plan's pages as they are saved.
 5. **Send it.** Send emails the client a link to the quote page, which
    opens without a sign-in. The quote moves from Draft to Sent. It shows
    as Expired once the valid-until date passes.
@@ -399,10 +408,11 @@ the next one what it needs, so nothing is typed twice.
 7. **Accepting makes the project.** Docket creates the project under
    the client with the quote's title, sets its budget to the quoted
    hours and amount, and copies each quoted task type and rate into the
-   project's rate table. The quote and the project link to each other.
-   With a site plan, each page becomes a task on the project, the plan
-   moves to the project, and the quote keeps a copy of the pages as they
-   were accepted.
+   project's rate table (the highest rate, when lines for one task type
+   differ). The quote and the project link to each other. With a site
+   plan, each page becomes a task on the project with a subtask for each
+   of its parts, the plan moves to the project, and the quote keeps a
+   copy of the pages as they were accepted.
 8. **Work and log time.** Time logs against the project like any
    other, at the quoted rates, and the project's budget bar shows how
    much of the quote has been used. Tasks for the job live on the
@@ -430,27 +440,59 @@ time entry freezes its rate when it is saved.
   picks the client and a name. On a plan, Save keeps the tree. Edit
   changes the name, and the client too until a quote uses the plan or it
   is on a project.
+- **Parts.** Each page template lists the parts it is quoted in,
+  usually Content, Design, and Development, each under a task type with
+  the hours one page usually takes (Settings, Page templates). A new
+  template starts with those three, on Copywriting, Design/Production,
+  and Web Development, leaving out any whose task type is missing. The
+  seven built-in templates were given the same three at 0 hours; type
+  the hours each part usually takes. Templates have no rate: a part's
+  scope line takes its task type's usual rate, the same as picking that
+  task type on a blank line. On the canvas, a page card shows its hours;
+  click them to see its parts and type over any of them for that page. 0
+  skips the part on that page, and clearing the box brings back the
+  template's hours. A part at 0 in the template is off unless a page
+  types hours in. Changing a page's template clears what it typed.
+  Removing a part never changes a quote: an accepted quote keeps its
+  lines and page counts. Editing a template with no parts offers a
+  button to add the usual ones.
 - **On a quote.** Add to a quote on the plan, or Add site plan on the
   quote, links them. Only a plan for the same client that is not on a
   project yet can be linked, and one plan can be on more than one open
   quote (a revision, or a fresh quote after one expired). Price the plan
-  on the quote reads the plan as last saved and writes the scope lines.
-  Lines for a template you no longer use stay until you delete them.
+  on the quote reads the plan as last saved and writes a scope line per
+  template and part. Lines for a template or part you no longer use, or
+  a part every page skips, stay until you delete them. When a line no
+  longer matches the plan (every page skips its part, for example),
+  Price the plan says so and leaves it for you to delete or change.
 - **What the client sees.** A draft or sent quote shows the plan's pages
   as they are now, so the client's link follows your edits. When the
   client accepts, the quote keeps a copy of the pages, and the accepted
   quote shows that copy from then on. A declined quote still shows the
   plan while it is linked.
 - **Acceptance.** The plan moves to the new project and each page
-  becomes a task, with the page's hours as its estimate and the person
-  on the matching scope line assigned. If another quote on the same plan
-  was accepted first, the plan stays on that project and this quote makes
-  no page tasks; the Accept box says so.
+  becomes a task, with a subtask under it for each part the page does
+  not skip, named for the page and the part ("About us, Design"). A
+  subtask's estimate is the part's hours and the person on the scope
+  line for that template and part is up on it. Each of those people
+  gets one notification for all of theirs ("You have 12 parts on
+  Carter's Website"), following their setting for Assigned to a task,
+  not one per subtask. The page task itself has no estimate and nobody
+  on it, so its hours are never counted twice. On the project page the
+  subtasks sit under their page task, and Planner's Nobody up band
+  leaves out a task that still has open subtasks. If another quote on
+  the same plan was accepted first, the plan stays on that project and
+  this quote makes no page tasks; the Accept box says so.
 - **On a project.** The plan stays editable. Editing, moving, or
   removing a page never changes its task or a quote. Make tasks for new
-  pages adds a task for each page that has none, including a page whose
-  task was deleted. The new tasks are unassigned, with the page's hours
-  as the estimate. Restoring a deleted page task after that leaves the
+  pages adds a task, with its subtasks, for each page that has none,
+  including a page whose task was deleted. Each new subtask goes to the
+  person on the accepted quote's scope line for that template and part,
+  again with one notification per person; with no such person (a plan
+  started on a project, or a line with nobody) nobody is up on it. A
+  part added to a template later, or a part a page stops skipping, does
+  not add a subtask to a page that already has a task; add that subtask
+  on the task. Restoring a deleted page task after Make tasks leaves the
   page with two tasks; delete one.
 - **A project without a quote.** Start a site plan on the project page
   makes a plan for that project's client, already on the project. Build
@@ -477,7 +519,7 @@ time entry freezes its rate when it is saved.
   the week it should land. The week shows on Planner as "quoted" hours
   beside that person's name, on top of what is already planned, until
   the quote is accepted or declined. When it is accepted, the site plan
-  pages whose template matches that line become tasks assigned to that
+  subtasks for that line's template and part are assigned to that
   person.
 - **Margin** (people who see money only) is the line's amount minus its
   hours at the person's cost rate, as last saved. Cost rates are set on
@@ -645,7 +687,7 @@ top and a way back; the data is still your own.
 
 Settings also holds people (add, deactivate, default rates, cost
 rates, department), the permissions matrix, departments (with their
-lead), project templates, page templates for site plans, task statuses,
+lead), project templates, page templates and their parts for site plans, task statuses,
 task types, expense categories, invoice settings (numbering, terms,
 tax, notes, the project folder roots), estimator materials and
 pricing, imports, and Feedback: the bugs, changes and ideas the team sent from

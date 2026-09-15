@@ -1,5 +1,9 @@
 # Site plans
 
+Parts (a page quoted as Content, Design, Development), per-part pricing
+and page tasks with subtasks replaced this spec's hours, pricing and
+acceptance rules; see `docs/site-plan-parts.md`.
+
 The quote sitemap (`quote_sitemap_nodes`, edited inline on `/quotes/[id]`)
 becomes a site plan: a page tree that lives on its own screens, is priced
 on quotes, is frozen onto a quote when the client accepts, and moves to

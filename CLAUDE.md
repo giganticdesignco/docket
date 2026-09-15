@@ -64,10 +64,17 @@ migration; change both. Read it before writing queries. Not obvious:
   task review.
 - `site_plans` / `site_plan_pages` are a website's live page tree,
   linked from `quotes.site_plan_id` and moved to `site_plans.project_id`
-  by `accept_quote()`. Draft and sent quotes show the live pages;
-  acceptance copies them into `quote_pages`, which the accepted document
-  reads forever. `site_plan_pages.work_item_id` is a page's task;
-  `make_site_plan_tasks()` fills gaps and treats a soft-deleted task as none.
+  by `accept_quote()`. A page template is quoted in
+  `page_template_parts`; a page types over a part's hours in
+  `site_plan_pages.part_hours` (0 skips it). Scope lines carry
+  `template_id` and `part_id`. Acceptance copies the pages, parts
+  resolved, into `quote_pages`, which the accepted document reads
+  forever, and makes a task per page with a subtask per part; the page
+  task has no estimate, so hours are not counted twice. Each person put
+  on subtasks gets one `assigned` notification per run. Page templates
+  have no rate; a part line takes its task type's `default_rate`.
+  `site_plan_pages.work_item_id` is the page task; `make_site_plan_tasks()`
+  fills gaps and treats a soft-deleted task as none.
 - **Security definer functions in policies and views must be wrapped**
   as `(select public.fn())` so they run once per query, not per row.
   Per-row `has_permission()` and `task_visible()` made pages take

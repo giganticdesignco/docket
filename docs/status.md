@@ -3249,3 +3249,165 @@ showed `(pointer: coarse)` matching, and the review page's name and
 comment fields computed to 16px despite `text-sm`. In Luke's desktop
 Chrome the query did not match, and the quote editor's fields stayed
 at 14px. Not tried on a real iPhone.
+
+## Site plan parts (2026-09-15)
+
+A site plan page is now quoted in parts. Each page template lists its
+parts in order, usually Content, Design, and Development, each under a
+task type with the hours one page usually takes. A page can type over
+any part's hours, and 0 skips the part. Price the plan writes a scope
+line per template per part, and acceptance makes a task per page with a
+subtask per part. The spec is `docs/site-plan-parts.md`, on top of site
+plans v1 (`docs/site-plans.md`, which now points to it).
+
+**Luke's decisions.**
+
+1. Each template has its own ordered parts, each on a task type with
+   default hours. A new template starts with Content on Copywriting,
+   Design on Design/Production, and Development on Web Development,
+   matched by exact name; a default whose task type is missing is left
+   out.
+2. A page types over any part's hours for that page only, and 0 skips
+   the part. This replaces v1's single per-page hours.
+3. Scope lines group by template and part ("6 x Interior pages,
+   Design"), with the part's task type, the hours of the pages that do
+   not skip it, and their own person.
+4. Acceptance makes one task per page with a subtask per part the page
+   does not skip, carrying the part's hours and going to the person on
+   that template and part's line.
+5. Rates come from the task type. A part line takes its task type's
+   `default_rate`, as picking the task type on a blank line does.
+   Templates carry no rate. `accept_quote` still gives the project the
+   highest rate per task type over the quote's lines.
+6. One summary bell per person put on subtasks ("You have 12 parts on
+   Carter's Website", linking to the project), through `notify()` with
+   the `assigned` kind, so each person's setting for Assigned to a task
+   decides the bell and the email.
+7. Luke's answer after the spec was written: migration 1 seeds all
+   seven live templates with Content, Design, and Development at 0
+   hours. He types the hours.
+
+**Migration 1, `site_plan_parts`, applied.** It adds
+`page_template_parts` (staff read, `manage_settings` writes, clients and
+anon see nothing), `site_plan_pages.part_hours` (typed hours keyed by
+part id, with a strict check that keeps every value a number from 0 to
+9999), `quote_line_items.part_id` (no foreign key, so removing a part
+never rewrites a quote), and `quote_pages.parts` (a page's parts as
+accepted). It seeds the three parts at 0 hours on the seven templates,
+21 rows. It replaces `accept_quote` and `make_site_plan_tasks`: each
+page task has no estimate and nobody on it, and each part above 0 gets a
+subtask titled "{page}, {part}", in the template's order, with the
+person put on at insert so no per-subtask bell rings. After the page
+loop, each person put on subtasks gets one `assigned` notification.
+`shared/types/database.ts` was regenerated.
+
+**Migration 2, `drop_site_plan_v1_columns`, after the deploy.** It drops
+`site_plan_pages.hours` and `page_templates.hours`, `rate`, and
+`task_id`. The deployed v1 code reads all four, so it waits until this
+change is live and the pre-drop check (spec 10.1) finds no reader. The
+types are regenerated again after it.
+
+**What changed on screen.**
+
+- **Canvas.** A page card shows its hours as a button, highlighted when
+  the page typed over a part, with its parts in the tooltip. It opens a
+  Parts drawer: one row per part, the template's hours as a
+  placeholder, a reset per part, and "Use the template's hours" for all.
+  Changing a page's template clears what it typed. In full screen, Esc
+  closes the drawer first.
+- **Canvas on a phone.** The problems the phone-width check left for
+  this build are fixed. A selected card shows its actions in a row
+  (add under, add beside, nest, move out, remove) instead of only on
+  hover. Nest and move out move a page without dragging. A moved page's
+  path follows its new parent. The canvas opens at 100% on a phone
+  instead of fitting at 40%. The toolbar buttons are `sm`.
+- **Settings, Page templates.** The drawer edits the parts (add, remove,
+  reorder, task type, hours). The Rate column and field are gone.
+  Duplicate part names and parts with no task type are refused. A
+  template with no parts offers a button that adds the usual three.
+- **Site plan screen.** It saves `part_hours`, and the Make tasks box
+  explains the subtasks and the one notification per person.
+- **Quote editor.** Price the plan writes a line per template and part
+  at the part's task type's usual rate (blank today, since no task type
+  has one). Pricing again updates only description and hours, so a
+  typed rate stays. A part line the run no longer prices keeps its
+  hours, and the toast turns to a warning that counts it.
+- **Client document.** A line's page count comes from its part: the
+  live plan on a draft or sent quote, `quote_pages.parts` once accepted.
+  The public payload gains nothing.
+- **Planner.** The Nobody up band leaves out a task with open subtasks;
+  its subtasks show instead.
+- **Project page.** Subtasks sit under their page task, in part order.
+- The guide, CLAUDE.md, and `docs/site-plans.md` describe parts.
+
+**Known limitations.**
+
+- A part added to a template later, or a part a page stops skipping,
+  adds no subtask to a page that already has a task. The guide says to
+  add it by hand.
+- The seven templates' parts are at 0 hours until someone types hours,
+  so they price nothing and their pages get tasks with no subtasks.
+- Removing a part leaves its id on quote lines. An accepted quote keeps
+  its counts; a draft or sent quote's line shows no page count.
+- Typed hours for a removed part stay in `part_hours` and are ignored.
+- Pricing never removes lines; it warns about lines that no longer
+  match.
+- One rate per task type on the project, the highest quoted.
+- Part lines price blank while their task type has no usual rate.
+- The summary bell names a count and the project, not the pages, and
+  whoever accepts for the client or runs Make tasks gets no bell for
+  their own subtasks.
+- A subtask made by Make tasks has nobody up when the plan has no
+  accepted quote on its project or the line names nobody.
+- v1 lines (template, no part) show no page count and are not updated
+  by pricing. Only test quotes have them.
+- Subtasks carry no task type (work items have none), and renaming a
+  page does not rename its task or subtasks.
+
+**Open questions.** None. Luke's answer on seeding the seven templates
+closed the last one.
+
+**Verified.** Database first, every check in a DO block that ends in an
+exception, so nothing committed and nothing was emailed: 25 of 25
+passed. That covered RLS on `page_template_parts` for staff, clients,
+anon and Luke, and the `part_hours` check rejecting arrays, strings,
+null, negatives and 10000. It also covered acceptance with parts: page
+tasks with no estimate, subtasks per part in order carrying the hours,
+assignees from the matching part line, and one "You have N parts"
+notification per person, none for the actor. A second quote on the
+same plan made no tasks, Make tasks covered a later page only, a part
+added later made nothing, and the client path with no session worked.
+Afterward, no notification and no test row remained.
+
+In Luke's Chrome at desktop width, all five flows passed:
+- the page templates parts editor
+- the canvas hours button and parts drawer (typed over, 0 skips,
+  reset, template change clears)
+- the row for the selected page (Add under, Add beside, Nest, Move
+  out, Remove, with paths following moves)
+- Price the plan writing one line per template and part, and updating
+  those same lines on a second run
+- Make tasks with subtasks under each page task on the project and
+  the Planner
+
+There were no failed requests and no PGRST201. An audit confirmed 11 of
+12 claims. The 12th was part order, which a later phone step had saved
+differently. The seven real templates were untouched, and no
+notification went out. 36 ZZ TEST rows were removed.
+
+Seen once and not reproduced: one Save appeared to change another
+page's part hours. Two reruns did not repeat it, and the code keeps a
+separate `part_hours` object per page. If it happens again, capture the
+upsert body.
+
+**Phone pass (390 and 360), still open.**
+- Broken: on the project page, subtask rows do not fit.
+- Hard to use: the parts editor's move and remove buttons are 24px and
+  touch; the canvas card inputs are small; the quote total sits
+  off-screen in the scrolling table.
+- Also no prompt before leaving a plan with unsaved edits, where a
+  global shortcut key can navigate away.
+- Several cosmetic items.
+
+These go to Luke as a follow-up. Migration 2 still runs after this
+deploys.

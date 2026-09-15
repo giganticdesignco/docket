@@ -37,11 +37,11 @@ const __ad1 = useAsyncData('planner-capacity', async () => {
 const __ad2 = useAsyncData('planner-tasks', async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, priority, start_on, due_on, estimate_hours, is_milestone, project_id, assignee_id, projects(id, name, clients(name)), work_item_assignees(user_id)')
+    .select('id, title, status, priority, start_on, due_on, estimate_hours, is_milestone, project_id, assignee_id, parent_id, projects(id, name, clients(name)), work_item_assignees(user_id)')
     .order('due_on', { ascending: true, nullsFirst: false })
     .limit(3000)
   if (error) throw error
-  return data.filter(w => !ws.isDone(w.status) && !ws.isPaused(w.status))
+  return data.filter(w => !ws.isDone(w.status))
 }, fresh)
 const __ad3 = useAsyncData('planner-off', async () => {
   const { data, error } = await supabase.from('time_off').select('user_id, starts_on, ends_on, hours_per_day').lte('starts_on', to.value).gte('ends_on', from.value)
@@ -71,7 +71,9 @@ const __ad6 = useAsyncData('planner-departments', async () => {
 await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6])
 const { data: cap } = __ad1
 const { data: deptRows } = __ad6
-const { data: tasks, refresh: refreshTasks } = __ad2
+const { data: openTasks, refresh: refreshTasks } = __ad2
+// Paused tasks stay off the Planner, but a paused subtask still counts as open below.
+const tasks = computed(() => openTasks.value?.filter(w => !ws.isPaused(w.status)))
 const { data: plans, refresh: refreshPlans } = __ad5
 const refreshAll = () => Promise.all([refreshTasks(), refreshPlans()])
 useLive(['work_items', 'work_item_assignees', 'work_item_plans'], refreshAll)
@@ -212,8 +214,10 @@ const PALETTE = ['border-l-sky-500', 'border-l-violet-500', 'border-l-emerald-50
 const projectColor = (id: string | null) => { let n = 0; for (const ch of id ?? '') n = (n * 31 + ch.charCodeAt(0)) >>> 0; return PALETTE[n % PALETTE.length] }
 
 // Nobody up: open tasks with nobody up, whether or not people are on
-// them. Dated first.
-const unassigned = computed(() => (tasks.value ?? []).filter(t => !t.assignee_id && matches(t)).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999') || a.title.localeCompare(b.title)))
+// them, leaving out a task with open subtasks (a site plan page's task):
+// its subtasks are what someone takes. Dated first.
+const hasOpenSubtasks = computed(() => new Set((openTasks.value ?? []).flatMap(t => (t.parent_id ? [t.parent_id] : []))))
+const unassigned = computed(() => (tasks.value ?? []).filter(t => !t.assignee_id && !hasOpenSubtasks.value.has(t.id) && matches(t)).sort((a, b) => (a.due_on ?? '9999').localeCompare(b.due_on ?? '9999') || a.title.localeCompare(b.title)))
 
 // ---------- drag to plan ----------
 const dragging = ref<{ task: Task, fromUser: string | null } | null>(null)

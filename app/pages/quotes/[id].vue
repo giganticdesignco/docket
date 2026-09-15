@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { QuoteDoc } from '~~/shared/types/quote'
-import { groupPages } from '~~/shared/sitePlan'
+import { groupPages, groupParts, pageHours, partHours } from '~~/shared/sitePlan'
 
 // One quote. While draft or sent: edit the header and scope lines, link a
 // site plan and price it; preview; send; accept or decline on the client's
@@ -29,7 +29,7 @@ const __ad3 = useAsyncData(`quote-${id}-plan`, async () => {
   const { data: q, error } = await supabase.from('quotes').select('site_plan_id, site_plans(id, name, client_id, project_id, projects(id, name))').eq('id', id).single()
   if (error) throw error
   if (!q.site_plan_id || !q.site_plans) return { plan: null, pages: [] }
-  const { data: pages, error: pErr } = await supabase.from('site_plan_pages').select('id, parent_id, sort_order, title, path, template, template_id, hours').eq('plan_id', q.site_plan_id).order('sort_order').order('created_at')
+  const { data: pages, error: pErr } = await supabase.from('site_plan_pages').select('id, parent_id, sort_order, title, path, template, template_id, part_hours').eq('plan_id', q.site_plan_id).order('sort_order').order('created_at')
   if (pErr) throw pErr
   return { plan: q.site_plans, pages }
 }, fresh)
@@ -39,9 +39,9 @@ const __ad4 = useAsyncData('task-types-for-quotes', async () => {
   return data
 }, fresh)
 const __ad5 = useAsyncData('page-templates', async () => {
-  const { data, error } = await supabase.from('page_templates').select('id, name, hours, rate, task_id, color').order('position').order('name')
+  const { data, error } = await supabase.from('page_templates').select('id, name, color, page_template_parts(id, name, hours, task_id, position)').order('position').order('name')
   if (error) throw error
-  return data
+  return data.map(({ page_template_parts: parts, ...t }) => ({ ...t, parts: [...parts].sort((a, b) => a.position - b.position) }))
 }, fresh)
 const __ad6 = useActivePeople()
 // Cost and margin per saved line, for people who see money. Cost rates
@@ -53,7 +53,7 @@ const __ad7 = useAsyncData(`quote-${id}-margins`, async () => {
   return data
 }, fresh)
 await Promise.all([__ad1, __ad2, __ad3, __ad4, __ad5, __ad6, __ad7])
-const { data: templates } = __ad5
+const { data: templates, refresh: refreshTemplates } = __ad5
 const { data: quote, refresh: refreshQuote } = __ad1
 const { data: lines, refresh: refreshLines } = __ad2
 const { data: planData, refresh: refreshPlan } = __ad3
@@ -82,7 +82,7 @@ const stampYear = (iso: string) => stamp(iso, { year: true })
 
 // ---------- editor ----------
 
-type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null, assignee_id: string | null, target_week: string }
+type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null, part_id: string | null, assignee_id: string | null, target_week: string }
 const form = reactive({ title: '', intro: '', terms: '', valid_until: '', tax_rate: 0 as number | string })
 const draftLines = ref<LineDraft[]>([])
 const snapshot = ref('')
@@ -96,7 +96,7 @@ function loadEditor() {
   form.terms = q.terms ?? ''
   form.valid_until = q.valid_until ?? ''
   form.tax_rate = q.tax_rate ?? 0
-  draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id, assignee_id: l.assignee_id, target_week: l.target_week ?? '' }))
+  draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id, part_id: l.part_id, assignee_id: l.assignee_id, target_week: l.target_week ?? '' }))
   removedLines.clear()
   snapshot.value = JSON.stringify([form, draftLines.value])
 }
@@ -112,7 +112,7 @@ const taskOptions = computed(() => [{ label: 'No task type', value: '__none__' }
 const peopleOptions = computed(() => [{ label: 'Nobody yet', value: '__none__' }, ...(people.value ?? []).map(p => ({ label: p.full_name, value: p.id }))])
 
 function addLine() {
-  draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '', template_id: null, assignee_id: null, target_week: '' })
+  draftLines.value.push({ id: crypto.randomUUID(), description: '', task_id: null, hours: '', rate: '', amount: '', template_id: null, part_id: null, assignee_id: null, target_week: '' })
 }
 // Picking a task type fills in its usual rate and wording where the line
 // is still blank; typed values are left alone.
@@ -151,7 +151,7 @@ async function draftLinesFromBrief() {
   drafting.value = 'lines'
   try {
     const r = await $fetch<{ lines: { description: string, task_id: string | null, hours: number, rate: number }[], notes: string }>('/api/ai/quote-draft', { method: 'POST', body: { quoteId: id, brief: brief.value } })
-    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '', template_id: null, assignee_id: null, target_week: '' })
+    for (const l of r.lines) draftLines.value.push({ id: crypto.randomUUID(), description: l.description, task_id: l.task_id, hours: l.hours, rate: l.rate, amount: '', template_id: null, part_id: null, assignee_id: null, target_week: '' })
     briefNotes.value = r.notes
     briefOpen.value = false
     toast.add({ title: `${r.lines.length} lines proposed`, description: 'Edit them, then save the quote.', color: 'success' })
@@ -170,38 +170,58 @@ function removeLine(i: number) {
 // Site plan: the linked plan's live pages, grouped by template.
 const planGroups = computed(() => groupPages(planData.value?.pages ?? [], templates.value ?? []))
 const planHours = computed(() => planGroups.value.reduce((s, g) => s + g.hours, 0))
-// One scope line per template: "4 x Interior pages", the pages' hours,
-// the template's rate (or the rate already used for that task type on
-// this quote). It reads the plan fresh first, and run again it updates
-// the same lines instead of adding more. Lines are drafts until Save.
+const partById = computed(() => new Map((templates.value ?? []).flatMap(t => t.parts.map(p => [p.id, p] as const))))
+// One scope line per template per part: "6 x Interior pages, Design",
+// the hours of the pages that do not skip the part, at the part's task
+// type's usual rate. It reads the plan and templates fresh first, and
+// run again it updates the same lines instead of adding more. Lines are
+// drafts until Save.
 async function pricePlan() {
-  await refreshPlan()
+  await Promise.all([refreshPlan(), refreshTemplates()])
   const pages = planData.value?.pages ?? []
   if (!pages.length) {
     toast.add({ title: 'The site plan has no pages yet', color: 'neutral' })
     return
   }
-  const groups = groupPages(pages, templates.value ?? [])
+  const tpls = templates.value ?? []
+  const byId = new Map(tpls.map(t => [t.id, t]))
+  const priced = new Set<string>()
   let made = 0, updated = 0
-  for (const g of groups) {
-    if (!g.template || !g.pages.length) continue
-    const desc = `${g.pages.length} x ${g.template.name} ${g.pages.length === 1 ? 'page' : 'pages'}`
+  for (const g of groupParts(pages, tpls)) {
+    const n = g.pages.length
+    const desc = `${n} x ${g.template.name} ${n === 1 ? 'page' : 'pages'}, ${g.part.name}`
     const hours = round2(g.hours)
-    const line = draftLines.value.find(l => l.template_id === g.template!.id)
+    const line = draftLines.value.find(l => l.template_id === g.template.id && l.part_id === g.part.id)
     if (line) {
       line.description = desc
       line.hours = hours
+      priced.add(line.id)
       updated++
-    } else {
-      const sameTask = draftLines.value.find(l => l.task_id && l.task_id === g.template!.task_id && l.rate !== '')
-      draftLines.value.push({ id: crypto.randomUUID(), description: desc, task_id: g.template.task_id, hours, rate: g.template.rate ?? (sameTask ? sameTask.rate : ''), amount: '', template_id: g.template.id, assignee_id: null, target_week: '' })
-      made++
+      continue
     }
+    // The part's task type's usual rate, as picking that task type on a blank line gives (setTask).
+    const usual = taskTypes.value?.find(t => t.id === g.part.task_id)?.default_rate
+    const lineId = crypto.randomUUID()
+    draftLines.value.push({ id: lineId, description: desc, task_id: g.part.task_id, hours, rate: usual ?? '', amount: '', template_id: g.template.id, part_id: g.part.id, assignee_id: null, target_week: '' })
+    priced.add(lineId)
+    made++
   }
-  const untyped = groups.find(g => !g.template)?.pages.length ?? 0
-  toast.add({ title: `${made} ${made === 1 ? 'line' : 'lines'} added, ${updated} updated`, description: untyped ? `${untyped} ${untyped === 1 ? 'page has' : 'pages have'} no template and ${untyped === 1 ? 'was' : 'were'} left out.` : 'Check the rates, then save.', color: 'success' })
+  // Pages that priced nothing, and part lines this run did not price
+  // (every page skips the part now, or the part is gone): they keep
+  // their old hours, so say so.
+  const left = pages.filter(p => pageHours(p, byId) === 0).length
+  const stale = draftLines.value.filter(l => l.part_id && !priced.has(l.id)).length
+  const notes = [
+    left ? `${left} ${left === 1 ? 'page has' : 'pages have'} no hours (no template, a template with no hours yet, or every part skipped) and ${left === 1 ? 'was' : 'were'} left out.` : '',
+    stale ? `${stale} ${stale === 1 ? 'line no longer matches' : 'lines no longer match'} the plan. Delete ${stale === 1 ? 'it' : 'them'} or set the hours.` : '',
+    'Check the rates, then save.',
+  ].filter(Boolean)
+  toast.add({ title: `${made} ${made === 1 ? 'line' : 'lines'} added, ${updated} updated`, description: notes.join(' '), color: stale ? 'warning' : 'success' })
 }
-const pagesFor = (l: LineDraft) => (l.template_id ? (planData.value?.pages ?? []).filter(p => p.template_id === l.template_id).length : 0)
+const pagesFor = (l: LineDraft) => {
+  const part = l.part_id ? partById.value.get(l.part_id) : undefined
+  return part ? (planData.value?.pages ?? []).filter(p => p.template_id === l.template_id && partHours(p, part) > 0).length : 0
+}
 
 // Link a site plan of this client that is not on a project yet, start a
 // new one, or take the link off. Unsaved edits are saved first.
@@ -283,7 +303,7 @@ async function save(): Promise<boolean> {
     }
     if (draftLines.value.length) {
       const { error } = await supabase.from('quote_line_items').upsert(draftLines.value.map((l, i) => ({
-        id: l.id, quote_id: id, sort_order: i + 1, description: l.description.trim(), task_id: l.task_id, template_id: l.template_id,
+        id: l.id, quote_id: id, sort_order: i + 1, description: l.description.trim(), task_id: l.task_id, template_id: l.template_id, part_id: l.part_id,
         hours: l.hours === '' ? null : Number(l.hours), rate: l.rate === '' ? null : Number(l.rate), amount: lineAmount(l),
         assignee_id: l.assignee_id, target_week: l.assignee_id && l.target_week ? l.target_week : null,
       })), { onConflict: 'id' })
@@ -428,10 +448,10 @@ async function deleteQuote() {
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h2 class="text-lg font-semibold">Scope</h2>
         <span class="text-sm text-muted">Hours x rate, or a flat amount.</span>
-        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-sparkles" class="ml-auto" @click="briefOpen = true;">Draft lines</UButton>
-        <UButton v-if="!planData?.plan" size="xs" variant="outline" color="neutral" icon="i-lucide-list-tree" @click="openPlanDrawer">Add site plan</UButton>
-        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" :to="`/estimator?quote=${id}`">Add signage job</UButton>
-        <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-plus" @click="addLine">Add line</UButton>
+        <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-sparkles" class="ml-auto" @click="briefOpen = true;">Draft lines</UButton>
+        <UButton v-if="!planData?.plan" size="sm" variant="outline" color="neutral" icon="i-lucide-list-tree" @click="openPlanDrawer">Add site plan</UButton>
+        <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-calculator" :to="`/estimator?quote=${id}`">Add signage job</UButton>
+        <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-plus" @click="addLine">Add line</UButton>
       </div>
       <UCard :ui="{ body: 'p-0 sm:p-0' }">
         <div class="table-scroll"><table class="w-full text-sm">
@@ -499,9 +519,9 @@ async function deleteQuote() {
       <template v-if="planData?.plan">
         <div class="flex flex-wrap items-center gap-4">
           <h2 class="text-lg font-semibold">Site plan</h2>
-          <span class="text-sm text-muted">The pages the site will have. Price the plan writes one scope line per template.</span>
-          <UButton v-if="planData.pages.length" size="xs" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" @click="pricePlan">Price the plan</UButton>
-          <UButton size="xs" variant="outline" color="neutral" icon="i-lucide-link" :class="planData.pages.length ? '' : 'ml-auto'" @click="openPlanDrawer">Change</UButton>
+          <span class="text-sm text-muted">The pages the site will have. Price the plan writes a scope line for each template and part.</span>
+          <UButton v-if="planData.pages.length" size="sm" variant="outline" color="neutral" icon="i-lucide-calculator" class="ml-auto" @click="pricePlan">Price the plan</UButton>
+          <UButton size="sm" variant="outline" color="neutral" icon="i-lucide-link" :class="planData.pages.length ? '' : 'ml-auto'" @click="openPlanDrawer">Change</UButton>
         </div>
         <UCard>
           <div class="text-sm">

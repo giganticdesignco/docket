@@ -1911,6 +1911,51 @@ export type Database = {
           },
         ]
       }
+      page_template_parts: {
+        Row: {
+          created_at: string
+          hours: number
+          id: string
+          name: string
+          position: number
+          task_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          hours?: number
+          id?: string
+          name: string
+          position?: number
+          task_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          hours?: number
+          id?: string
+          name?: string
+          position?: number
+          task_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_template_parts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "page_template_parts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "page_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       page_templates: {
         Row: {
           color: string
@@ -2396,6 +2441,7 @@ export type Database = {
           details: Json | null
           hours: number | null
           id: string
+          part_id: string | null
           quote_id: string
           rate: number | null
           sort_order: number
@@ -2411,6 +2457,7 @@ export type Database = {
           details?: Json | null
           hours?: number | null
           id?: string
+          part_id?: string | null
           quote_id: string
           rate?: number | null
           sort_order?: number
@@ -2426,6 +2473,7 @@ export type Database = {
           details?: Json | null
           hours?: number | null
           id?: string
+          part_id?: string | null
           quote_id?: string
           rate?: number | null
           sort_order?: number
@@ -2497,6 +2545,7 @@ export type Database = {
           depth: number
           hours: number | null
           id: string
+          parts: Json
           path: string | null
           quote_id: string
           sort_order: number
@@ -2508,6 +2557,7 @@ export type Database = {
           depth?: number
           hours?: number | null
           id?: string
+          parts?: Json
           path?: string | null
           quote_id: string
           sort_order: number
@@ -2519,6 +2569,7 @@ export type Database = {
           depth?: number
           hours?: number | null
           id?: string
+          parts?: Json
           path?: string | null
           quote_id?: string
           sort_order?: number
@@ -2993,6 +3044,7 @@ export type Database = {
           hours: number | null
           id: string
           parent_id: string | null
+          part_hours: Json
           path: string | null
           plan_id: string
           sort_order: number
@@ -3006,6 +3058,7 @@ export type Database = {
           hours?: number | null
           id?: string
           parent_id?: string | null
+          part_hours?: Json
           path?: string | null
           plan_id: string
           sort_order?: number
@@ -3019,6 +3072,7 @@ export type Database = {
           hours?: number | null
           id?: string
           parent_id?: string | null
+          part_hours?: Json
           path?: string | null
           plan_id?: string
           sort_order?: number

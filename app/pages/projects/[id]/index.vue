@@ -37,7 +37,7 @@ const __ad3 = useClientNames()
 const __ad4 = useAsyncData(`project-${id}-work-items`, async () => {
   const { data, error } = await supabase
     .from('work_items')
-    .select('id, title, status, due_on, estimate_hours, work_item_assignees(user_id, profiles(full_name))')
+    .select('id, title, status, due_on, estimate_hours, parent_id, position, work_item_assignees(user_id, profiles(full_name))')
     .eq('project_id', id)
     .order('due_on', { ascending: true, nullsFirst: false })
   if (error) throw error
@@ -48,6 +48,16 @@ const __ad6 = useWorkStatuses()
 const showDone = ref(false)
 const openItems = computed(() => (workItems.value ?? []).filter(i => !ws.isDone(i.status)))
 const visibleItems = computed(() => (showDone.value ? workItems.value ?? [] : openItems.value))
+// Subtasks tucked under their parent, in their order, when the parent
+// is listed too (as the Tasks page does).
+const listedItems = computed(() => {
+  const list = visibleItems.value
+  const ids = new Set(list.map(i => i.id))
+  const kids = new Map<string, typeof list>()
+  for (const i of list) if (i.parent_id && ids.has(i.parent_id)) kids.set(i.parent_id, [...(kids.get(i.parent_id) ?? []), i])
+  return list.flatMap(i => (i.parent_id && ids.has(i.parent_id) ? [] : [i, ...(kids.get(i.id) ?? []).sort((a, b) => a.position - b.position)]))
+})
+const tucked = (i: { parent_id: string | null }) => !!i.parent_id && visibleItems.value.some(x => x.id === i.parent_id)
 const creatingTask = ref(false)
 function taskCreated() {
   creatingTask.value = false
@@ -371,7 +381,7 @@ async function copyFolder() {
         </div>
       </template>
       <ul v-if="visibleItems.length" class="divide-y divide-default text-sm">
-        <li v-for="i in visibleItems" :key="i.id" class="flex items-center gap-3 px-4 py-2">
+        <li v-for="i in listedItems" :key="i.id" class="flex items-center gap-3 py-2 pr-4" :class="tucked(i) ? 'pl-10' : 'pl-4'">
           <div class="min-w-0 flex-1">
             <NuxtLink :to="`/tasks/${i.id}`" class="font-medium hover:underline">{{ i.title }}</NuxtLink>
             <div class="truncate text-muted">{{ i.work_item_assignees.map(a => a.profiles?.full_name).join(', ') || 'Unassigned' }}</div>
