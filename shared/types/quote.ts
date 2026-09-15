@@ -12,6 +12,9 @@ export type QuoteDoc = {
     terms: string | null
     valid_until: string | null
     subtotal: number
+    tax_rate: number
+    tax_amount: number
+    total: number
     accepted_at: string | null
     accepted_by: string | null
     declined_at: string | null

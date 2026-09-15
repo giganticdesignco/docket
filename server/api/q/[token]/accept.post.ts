@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     await sendEmail(admin, {
       to: [q.profiles.email],
       subject: `${name} accepted quote ${doc.quote.number}`,
-      text: `${name}${email ? ` (${email})` : ''} accepted "${doc.quote.title}" for ${doc.client.name}, ${money(doc.quote.subtotal)}.\n\nA project was created from it: ${origin}/quotes/${doc.quote.id}`,
+      text: `${name}${email ? ` (${email})` : ''} accepted "${doc.quote.title}" for ${doc.client.name}, ${money(doc.quote.total)}.\n\nA project was created from it: ${origin}/quotes/${doc.quote.id}`,
     })
   }
   return loadQuoteDoc(admin, { token })

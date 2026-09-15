@@ -87,7 +87,7 @@ const __ad9 = useAsyncData(`project-${id}-item-hours`, async () => {
 // what RLS allows;
 // the UI also hides it behind canBill.
 const __ad10 = useAsyncData(`project-${id}-quotes`, async () => {
-  const { data, error } = await supabase.from('quotes').select('id, number, title, status, subtotal, valid_until').eq('project_id', id).order('created_at', { ascending: false }).limit(20)
+  const { data, error } = await supabase.from('quotes').select('id, number, title, status, total, valid_until').eq('project_id', id).order('created_at', { ascending: false }).limit(20)
   if (error) throw error
   return data
 }, fresh)
@@ -260,7 +260,7 @@ async function copyFolder() {
           <li v-for="q in quotes" :key="q.id" class="flex items-center gap-3 px-4 py-2">
             <NuxtLink :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
             <span class="min-w-0 flex-1 truncate">{{ q.title }}</span>
-            <span v-if="seeAmounts" class="tabular-nums">{{ money(q.subtotal) }}</span>
+            <span v-if="seeAmounts" class="tabular-nums">{{ money(q.total) }}</span>
             <UBadge :color="quoteBadge(q).color" variant="subtle" size="sm">{{ quoteBadge(q).label }}</UBadge>
           </li>
         </ul>

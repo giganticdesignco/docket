@@ -25,13 +25,13 @@ export default defineEventHandler(async (event) => {
   const longDate = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const intro = (body.message ?? '').trim() || `Here is our quote for ${doc.quote.title}.`
   const subject = `Quote ${doc.quote.number}: ${doc.quote.title}`
-  const summary = [`Quote ${doc.quote.number}`, `Total: ${money(doc.quote.subtotal)}`, doc.quote.valid_until ? `Valid until ${longDate(doc.quote.valid_until)}` : ''].filter(Boolean).join('\n')
+  const summary = [`Quote ${doc.quote.number}`, `Total: ${money(doc.quote.total)}`, doc.quote.valid_until ? `Valid until ${longDate(doc.quote.valid_until)}` : ''].filter(Boolean).join('\n')
   const text = [intro, summary, `Read it and accept online here:\n${link}`, `Thanks,\n${me?.full_name ?? doc.company.name}\n${doc.company.name}`].join('\n\n')
   const html = `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;max-width:560px">
 <p style="margin:0 0 16px">${escapeHtml(intro).replace(/\n/g, '<br>')}</p>
 <table style="border-collapse:collapse;margin:0 0 16px;font-size:15px">
 <tr><td style="padding:2px 16px 2px 0;color:#555">Quote</td><td style="padding:2px 0"><strong>${escapeHtml(doc.quote.number)}</strong></td></tr>
-<tr><td style="padding:2px 16px 2px 0;color:#555">Total</td><td style="padding:2px 0"><strong>${money(doc.quote.subtotal)}</strong></td></tr>
+<tr><td style="padding:2px 16px 2px 0;color:#555">Total</td><td style="padding:2px 0"><strong>${money(doc.quote.total)}</strong></td></tr>
 ${doc.quote.valid_until ? `<tr><td style="padding:2px 16px 2px 0;color:#555">Valid until</td><td style="padding:2px 0">${longDate(doc.quote.valid_until)}</td></tr>` : ''}
 </table>
 <p style="margin:0 0 24px"><a href="${link}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px">Read and accept the quote</a></p>

@@ -2947,3 +2947,39 @@ The fix is a database change, so production was fixed the moment the
 migration applied; no deploy was involved. `schema.sql` also gained the
 `security_invoker = false` and the `deleted_at` filter that the live
 view had picked up without being mirrored.
+
+## An optional tax line on quotes (2026-09-15)
+
+From feedback on Q-2026-002 ("we need an optional tax line"). Quotes
+had a `subtotal` and nothing else; invoices already had `tax_rate`,
+`tax_amount`, and `total`. Gave quotes the same three columns,
+defaulting to 0, which shows no tax line, same as an invoice at 0%.
+
+`quote_recalc()` now applies `tax_rate` to the whole subtotal (quote
+lines have no per-line `taxable` flag the way invoice lines do, so
+there is one rate for the quote, not a mix). A new
+`quotes_tax_recalc` trigger reruns it when the rate changes, mirroring
+`invoices_tax_recalc`.
+
+Every place that showed a quote's `subtotal` as if it were the amount
+owed now reads `total` instead: the quote list and board, the client
+and project quote cards, the client portal, the send email, and the
+accept notification. `subtotal` stays where it means the pre-tax
+figure: the editor's line total and the printed subtotal line. The
+quote editor gained a Tax rate field next to Valid until, and the
+scope table's footer shows Subtotal, Tax, and Total rows once a rate
+is set.
+
+Verified the database side directly: set Q-2026-002's `tax_rate` to
+8% and confirmed `quote_recalc` produced $39.61 tax on a $495.16
+subtotal and a $534.77 total, then checked the public `/q/<token>`
+page rendered that breakdown correctly, then reverted the rate to 0
+and confirmed the page went back to a single Total row. Could not
+verify the staff editor screen in the browser this session: Luke's
+real Chrome could not reach this session's local dev server
+(`localhost:3000` failed to load from claude-in-chrome, both by
+hostname and by LAN IP, while the same address worked from the
+in-app Browser pane and from `curl`), unlike the working pattern in
+the workflow memory. The editor's tax field and totals follow the
+already-verified invoice editor's pattern exactly and `npx nuxt
+typecheck` is clean, but worth a look next time the editor is open.

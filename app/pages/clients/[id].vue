@@ -43,7 +43,7 @@ const __ad3 = useAsyncData(`client-${id}-retainers`, async () => {
 // Quotes, Docket invoices, then Harvest history. RLS gives staff nothing
 // for any of them, so no admin check on the queries.
 const __ad4 = useAsyncData(`client-${id}-quotes`, async () => {
-  const { data, error } = await supabase.from('quotes').select('id, number, title, status, subtotal, valid_until').eq('client_id', id).order('created_at', { ascending: false }).limit(20)
+  const { data, error } = await supabase.from('quotes').select('id, number, title, status, total, valid_until').eq('client_id', id).order('created_at', { ascending: false }).limit(20)
   if (error) throw error
   return data
 }, fresh)
@@ -497,7 +497,7 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
           <li v-for="q in quotes" :key="q.id" class="flex items-center gap-3 px-4 py-2">
             <NuxtLink :to="`/quotes/${q.id}`" class="font-medium tabular-nums hover:underline">{{ q.number }}</NuxtLink>
             <span class="min-w-0 flex-1 truncate">{{ q.title }}</span>
-            <span class="tabular-nums">{{ money(q.subtotal) }}</span>
+            <span class="tabular-nums">{{ money(q.total) }}</span>
             <UBadge :color="q.status === 'accepted' ? 'success' : q.status === 'sent' ? 'info' : q.status === 'declined' || q.status === 'expired' ? 'neutral' : 'neutral'" variant="subtle" size="sm">{{ q.status }}</UBadge>
           </li>
         </ul>

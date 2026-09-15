@@ -78,7 +78,7 @@ const stampYear = (iso: string) => stamp(iso, { year: true })
 
 type LineDraft = { id: string, description: string, task_id: string | null, hours: number | string, rate: number | string, amount: number | string, template_id: string | null, assignee_id: string | null, target_week: string }
 type NodeDraft = { id: string, parent_id: string | null, line_item_id: string | null, title: string, path: string, template: string, template_id: string | null, hours: number | string | null }
-const form = reactive({ title: '', intro: '', terms: '', valid_until: '' })
+const form = reactive({ title: '', intro: '', terms: '', valid_until: '', tax_rate: 0 as number | string })
 const draftLines = ref<LineDraft[]>([])
 const draftNodes = ref<NodeDraft[]>([])
 const snapshot = ref('')
@@ -92,6 +92,7 @@ function loadEditor() {
   form.intro = q.intro ?? ''
   form.terms = q.terms ?? ''
   form.valid_until = q.valid_until ?? ''
+  form.tax_rate = q.tax_rate ?? 0
   draftLines.value = (lines.value ?? []).map(l => ({ id: l.id, description: l.description, task_id: l.task_id, hours: l.hours ?? '', rate: l.rate ?? '', amount: l.amount, template_id: l.template_id, assignee_id: l.assignee_id, target_week: l.target_week ?? '' }))
   draftNodes.value = (nodes.value ?? []).map(n => ({ id: n.id, parent_id: n.parent_id, line_item_id: n.line_item_id, title: n.title, path: n.path ?? '', template: n.template ?? '', template_id: n.template_id, hours: n.hours }))
   removedLines.clear()
@@ -103,7 +104,9 @@ watch([quote, lines, nodes], loadEditor)
 const dirty = computed(() => JSON.stringify([form, draftLines.value, draftNodes.value]) !== snapshot.value)
 
 const lineAmount = (l: LineDraft) => (l.hours !== '' && l.rate !== '' ? round2(Number(l.hours) * Number(l.rate)) : Number(l.amount) || 0)
-const editorTotal = computed(() => round2(draftLines.value.reduce((s, l) => s + lineAmount(l), 0)))
+const editorSubtotal = computed(() => round2(draftLines.value.reduce((s, l) => s + lineAmount(l), 0)))
+const editorTax = computed(() => round2(editorSubtotal.value * (Number(form.tax_rate) || 0) / 100))
+const editorTotal = computed(() => round2(editorSubtotal.value + editorTax.value))
 const taskOptions = computed(() => [{ label: 'No task type', value: '__none__' }, ...(taskTypes.value ?? []).map(t => ({ label: t.name, value: t.id }))])
 const peopleOptions = computed(() => [{ label: 'Nobody yet', value: '__none__' }, ...(people.value ?? []).map(p => ({ label: p.full_name, value: p.id }))])
 
@@ -225,7 +228,8 @@ async function save(): Promise<boolean> {
   saving.value = true
   try {
     const { error: qErr } = await supabase.from('quotes').update({
-      title: form.title.trim(), intro: form.intro.trim() || null, terms: form.terms.trim() || null, valid_until: form.valid_until || null, updated_at: new Date().toISOString(),
+      title: form.title.trim(), intro: form.intro.trim() || null, terms: form.terms.trim() || null, valid_until: form.valid_until || null,
+      tax_rate: Number(form.tax_rate) || 0, updated_at: new Date().toISOString(),
     }).eq('id', id)
     if (qErr) throw qErr
     if (removedNodes.size) {
@@ -376,6 +380,9 @@ async function deleteQuote() {
           <UFormField label="Valid until">
             <UInput v-model="form.valid_until" type="date" class="w-full" />
           </UFormField>
+          <UFormField label="Tax rate (%)" help="Optional. Leave at 0 for no tax line.">
+            <UInput v-model="form.tax_rate" type="number" :min="0" step="0.01" class="w-full" />
+          </UFormField>
           <UFormField label="Introduction" class="md:col-span-4" help="Scope narrative, printed above the lines.">
             <UTextarea v-model="form.intro" :rows="4" class="w-full" />
             <div class="mt-1 flex justify-end"><UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-sparkles" :loading="drafting === 'intro'" @click="draftIntro">{{ form.intro ? 'Improve with the assistant' : 'Draft with the assistant' }}</UButton></div>
@@ -434,7 +441,17 @@ async function deleteQuote() {
             </tr>
           </tbody>
           <tfoot>
-            <tr class="border-t border-default">
+            <tr v-if="editorTax" class="border-t border-default">
+              <td colspan="5" class="px-4 py-1 text-right text-muted">Subtotal</td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ money(editorSubtotal) }}</td>
+              <td v-if="seeMoney" /><td />
+            </tr>
+            <tr v-if="editorTax">
+              <td colspan="5" class="px-4 py-1 text-right text-muted">Tax ({{ form.tax_rate }}%)</td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ money(editorTax) }}</td>
+              <td v-if="seeMoney" /><td />
+            </tr>
+            <tr :class="editorTax ? '' : 'border-t border-default'">
               <td colspan="5" class="px-4 py-2 text-right font-medium">Total</td>
               <td class="px-2 py-2 text-right font-semibold tabular-nums">{{ money(editorTotal) }}</td>
               <td v-if="seeMoney" class="px-2 py-2 text-right tabular-nums" :class="marginTotal < 0 ? 'text-error' : 'text-muted'" :title="marginLines ? `Across the ${marginLines} saved ${marginLines === 1 ? 'line' : 'lines'} with a person and a cost rate` : 'Give a line a person with a cost rate, then save'">

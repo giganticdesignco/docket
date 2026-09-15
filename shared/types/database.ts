@@ -2586,8 +2586,11 @@ export type Database = {
           sent_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal: number
+          tax_amount: number
+          tax_rate: number
           terms: string | null
           title: string
+          total: number
           updated_at: string
           valid_until: string | null
         }
@@ -2610,8 +2613,11 @@ export type Database = {
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
           terms?: string | null
           title: string
+          total?: number
           updated_at?: string
           valid_until?: string | null
         }
@@ -2634,8 +2640,11 @@ export type Database = {
           sent_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
           terms?: string | null
           title?: string
+          total?: number
           updated_at?: string
           valid_until?: string | null
         }
@@ -5132,3 +5141,4 @@ export const Constants = {
     },
   },
 } as const
+

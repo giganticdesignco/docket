@@ -20,7 +20,7 @@ const { data } = await useAsyncData(`portal-${clientId.value}`, async () => {
   const [client, settings, quotes, invoices, harvest, reviews, retainers, tasks] = await Promise.all([
     supabase.from('clients').select('id, name').eq('id', clientId.value).single(),
     supabase.from('invoice_settings').select('company_name, company_email, company_phone, payment_instructions').eq('id', true).maybeSingle(),
-    supabase.from('quotes').select('id, number, title, status, subtotal, valid_until, public_token, sent_at, accepted_at').eq('client_id', clientId.value).neq('status', 'draft').order('created_at', { ascending: false }),
+    supabase.from('quotes').select('id, number, title, status, total, valid_until, public_token, sent_at, accepted_at').eq('client_id', clientId.value).neq('status', 'draft').order('created_at', { ascending: false }),
     supabase.from('invoices').select('id, number, subject, status, issue_date, due_date, total, due_amount, public_token').eq('client_id', clientId.value).in('status', ['sent', 'paid']).order('issue_date', { ascending: false }),
     supabase.from('harvest_invoices').select('id, number, subject, state, issue_date, due_date, amount, due_amount').eq('client_id', clientId.value).order('issue_date', { ascending: false }).limit(50),
     supabase.from('work_items').select('id, title, status, shared_at, client_decision, client_decision_at, public_token, projects!inner(name, client_id)').eq('projects.client_id', clientId.value).not('shared_at', 'is', null).order('shared_at', { ascending: false }),
@@ -172,7 +172,7 @@ const clientInvoiceBadge = (i: { status?: string, state?: string, due_date: stri
               <li v-for="q in data.quotes" :key="q.id" class="flex items-center gap-3 px-4 py-3">
                 <div class="min-w-0 flex-1">
                   <a :href="`/q/${q.public_token}`" class="font-medium hover:underline">{{ q.number }} {{ q.title }}</a>
-                  <div class="text-xs text-muted">{{ money(q.subtotal) }}<template v-if="q.valid_until && q.status === 'sent'"> · valid until {{ shortDate(q.valid_until) }}</template></div>
+                  <div class="text-xs text-muted">{{ money(q.total) }}<template v-if="q.valid_until && q.status === 'sent'"> · valid until {{ shortDate(q.valid_until) }}</template></div>
                 </div>
                 <UBadge :color="clientQuoteBadge(q).color" variant="subtle" size="sm">{{ clientQuoteBadge(q).label }}</UBadge>
                 <UButton :to="`/q/${q.public_token}`" external size="xs" variant="outline" color="neutral">{{ q.status === 'sent' ? 'Review' : 'Open' }}</UButton>

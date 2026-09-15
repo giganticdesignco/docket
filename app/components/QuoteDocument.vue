@@ -50,7 +50,7 @@ const pageCount = (nodes: SitemapNode[]): number => nodes.reduce((s, n) => s + 1
           <dd>{{ date(doc.quote.valid_until) }}</dd>
         </template>
         <dt class="text-gray-500">Total</dt>
-        <dd class="font-semibold">{{ money(doc.quote.subtotal) }}</dd>
+        <dd class="font-semibold">{{ money(doc.quote.total) }}</dd>
       </dl>
     </div>
 
@@ -81,11 +81,19 @@ const pageCount = (nodes: SitemapNode[]): number => nodes.reduce((s, n) => s + 1
         </tr>
       </tbody>
       <tfoot>
-        <tr class="border-t-2 border-gray-900">
+        <tr v-if="doc.quote.tax_amount" class="border-t-2 border-gray-900">
+          <td colspan="3" class="pt-2 text-right text-gray-500">Subtotal</td>
+          <td class="pt-2 text-right tabular-nums">{{ money(doc.quote.subtotal) }}</td>
+        </tr>
+        <tr v-if="doc.quote.tax_amount">
+          <td colspan="3" class="py-1 text-right text-gray-500">Tax ({{ doc.quote.tax_rate }}%)</td>
+          <td class="py-1 text-right tabular-nums">{{ money(doc.quote.tax_amount) }}</td>
+        </tr>
+        <tr :class="doc.quote.tax_amount ? 'border-t border-gray-200' : 'border-t-2 border-gray-900'">
           <td class="pt-2 text-base font-semibold">Total</td>
           <td class="pt-2 text-right text-sm text-gray-500 tabular-nums">{{ totalHours ? formatHours(totalHours) : '' }}</td>
           <td />
-          <td class="pt-2 text-right text-base font-semibold tabular-nums">{{ money(doc.quote.subtotal) }}</td>
+          <td class="pt-2 text-right text-base font-semibold tabular-nums">{{ money(doc.quote.total) }}</td>
         </tr>
       </tfoot>
     </table>

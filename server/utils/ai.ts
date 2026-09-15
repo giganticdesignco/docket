@@ -158,7 +158,7 @@ export function docketTools(c: Caller): Tool[] {
       input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
       run: async (i) => {
         const [{ data: q }, { data: lines }] = await Promise.all([
-          sb.from('quotes').select('id, number, title, status, intro, terms, subtotal, valid_until, clients(name)').eq('id', String(i.id)).maybeSingle(),
+          sb.from('quotes').select('id, number, title, status, intro, terms, subtotal, tax_rate, tax_amount, total, valid_until, clients(name)').eq('id', String(i.id)).maybeSingle(),
           sb.from('quote_line_items').select('description, hours, rate, amount, sort_order').eq('quote_id', String(i.id)).order('sort_order'),
         ])
         return { quote: q, lines }

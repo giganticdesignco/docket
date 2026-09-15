@@ -374,7 +374,9 @@ the next one what it needs, so nothing is typed twice.
    and title) and puts the jobs on it in one go. Design and web
    lines are typed by hand, with hours and a rate, or the Assistant can
    draft them from a short brief using what similar work cost before.
-   Add an intro, terms, and a valid-until date.
+   Add an intro, terms, and a valid-until date. A tax rate is optional:
+   leave it at 0 for no tax line, or set a percent and the quote shows
+   a subtotal, tax, and total, applied to the whole quote.
 4. **Map the site.** For web work, build the sitemap as a tree on the
    quote: a card per page with its title and path, a child or a sibling
    from the card, drag a card onto another to move it. Give each page a

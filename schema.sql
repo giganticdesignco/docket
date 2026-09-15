@@ -319,9 +319,19 @@ end $$;
 
 create or replace function public.quote_recalc(p_quote_id uuid) returns void
 language plpgsql security definer set search_path = '' as $$
+declare
+  v_sub  numeric := 0;
+  v_rate numeric;
+  v_tax  numeric;
 begin
+  select tax_rate into v_rate from public.quotes where id = p_quote_id;
+  if v_rate is null then return; end if;
+  select coalesce(sum(amount), 0) into v_sub from public.quote_line_items where quote_id = p_quote_id;
+  v_tax := round(v_sub * v_rate / 100, 2);
   update public.quotes set
-    subtotal = coalesce((select sum(amount) from public.quote_line_items where quote_id = p_quote_id), 0),
+    subtotal   = v_sub,
+    tax_amount = v_tax,
+    total      = v_sub + v_tax,
     updated_at = now()
   where id = p_quote_id;
 end $$;
@@ -333,6 +343,16 @@ begin
   if tg_op = 'INSERT' or (tg_op = 'UPDATE' and new.quote_id is distinct from old.quote_id) then
     perform public.quote_recalc(new.quote_id);
   end if;
+  return null;
+end $$;
+
+-- Tax rate is on the quote header, not the trigger's row set, so a rate
+-- edit needs its own recalc (quote_lines_changed only fires from the
+-- line items table).
+create or replace function public.quote_tax_changed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform public.quote_recalc(new.id);
   return null;
 end $$;
 
@@ -844,6 +864,9 @@ create table quotes (
   terms          text,
   valid_until    date,
   subtotal       numeric(12,2) not null default 0,  -- kept by quote_recalc()
+  tax_rate       numeric(5,2) not null default 0,   -- percent; 0 shows no tax line
+  tax_amount     numeric(12,2) not null default 0,  -- kept by quote_recalc()
+  total          numeric(12,2) not null default 0,  -- subtotal + tax_amount, kept by quote_recalc()
   public_token   text not null unique
                  default replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   sent_at        timestamptz,
@@ -859,6 +882,10 @@ create table quotes (
 );
 
 create index quotes_client_status on quotes (client_id, status);
+create trigger quotes_tax_recalc
+  after update of tax_rate on quotes
+  for each row when (old.tax_rate is distinct from new.tax_rate)
+  execute function public.quote_tax_changed();
 
 -- Page templates: what a kind of page usually takes. A sitemap page
 -- picks one and inherits its hours (or overrides them), and "Price the
@@ -2839,6 +2866,7 @@ revoke execute on function public.work_item_touch()          from public, anon, 
 revoke execute on function public.quote_line_amount()        from public, anon, authenticated;
 revoke execute on function public.quote_recalc(uuid)         from public, anon, authenticated;
 revoke execute on function public.quote_lines_changed()      from public, anon, authenticated;
+revoke execute on function public.quote_tax_changed()         from public, anon, authenticated;
 revoke execute on function public.next_quote_number()        from public, anon, authenticated;
 revoke execute on function public.create_quote(uuid, text)   from public, anon;
 revoke execute on function public.accept_quote(uuid, text, text)  from public, anon;

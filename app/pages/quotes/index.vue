@@ -11,7 +11,7 @@ const toast = useToast()
 const __ad1 = useAsyncData('quotes', async () => {
   const { data, error } = await supabase
     .from('quotes')
-    .select('id, number, title, status, subtotal, valid_until, sent_at, accepted_at, created_at, client_id, project_id, created_by, clients(name), profiles(full_name)')
+    .select('id, number, title, status, total, valid_until, sent_at, accepted_at, created_at, client_id, project_id, created_by, clients(name), profiles(full_name)')
     .order('created_at', { ascending: false })
   if (error) throw error
   return data
@@ -42,12 +42,12 @@ const cols = await useColumns<Row>('quotes', [
   { key: 'title', label: 'Title', sort: q => q.title },
   { key: 'owner', label: 'Owner', sort: q => owner(q) },
   { key: 'valid', label: 'Valid until', sort: q => q.valid_until },
-  { key: 'total', label: 'Total', align: 'right', sort: q => q.subtotal, permission: 'see_money' },
+  { key: 'total', label: 'Total', align: 'right', sort: q => q.total, permission: 'see_money' },
   { key: 'status', label: 'Status', sort: q => badge(q).label },
 ])
 const rows = computed(() => cols.sorted((quotes.value ?? []).filter(q => filter.value === 'all' || q.status === filter.value)))
-const outstanding = computed(() => (quotes.value ?? []).filter(q => q.status === 'sent').reduce((s, q) => s + q.subtotal, 0))
-const won = computed(() => (quotes.value ?? []).filter(q => q.status === 'accepted' && q.accepted_at && q.accepted_at.slice(0, 4) === today.slice(0, 4)).reduce((s, q) => s + q.subtotal, 0))
+const outstanding = computed(() => (quotes.value ?? []).filter(q => q.status === 'sent').reduce((s, q) => s + q.total, 0))
+const won = computed(() => (quotes.value ?? []).filter(q => q.status === 'accepted' && q.accepted_at && q.accepted_at.slice(0, 4) === today.slice(0, 4)).reduce((s, q) => s + q.total, 0))
 const badge = (q: Row) => quoteBadge(q, today)
 
 // Who wrote it, as initials, the way tasks show assignees.
@@ -68,7 +68,7 @@ const stages: { key: Row['status'], label: string }[] = [
 ]
 const columns = computed(() => stages.map((s) => {
   const items = (quotes.value ?? []).filter(q => q.status === s.key || (s.key === 'sent' && q.status === 'expired'))
-  return { ...s, items, total: items.reduce((t, q) => t + q.subtotal, 0) }
+  return { ...s, items, total: items.reduce((t, q) => t + q.total, 0) }
 }))
 
 const creating = ref(false)
@@ -130,7 +130,7 @@ async function create() {
                 <NuxtLink v-else-if="c.key === 'title'" :to="`/quotes/${q.id}`" class="hover:underline">{{ q.title }}</NuxtLink>
                 <span v-else-if="c.key === 'owner' && owner(q)" class="grid size-6 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default" :title="owner(q)">{{ initials(owner(q)) }}</span>
                 <span v-else-if="c.key === 'valid'" class="tabular-nums">{{ q.valid_until ? shortDate(q.valid_until) : '' }}</span>
-                <template v-else-if="c.key === 'total'">{{ money(q.subtotal) }}</template>
+                <template v-else-if="c.key === 'total'">{{ money(q.total) }}</template>
                 <span v-else-if="c.key === 'status'" class="inline-flex items-center gap-1.5">
                   <UBadge :color="badge(q).color" variant="subtle" size="sm">{{ badge(q).label }}</UBadge>
                   <UTooltip v-if="stale(q)" :text="staleNote(q)"><span class="block size-2 rounded-full bg-warning" aria-label="Waiting on a reply" /></UTooltip>
@@ -166,7 +166,7 @@ async function create() {
                 <span v-if="owner(q)" class="grid size-6 shrink-0 place-items-center rounded-full bg-elevated text-[10px] font-medium ring-2 ring-default" :title="owner(q)">{{ initials(owner(q)) }}</span>
               </div>
               <div class="mt-2 flex items-center gap-1.5 text-xs text-muted">
-                <span class="font-medium tabular-nums text-default">{{ money(q.subtotal) }}</span>
+                <span class="font-medium tabular-nums text-default">{{ money(q.total) }}</span>
                 <span v-if="q.valid_until" class="tabular-nums">&middot; until {{ shortDate(q.valid_until) }}</span>
                 <span class="ml-auto inline-flex items-center gap-1.5">
                   <UBadge v-if="badge(q).label !== col.key" :color="badge(q).color" variant="subtle" size="xs">{{ badge(q).label }}</UBadge>
