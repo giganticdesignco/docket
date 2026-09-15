@@ -10,17 +10,26 @@ const toast = useToast()
 const { can } = useCurrentUser()
 
 const value = computed({ get: () => props.modelValue, set: v => emit('update:modelValue', v) })
-const items = computed(() => props.clients.map(c => ({ label: c.name, value: c.id })))
+// Clients made here are kept locally too. A parent's list usually comes
+// from useAsyncData, a shallow ref, so pushing into it on @created does
+// not re-render this picker, and the select would show the new id.
+const added = ref<{ id: string, name: string }[]>([])
+const all = computed(() => {
+  const known = new Set(props.clients.map(c => c.id))
+  return [...props.clients, ...added.value.filter(c => !known.has(c.id))]
+})
+const items = computed(() => all.value.map(c => ({ label: c.name, value: c.id })))
 const creating = ref(false)
 async function create(label: string) {
   const name = label.trim()
   if (!name) return
-  const existing = props.clients.find(c => c.name.toLowerCase() === name.toLowerCase())
+  const existing = all.value.find(c => c.name.toLowerCase() === name.toLowerCase())
   if (existing) { value.value = existing.id; return }
   creating.value = true
   const { data, error } = await supabase.from('clients').insert({ name }).select('id, name').single()
   creating.value = false
   if (error) { toast.add({ title: 'Could not add the client', description: error.code === '42501' ? 'You need the manage reference data permission.' : error.message, color: 'error' }); return }
+  added.value.push(data)
   emit('created', data)
   value.value = data.id
   toast.add({ title: 'Client added', description: data.name, color: 'success', duration: 2500 })

@@ -3160,3 +3160,26 @@ task."
 **Migration 2.** Once commit 0725cae was live on Vercel, migration
 `drop_quote_sitemap_nodes` dropped the old table, and
 `shared/types/database.ts` was regenerated without it.
+
+## A new client showed its id in the picker (2026-09-15)
+
+When you created a client inline with ClientPicker, the select showed
+the new client's id instead of its name until the page reloaded. This
+happened on Quotes, Invoices, the Estimator, and both site plan screens.
+Parents handled `@created` with `clients?.push(c)`. That list comes from
+`useAsyncData`, and in Nuxt 4 its `data` is a shallow ref, so pushing
+into the array never re-rendered the picker. The select had a value
+with no matching item. ProjectForm was fine because it pushes into its
+own `ref`.
+
+Fixed once, in `ClientPicker.vue`. The picker keeps the clients it
+creates in a local list and merges them with the parent's list,
+removing duplicates by id. The duplicate-name check uses the merged
+list too. The parents are unchanged, and their pushes are now
+harmless.
+
+Verified in Luke's Chrome. On Quotes (New quote), "ZZ TEST picker"
+showed its id before the fix, and "ZZ TEST picker 2" showed its name
+after. On Invoices (Blank invoice), "ZZ TEST picker 3" showed its name,
+with Create draft enabled. No quote or invoice was made. The three test
+clients were deleted afterward.
