@@ -449,10 +449,12 @@ time entry freezes its rate when it is saved.
   false margin.
 
 Docket bills directly; QuickBooks and Harvest are not in the path.
-The Invoices page still lists the Harvest years, read only and marked
-Harvest, so the history is searchable in one place. It opens with every
-open Harvest invoice plus the latest thousand; a button at the foot of
-the list loads the rest.
+The Invoices page still lists the Harvest years, marked Harvest, so the
+history is searchable in one place. It opens with every open Harvest
+invoice plus the latest thousand; a button at the foot of the list
+loads the rest. A Harvest invoice's number opens its detail page in
+Docket, with the same lines it had in Harvest; it stays read only,
+there is no edit, send, or delete.
 
 - **Unbilled** (under Invoices) lists each client's unbilled billable
   time and expenses. Pick a client and a period, choose entries, and

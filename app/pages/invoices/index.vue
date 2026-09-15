@@ -2,8 +2,8 @@
 // Every invoice, Docket's own and the Harvest history, with what is
 // outstanding and what is late. New invoices usually start from a batch
 // (Billing); this page can also start a blank one for a client. Harvest
-// rows are read only: the number opens nothing, the badge says where it
-// came from, and a closed one in Harvest means written off.
+// rows are read only: the number opens their detail page, the badge
+// says where they came from, and a closed one in Harvest means written off.
 definePageMeta({ middleware: 'can', permission: 'manage_invoices' })
 useHead({ title: 'Invoices' })
 
@@ -168,7 +168,7 @@ async function createBlank() {
             <td v-for="c in cols.visible" :key="c.key" class="px-4 py-2" :class="[c.align === 'right' ? 'text-right tabular-nums' : '', c.key === 'subject' ? 'max-w-xs truncate text-muted' : '']" :title="c.key === 'subject' ? i.subject ?? '' : undefined">
               <template v-if="c.key === 'number'">
                 <NuxtLink v-if="i.source === 'docket'" :to="`/invoices/${i.id}`" class="font-medium tabular-nums hover:underline">{{ i.number }}</NuxtLink>
-                <span v-else class="font-medium tabular-nums" title="Imported from Harvest; open it there for the lines">{{ i.number }} <UBadge color="neutral" variant="subtle" size="sm" class="ml-1 align-middle">Harvest</UBadge></span>
+                <NuxtLink v-else :to="`/invoices/harvest/${i.id}`" class="font-medium tabular-nums hover:underline" title="Imported from Harvest">{{ i.number }} <UBadge color="neutral" variant="subtle" size="sm" class="ml-1 align-middle">Harvest</UBadge></NuxtLink>
               </template>
               <template v-else-if="c.key === 'client'">
                 <NuxtLink v-if="i.client_id" :to="`/clients/${i.client_id}`" class="hover:underline">{{ i.client_name }}</NuxtLink>

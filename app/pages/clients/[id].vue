@@ -525,7 +525,7 @@ const billingLabel = (v: string) => BILLING_METHODS.find(b => b.value === v)?.la
             <tr v-for="inv in invoices" :key="inv.id" class="border-b border-default last:border-0">
               <td class="px-4 py-2 font-medium tabular-nums">
                 <NuxtLink v-if="inv.source === 'docket'" :to="`/invoices/${inv.id}`" class="hover:underline">{{ inv.number }}</NuxtLink>
-                <span v-else title="Imported from Harvest; open it there for the lines">{{ inv.number }} <UBadge color="neutral" variant="subtle" size="sm" class="ml-1 align-middle">Harvest</UBadge></span>
+                <NuxtLink v-else :to="`/invoices/harvest/${inv.id}`" class="hover:underline" title="Imported from Harvest">{{ inv.number }} <UBadge color="neutral" variant="subtle" size="sm" class="ml-1 align-middle">Harvest</UBadge></NuxtLink>
               </td>
               <td class="max-w-sm truncate px-2 py-2 text-muted" :title="inv.subject ?? ''">{{ inv.subject }}</td>
               <td class="px-2 py-2 tabular-nums">{{ shortDate(inv.issue_date) }}</td>
