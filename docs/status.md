@@ -2983,3 +2983,34 @@ in-app Browser pane and from `curl`), unlike the working pattern in
 the workflow memory. The editor's tax field and totals follow the
 already-verified invoice editor's pattern exactly and `npx nuxt
 typecheck` is clean, but worth a look next time the editor is open.
+
+## Two more from the Feedback page (2026-09-15)
+
+**Home's agenda links a busy block to Google Calendar.** The row only
+ever had start and end times, on purpose: busy blocks come from
+Google's free/busy API (`server/utils/google.ts`), which returns no
+event id or title, unlike the full events API. A real per-event link
+would mean switching APIs and pulling in event titles, a bigger
+change with its own privacy call, so this opens Google Calendar's day
+view for that date instead (`calendarDayLink()` in `app/utils/time.ts`),
+in a new tab. No new data stored.
+
+**A Harvest invoice's number now opens its detail in Docket.** It used
+to be dead text ("open it there for the lines"); `harvest_invoices`
+already carries a full `line_items` jsonb array from the import, just
+never rendered. New page `app/pages/invoices/harvest/[id].vue`: header,
+line items, and totals, read only (no edit, send, or delete, matching
+the rest of the Harvest history), money gated by `see_money` the same
+way the Invoices list already gates its Total and Outstanding columns.
+Wired up from the Invoices list and a client's own invoices table; the
+client portal's Harvest list was left alone, a separate audience
+decision. Built by `nuxt-frontend-specialist`, verified by hand-tracing
+a real multi-line invoice's `line_items` through the template (null
+`project`, a zero `tax_amount` staying hidden, a multi-line
+`description`) and a clean `npx nuxt typecheck`, for the same
+no-authenticated-browser reason as the quote tax line above.
+
+Also updated the orchestrator kit to pick up two new agents
+(`fullstack-nuxt-specialist`, `nuxt-ui-designer`) added upstream since
+the 2026-09-15 install; everything else the kit ships was already
+present.
