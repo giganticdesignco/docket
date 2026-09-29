@@ -1,9 +1,8 @@
 import { serverSupabaseServiceRole } from '#supabase/server'
 import type { Database } from '~~/shared/types/database'
 
-// Every morning, from the Vercel cron in vercel.json: pull open tasks
-// from ClickUp and this month's time and expenses from Harvest, so
-// Docket stays current until both are cancelled. In the first days of
+// Off the Vercel schedule since 2026-09-29. Pulls open tasks from
+// ClickUp and this month's time and expenses from Harvest. In the first days of
 // a month the previous month comes along too, for entries edited late.
 // Vercel sends CRON_SECRET as a bearer token; nothing else may call
 // this. Runs with the service role; the imports are the same code the

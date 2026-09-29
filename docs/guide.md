@@ -647,14 +647,12 @@ and land on a portal with their projects, the tasks shared with them,
 their quotes and invoices, and retainer burn. They can comment on shared
 tasks and approve or request changes. They see nothing else.
 
-## Imports and the morning sync
+## Imports
 
-Until Harvest and ClickUp are canceled, Docket pulls from both every
-morning: ClickUp's open tasks, and Harvest's time, expenses, and project
-budgets for the current month (plus the previous one at the start of a
-month). The Imports settings page runs the same imports by hand and
-loads history: older months roll up into the archive, invoices copy in
-for the billing page.
+Docket no longer pulls from Harvest or ClickUp on its own; the morning
+sync was turned off on 2026-09-29. The Imports settings page still runs
+the imports by hand and loads history: older months roll up into the
+archive, invoices copy in for the billing page.
 
 ClickUp has a list per client but nothing that says which project a
 task is for, so the import can only match a task to a project when the
@@ -723,5 +721,5 @@ Nothing fires while you are typing in a field.
   person, and task type for the years before Docket, so history and
   comparisons keep working after Harvest is gone.
 - **Jobs run in the database and on Vercel:** reminders hourly,
-  notification emails every five minutes, invoice reminders hourly, the
-  morning sync, calendar sync nightly, a Monday digest, the purge.
+  notification emails every five minutes, invoice reminders hourly,
+  calendar sync nightly, a Monday digest, the purge.

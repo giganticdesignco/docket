@@ -157,8 +157,9 @@ are set yet, so money is mostly blank).
 - Vercel crons send `CRON_SECRET` as a bearer token; cron routes check
   `runtimeConfig.cronSecret` and nothing else may call them. Crons:
   `/api/google/sync-all` (calendars, nightly), `/api/ai/digest` (Monday),
-  `/api/sync/morning` (ClickUp tasks and Harvest time, expenses, and
-  project budgets, every morning; `?dry=1` for a no-write check).
+  `/api/ai/brief` (weekdays). The ClickUp and Harvest morning sync
+  (`/api/sync/morning`) was taken off the schedule 2026-09-29; the route
+  and the manual Imports pages remain.
 - A table with two foreign keys to the same table cannot take an
   unhinted embed: `profiles(full_name)` on `expenses`,
   `work_item_comments`, `time_entries` or `work_items` returns PGRST201

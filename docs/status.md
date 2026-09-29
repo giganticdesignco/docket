@@ -3420,3 +3420,11 @@ Migration `drop_site_plan_v1_columns` then dropped
 parts were untouched. `schema.sql` matches the result, including a page
 templates seed with no hours, and `shared/types/database.ts` was
 regenerated. Typecheck is clean.
+
+## Morning sync off (2026-09-29)
+
+Luke asked to stop the nightly ClickUp and Harvest imports. The
+`/api/sync/morning` entry is gone from `vercel.json`, so Vercel no
+longer calls it. The route stays (cron secret only) and the Imports
+settings pages still run each import by hand. The guide and CLAUDE.md
+say so.

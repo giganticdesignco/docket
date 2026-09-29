@@ -218,7 +218,7 @@ const num = (n: number | null | undefined) => (n ?? 0).toLocaleString(undefined,
             <UButton icon="i-lucide-briefcase" variant="outline" :disabled="running" @click="syncProjects">Sync project details</UButton>
           </div>
           <p class="text-xs text-muted">
-            The morning sync skips a timer that was still running when it ran, because its hours are only partial.
+            A sync skips a timer that is still running, because its hours are only partial.
             Stop the timer and press Catch up yesterday to pull it in. Safe to press twice.
             Entries for people without a Docket profile are skipped and listed below. Add them in Supabase Auth, then sync again.
             Project details (budget, rate, billing method, active) are copied from Harvest at the end of every sync.
