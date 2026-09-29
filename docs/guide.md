@@ -720,6 +720,6 @@ Nothing fires while you are typing in a field.
 - **The Harvest archive** holds monthly totals per client, project,
   person, and task type for the years before Docket, so history and
   comparisons keep working after Harvest is gone.
-- **Jobs run in the database and on Vercel:** reminders hourly,
-  notification emails every five minutes, invoice reminders hourly,
-  calendar sync nightly, a Monday digest, the purge.
+- **Scheduled jobs are paused for now:** reminders, notification
+  emails, invoice reminders, calendar sync, the Monday digest, the
+  weekday brief, retainer renewals, and the purge of deleted rows.

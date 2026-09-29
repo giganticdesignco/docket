@@ -83,7 +83,7 @@ migration; change both. Read it before writing queries. Not obvious:
   screen. `useViewState(key, defaults)` and `persisted(view, field)`.
 - **Deletes are soft** on tasks, time entries, expenses, and comments: a
   BEFORE DELETE trigger sets `deleted_at`, RLS hides the row,
-  `restore_deleted()` brings it back within thirty days, pg_cron purges
+  `restore_deleted()` brings it back within thirty days, pg_cron purges (paused, see Gotchas)
   after. App code still calls `.delete()` and then `useUndo().offerRestore`.
   Any new security definer function that reads those tables must filter
   `deleted_at is null` itself.
@@ -155,11 +155,13 @@ are set yet, so money is mostly blank).
   `saveRedirectToCookie` sends a signed-out person back where they were
   headed (the OAuth consent page needs this).
 - Vercel crons send `CRON_SECRET` as a bearer token; cron routes check
-  `runtimeConfig.cronSecret` and nothing else may call them. Crons:
-  `/api/google/sync-all` (calendars, nightly), `/api/ai/digest` (Monday),
-  `/api/ai/brief` (weekdays). The ClickUp and Harvest morning sync
-  (`/api/sync/morning`) was taken off the schedule 2026-09-29; the route
-  and the manual Imports pages remain.
+  `runtimeConfig.cronSecret` and nothing else may call them. **Every
+  scheduled job is paused as of 2026-09-29**: `vercel.json` has no crons
+  (the routes `/api/google/sync-all`, `/api/ai/digest`, `/api/ai/brief`,
+  `/api/sync/morning` remain), and every `docket-*` pg_cron job is set
+  `active = false`, so reminders, notification emails, retainer renewals
+  and the soft-delete purge do not run. Bring one back with
+  `cron.alter_job(jobid, active := true)`.
 - A table with two foreign keys to the same table cannot take an
   unhinted embed: `profiles(full_name)` on `expenses`,
   `work_item_comments`, `time_entries` or `work_items` returns PGRST201

@@ -4720,3 +4720,11 @@ grant select (id, full_name, email, role, is_active, created_at, tours_seen, cli
 grant select (id, client_id, name, code, billing_method, budget_hours, budget_amount, is_active, created_at, harvest_id, server_path, search, client_visible, lead_id, department_id) on public.projects to authenticated;
 grant select (project_id, task_id) on public.project_tasks to authenticated;
 grant select (id, user_id, project_id, task_id, spent_on, started_at, ended_at, hours, notes, is_billable, is_locked, batch_id, created_at, updated_at, harvest_id, work_item_id, deleted_at, deleted_by, status, submitted_at, reviewed_at, reviewed_by, reject_reason) on public.time_entries to authenticated;
+
+-- 2026-09-29: every scheduled job paused (pause_all_cron_jobs). The
+-- definitions above stay; set active := true to bring one back.
+do $$ begin
+  perform cron.alter_job(jobid, active := false) from cron.job where jobname like 'docket-%';
+exception when others then
+  raise notice 'pg_cron not available here, jobs not paused: %', sqlerrm;
+end $$;

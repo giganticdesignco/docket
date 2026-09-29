@@ -3428,3 +3428,15 @@ Luke asked to stop the nightly ClickUp and Harvest imports. The
 longer calls it. The route stays (cron secret only) and the Imports
 settings pages still run each import by hand. The guide and CLAUDE.md
 say so.
+
+## All scheduled jobs paused (2026-09-29)
+
+Luke asked to shut down every cron while Docket is not yet in use.
+`vercel.json` has no crons; the routes stay. Migration
+`pause_all_cron_jobs` sets every `docket-*` pg_cron job `active =
+false` (reminders, invoice reminders, notification emails, due
+notifications, retainer renewals, purge of deleted rows); `schema.sql`
+ends with the same. Nothing is unscheduled, so turning one back on is
+`cron.alter_job(jobid, active := true)`. Notifications still queue in
+the app while emails are paused, so check the backlog before turning
+`docket-notification-emails` back on.
